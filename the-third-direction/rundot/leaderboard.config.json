@@ -1,0 +1,8 @@
+{
+  "requiresToken": false,
+  "scoreOrder": "lowest",
+  "minScore": 1,
+  "maxScore": 86400,
+  "minDurationSec": 1,
+  "maxDurationSec": 86400
+}

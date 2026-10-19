@@ -1,0 +1,23 @@
+{
+  "name": "the-third-direction",
+  "version": "0.1.0",
+  "description": "A baby blob, a forest of strange monsters, and the third dimension. Built for the RUN.world October Jam (Monster Mash).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && rundot deploy",
+    "build:standalone": "tsc && vite build --config vite.standalone.config.ts"
+  },
+  "dependencies": {
+    "@series-inc/rundot-game-sdk": "5.28.1",
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "@types/three": "~0.170.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.3.5"
+  }
+}
