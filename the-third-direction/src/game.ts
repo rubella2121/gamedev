@@ -3,6 +3,7 @@ import { Act1 } from './act1/act1';
 import { Act2 } from './act2/act2';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
+import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
 import { onLifecycle, shareRun, submitClearTime, track } from './sdk';
@@ -26,12 +27,14 @@ export class Game {
   private paused = false;
   private runStart = 0;
   private flash3D = 0;
+  private res = 1;
   private showcaseRun = false;
   fps = 0;
   private fpsN = 0;
   private fpsT = 0;
 
   constructor(root: HTMLElement) {
+    loadDifficulty();
     this.ui = new UI(root);
     this.input = new Input(this.ui.stage);
     try {
@@ -62,7 +65,18 @@ export class Game {
     };
     this.act1.start();
     this.act1.previewMode = true;
-    this.ui.showStart(() => this.begin(), () => this.showcase());
+    this.ui.skip(false);
+    this.ui.showStart({
+      onPlay: () => this.begin(),
+      onShowcase: () => this.showcase(),
+      onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
+      onDifficulty: (id) => setDifficulty(id),
+      difficulty: D.id,
+      best: () => {
+        const b = bestTime(D.id);
+        return b === null ? null : `${D.label.toLowerCase()} ${fmtTime(b)}`;
+      },
+    });
 
     onLifecycle(
       () => this.setPaused(true),
@@ -70,6 +84,13 @@ export class Game {
     );
     document.addEventListener('visibilitychange', () => this.setPaused(document.hidden));
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /** The 2D forest is drawn at 216x384; the 3D world gets twice that so the character reads well. */
+  private setRes(k: number) {
+    if (this.res === k) return;
+    this.res = k;
+    this.renderer.setSize(W * k, H * k, false);
   }
 
   private setPaused(p: boolean) {
@@ -100,9 +121,10 @@ export class Game {
     this.state = 'end';
     track('game_complete');
     const s = this.summary();
-    const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, () => this.restart(), () => shareRun(s.time, s.deaths));
-    // the showcase skips the story, so its time never goes on the leaderboard
-    if (!this.showcaseRun) {
+    // the showcase skips the story, so its time is never recorded or ranked
+    const newBest = !this.showcaseRun && recordTime(D.id, this.elapsed);
+    const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, D.label, newBest, () => this.restart(), () => shareRun(s.time, s.deaths), () => this.home());
+    if (!this.showcaseRun && D.ranked) {
       void submitClearTime(this.elapsed, s.deaths).then((r) => {
         if (r && r.rank) rankEl.innerHTML = `rank <b>#${r.rank}</b>${r.total ? ` of ${r.total}` : ''}`;
       });
@@ -145,6 +167,12 @@ export class Game {
     this.begin();
   }
 
+  /** Back to the home page (used by the end card). */
+  home() {
+    this.ui.hideEnd();
+    location.reload();
+  }
+
   get elapsed() {
     return (performance.now() - this.runStart) / 1000;
   }
@@ -164,11 +192,13 @@ export class Game {
     this.input.update(dt);
     this.audio.update(dt);
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
+      this.setRes(2);
       this.act2.update(dt);
       if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
       if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
       this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
     } else if (this.state === 'act1' || this.state === 'menu') {
+      this.setRes(1);
       if (this.state === 'act1') this.act1.update(dt);
       this.act1.render();
       this.tex2d.needsUpdate = true;

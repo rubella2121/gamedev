@@ -12,6 +12,15 @@ export class Input {
   actionHold = 0;
   usingTouch = false;
   moveEnabled = true;
+  /** 3D camera: drag on the right side (any drag with a mouse), or Q / E. */
+  cameraEnabled = false;
+  camKey = 0;
+  camReset = false;
+  private camDX = 0;
+  private camDY = 0;
+  private camId = -1;
+  private camLX = 0;
+  private camLY = 0;
 
   private keys = new Set<string>();
   private joyId = -1;
@@ -69,10 +78,11 @@ export class Input {
 
   private onKey(e: KeyboardEvent, down: boolean) {
     const k = e.key.toLowerCase();
-    const handled = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', ' ', 'enter'];
+    const handled = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', ' ', 'enter', 'q', 'e', 'r'];
     if (handled.includes(k)) {
       e.preventDefault();
       if (down) {
+        if (k === 'r' && !this.keys.has(k)) this.camReset = true;
         if ((k === ' ' || k === 'enter') && !this.keys.has(k)) this.latchT = 0.07;
         this.keys.add(k);
       } else this.keys.delete(k);
@@ -81,6 +91,7 @@ export class Input {
 
   private releaseAll() {
     this.keys.clear();
+    this.camId = -1;
     this.joyId = -1;
     this.btnId = -1;
     this.joyX = this.joyY = 0;
@@ -97,6 +108,14 @@ export class Input {
     e.preventDefault();
     if (e.pointerType !== 'mouse') this.usingTouch = true;
     const p = this.rel(e);
+    if (this.cameraEnabled && this.camId < 0 && (p.x > 0.62 || e.pointerType === 'mouse')) {
+      // dragging here turns the camera; the on-screen button is what strikes
+      this.camId = e.pointerId;
+      this.camLX = e.clientX;
+      this.camLY = e.clientY;
+      try { this.layer.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+      return;
+    }
     if (p.x > 0.62) {
       // big action zone on the right
       if (this.actionEnabled && this.btnId < 0) {
@@ -121,6 +140,13 @@ export class Input {
   }
 
   private onMove(e: PointerEvent) {
+    if (e.pointerId === this.camId) {
+      this.camDX += e.clientX - this.camLX;
+      this.camDY += e.clientY - this.camLY;
+      this.camLX = e.clientX;
+      this.camLY = e.clientY;
+      return;
+    }
     if (e.pointerId !== this.joyId) return;
     const max = 34;
     let dx = e.clientX - this.joyOX;
@@ -136,6 +162,7 @@ export class Input {
   }
 
   private onUp(e: PointerEvent) {
+    if (e.pointerId === this.camId) this.camId = -1;
     if (e.pointerId === this.joyId) {
       this.joyId = -1;
       this.joyX = this.joyY = 0;
@@ -156,6 +183,21 @@ export class Input {
     } else {
       this.btn.textContent = label;
       this.btn.classList.add('show');
+    }
+  }
+
+  /** Drag distance (in CSS pixels) since the last call, then reset. */
+  takeCam(): { dx: number; dy: number } {
+    const r = { dx: this.camDX, dy: this.camDY };
+    this.camDX = this.camDY = 0;
+    return r;
+  }
+
+  setCameraEnabled(on: boolean) {
+    this.cameraEnabled = on;
+    if (!on) {
+      this.camId = -1;
+      this.camDX = this.camDY = 0;
     }
   }
 
@@ -184,6 +226,7 @@ export class Input {
       my = this.joyY * k;
     }
     if (!this.moveEnabled) mx = my = 0;
+    this.camKey = (this.keys.has('e') ? 1 : 0) - (this.keys.has('q') ? 1 : 0);
     this.moveX = clamp(mx, -1, 1);
     this.moveY = clamp(my, -1, 1);
 

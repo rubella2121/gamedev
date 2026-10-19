@@ -1,3 +1,14 @@
+import { PRESETS, type DiffId } from './core/difficulty';
+
+export interface HomeOptions {
+  onPlay: () => void;
+  onShowcase: () => void;
+  onSound: (on: boolean) => void;
+  onDifficulty: (id: DiffId) => void;
+  difficulty: DiffId;
+  best: () => string | null;
+}
+
 /** All DOM overlays: captions, hints, hearts, title card, start and end screens. */
 export class UI {
   readonly stage: HTMLElement;
@@ -15,6 +26,9 @@ export class UI {
   private endEl: HTMLElement;
   private moonEl: HTMLElement;
   private capTimer = 0;
+  private heartMax = 3;
+  private recenterEl: HTMLButtonElement;
+  private onRecenter: (() => void) | null = null;
   private onSkip: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
@@ -39,12 +53,7 @@ export class UI {
     this.hintEl = mk('hint');
     this.phaseEl = mk('phase');
     this.heartsEl = mk('hearts');
-    for (let i = 0; i < 3; i++) {
-      this.heartsEl.insertAdjacentHTML(
-        'beforeend',
-        '<svg class="heart" viewBox="0 0 7 6"><path d="M1 0h2v1H1z M4 0h2v1H4z M0 1h7v2H0z M1 3h5v1H1z M2 4h3v1H2z M3 5h1v1H3z"/></svg>',
-      );
-    }
+    this.buildHearts(3);
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
     this.skipEl = mk('skip', 'button') as HTMLButtonElement;
@@ -52,6 +61,12 @@ export class UI {
     this.skipEl.addEventListener('click', (e) => {
       e.stopPropagation();
       this.onSkip?.();
+    });
+    this.recenterEl = mk('recenter', 'button') as HTMLButtonElement;
+    this.recenterEl.textContent = '◎';
+    this.recenterEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onRecenter?.();
     });
     this.startEl = mk('start hide');
     this.endEl = mk('endcard hide');
@@ -103,11 +118,24 @@ export class UI {
     }
   }
 
-  hearts(n: number | null) {
+  private buildHearts(max: number) {
+    this.heartsEl.innerHTML = '';
+    this.heartMax = max;
+    for (let i = 0; i < max; i++) {
+      this.heartsEl.insertAdjacentHTML(
+        'beforeend',
+        '<svg class="heart" viewBox="0 0 7 6"><path d="M1 0h2v1H1z M4 0h2v1H4z M0 1h7v2H0z M1 3h5v1H1z M2 4h3v1H2z M3 5h1v1H3z"/></svg>',
+      );
+    }
+  }
+
+  /** Show n hearts out of `max` (the difficulty decides the maximum). */
+  hearts(n: number | null, max?: number) {
     if (n === null) {
       this.heartsEl.classList.remove('show');
       return;
     }
+    if (max !== undefined && max !== this.heartMax) this.buildHearts(max);
     this.heartsEl.classList.add('show');
     Array.from(this.heartsEl.children).forEach((h, i) => h.classList.toggle('lost', i >= n));
   }
@@ -118,6 +146,12 @@ export class UI {
       this.phaseEl.textContent = text;
       this.phaseEl.classList.add('show');
     }
+  }
+
+  /** The small camera-recentre button shown during the 3D fight. */
+  recenter(show: boolean, cb?: () => void) {
+    this.onRecenter = cb ?? null;
+    this.recenterEl.classList.toggle('show', show);
   }
 
   skip(show: boolean, cb?: () => void) {
@@ -140,44 +174,106 @@ export class UI {
     this.moonEl.classList.add('blink');
   }
 
-  showStart(onStart: () => void, onShowcase?: () => void) {
-    this.startEl.innerHTML = '';
-    const hint = document.createElement('div');
-    hint.className = 'small pulse';
-    hint.textContent = 'best with sound on';
-    const b = document.createElement('button');
-    b.className = 'btn';
-    b.textContent = 'Start';
-    b.addEventListener('click', () => {
-      this.startEl.classList.add('hide');
-      onStart();
+  /** The home page: title, Play, difficulty, how to play, showcase and a sound switch. */
+  showStart(o: HomeOptions) {
+    const el = this.startEl;
+    el.innerHTML = '';
+    const mk = (cls: string, text = '', tag = 'div') => {
+      const e = document.createElement(tag);
+      e.className = cls;
+      if (text) e.textContent = text;
+      return e;
+    };
+    const home = mk('home');
+    const eyebrow = mk('eyebrow', 'RUN October Jam · Monster Mash');
+    const logo = mk('logo');
+    logo.innerHTML = 'The Third<br><span>Direction</span>';
+    const tag = mk('tag', "don't look up");
+    const spacer = mk('spacer');
+
+    const play = mk('btn play', 'Play', 'button');
+    play.addEventListener('click', () => {
+      el.classList.add('hide');
+      o.onPlay();
     });
-    this.startEl.append(b);
-    if (onShowcase) {
-      const s = document.createElement('button');
-      s.className = 'btn ghost';
-      s.textContent = 'Quick showcase';
-      s.addEventListener('click', () => {
-        this.startEl.classList.add('hide');
-        onShowcase();
+
+    const diff = mk('diff');
+    const seg = mk('seg');
+    const blurb = mk('blurb');
+    const ids: DiffId[] = ['gentle', 'normal', 'nightmare'];
+    const refresh = (id: DiffId) => {
+      Array.from(seg.children).forEach((c, i) => c.classList.toggle('on', ids[i] === id));
+      blurb.textContent = PRESETS[id].blurb;
+    };
+    ids.forEach((id) => {
+      const b = mk('segbtn', PRESETS[id].label, 'button');
+      b.addEventListener('click', () => {
+        o.onDifficulty(id);
+        refresh(id);
       });
-      this.startEl.append(s);
-    }
-    this.startEl.append(hint);
-    this.startEl.classList.remove('hide');
+      seg.append(b);
+    });
+    refresh(o.difficulty);
+    diff.append(seg, blurb);
+
+    const row = mk('row');
+    const how = mk('btn ghost', 'How to play', 'button');
+    how.addEventListener('click', () => this.showHowTo());
+    const show = mk('btn ghost', 'Quick showcase', 'button');
+    show.addEventListener('click', () => {
+      el.classList.add('hide');
+      o.onShowcase();
+    });
+    row.append(how, show);
+
+    const foot = mk('foot');
+    const best = mk('small', o.best() ? `best ${o.best()}` : 'best with sound on');
+    const sound = mk('chip', 'sound on', 'button');
+    let on = true;
+    sound.addEventListener('click', () => {
+      on = !on;
+      sound.textContent = on ? 'sound on' : 'sound off';
+      o.onSound(on);
+    });
+    foot.append(best, sound);
+
+    home.append(eyebrow, logo, tag, spacer, play, diff, row, foot);
+    el.append(home);
+    el.classList.remove('hide');
   }
 
-  showEnd(line: string, time: string, deaths: number, onAgain: () => void, onShare: () => Promise<boolean>): HTMLElement {
+  /** Controls and tips, shown over the home page. */
+  private showHowTo() {
+    const card = document.createElement('div');
+    card.className = 'howto';
+    card.innerHTML = `
+      <div class="hh">How to play</div>
+      <div class="hrow"><b>Move</b><span>drag on the left side of the screen<br>or WASD / arrow keys</span></div>
+      <div class="hrow"><b>Act</b><span>the glowing button, or Space.<br>It only appears when it is useful.</span></div>
+      <div class="hrow"><b>Camera</b><span>in 3D, drag on the right side<br>or Q / E. R recentres.</span></div>
+      <div class="htip">Stay in the light. Freeze in the reeds.<br>When X gets stuck, strike.</div>`;
+    const close = document.createElement('button');
+    close.className = 'btn ghost';
+    close.textContent = 'Close';
+    close.addEventListener('click', () => card.remove());
+    card.append(close);
+    this.startEl.append(card);
+  }
+
+  showEnd(line: string, time: string, deaths: number, mode: string, newBest: boolean, onAgain: () => void, onShare: () => Promise<boolean>, onMenu: () => void): HTMLElement {
     this.endEl.innerHTML = '';
     const big = document.createElement('div');
     big.className = 'big';
     big.textContent = line;
     const t = document.createElement('div');
     t.className = 'stat';
-    t.innerHTML = `time <b>${time}</b>`;
+    t.innerHTML = `time <b>${time}</b>${newBest ? ' <i>new best</i>' : ''}`;
     const d = document.createElement('div');
     d.className = 'stat';
     d.innerHTML = `deaths <b>${deaths}</b>`;
+    const m = document.createElement('div');
+    m.className = 'small';
+    m.textContent = mode;
     const b = document.createElement('button');
     b.className = 'btn';
     b.textContent = 'Play again';
@@ -193,9 +289,13 @@ export class UI {
         share.textContent = ok ? 'Shared' : 'Share';
       });
     });
+    const menu = document.createElement('button');
+    menu.className = 'btn ghost';
+    menu.textContent = 'Menu';
+    menu.addEventListener('click', onMenu);
     const rank = document.createElement('div');
     rank.className = 'stat rank';
-    this.endEl.append(big, t, d, rank, b, share);
+    this.endEl.append(big, t, d, m, rank, b, share, menu);
     this.endEl.classList.remove('hide');
     return rank;
   }

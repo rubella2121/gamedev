@@ -5,7 +5,11 @@ import { hash2, rng, TAU } from '../core/util';
 import { drawBlob } from '../core/art';
 
 const BG = 0x120a22;
-export const ARENA_R = 9;
+export const ARENA_R = 18;
+/** Where the Hollow stands, beyond the far edge of the platform. */
+export const BOSS_Z = -29;
+/** How many arms rake the floor at once. */
+export const LANES = 9;
 
 function tex(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
@@ -50,7 +54,7 @@ function bigBlob(): THREE.CanvasTexture {
 
 export class Arena {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(64, W / H, 0.1, 170);
+  readonly camera = new THREE.PerspectiveCamera(64, W / H, 0.1, 320);
   readonly world = new THREE.Group();
   readonly boss = new THREE.Group();
   readonly head = new THREE.Group();
@@ -79,7 +83,8 @@ export class Arena {
   private platform!: THREE.InstancedMesh;
   private pillars: THREE.Group[] = [];
   readonly pillarData: { x: number; z: number; hp: number; alive: boolean; g: THREE.Group }[] = [];
-  private body!: THREE.Mesh;
+  private skin!: THREE.MeshLambertMaterial;
+  private rig!: { model: THREE.Group; body: THREE.Group; legs: THREE.Group[]; arms: THREE.Group[]; eyes: THREE.Group[] };
   private thirdEye!: THREE.Mesh;
   private glow: THREE.PointLight;
   private redLight: THREE.PointLight;
@@ -102,7 +107,7 @@ export class Arena {
 
   constructor() {
     this.scene.background = new THREE.Color(BG);
-    this.scene.fog = new THREE.Fog(BG, 26, 70);
+    this.scene.fog = new THREE.Fog(BG, 48, 160);
     this.scene.add(this.world);
 
     // lights (three r170 uses physical units, so intensities carry a PI factor)
@@ -120,6 +125,7 @@ export class Arena {
     this.world.add(this.redLight);
 
     this.buildPlatform();
+    this.buildRocks();
     this.buildStars();
     this.buildWall();
     this.buildBoss();
@@ -136,8 +142,8 @@ export class Arena {
     this.shadow.position.y = 0.06;
     this.shadow.visible = false;
     this.world.add(this.shadow);
-    for (let i = 0; i < 3; i++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(26, 0.05, 0.5), new THREE.MeshBasicMaterial({ color: 0xff3a4a, transparent: true, opacity: 0.9 }));
+    for (let i = 0; i < LANES; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(52, 0.05, 0.5), new THREE.MeshBasicMaterial({ color: 0xff3a4a, transparent: true, opacity: 0.9 }));
       m.position.y = 0.08;
       m.visible = false;
       this.lanes.push(m);
@@ -163,10 +169,11 @@ export class Arena {
 
   private buildPlatform() {
     const rnd = rng(5);
-    for (let x = -10; x <= 10; x++) {
-      for (let z = -10; z <= 10; z++) {
+    const R = ARENA_R;
+    for (let x = -R - 1; x <= R + 1; x++) {
+      for (let z = -R - 1; z <= R + 1; z++) {
         const d = Math.hypot(x, z);
-        if (d <= ARENA_R + 0.3 && !(d > ARENA_R - 1.3 && rnd() < 0.25)) this.tiles.push({ x, z, d });
+        if (d <= R + 0.3 && !(d > R - 1.3 && rnd() < 0.25)) this.tiles.push({ x, z, d });
       }
     }
     this.platform = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.7, 0.96), new THREE.MeshLambertMaterial({ color: 0xffffff }), this.tiles.length);
@@ -175,29 +182,63 @@ export class Arena {
     const forest = [0x14444f, 0x1b5a5a, 0x2e7d4f, 0x103846, 0x2a7a6c];
     this.tiles.forEach((t, i) => {
       const h = hash2(t.x * 3 + 1, t.z * 7 + 2);
-      const c = h > 0.9 ? cols[4]! : cols[Math.floor(h * 4.5) % 4]!;
-      const base = new THREE.Color(c).multiplyScalar(t.d > ARENA_R - 1.4 ? 0.7 : 1);
+      let c = h > 0.9 ? cols[4]! : cols[Math.floor(h * 4.5) % 4]!;
+      // faint stone rings and spokes, so movement reads on such a big floor
+      const ring = [5, 11.5].some((r) => Math.abs(t.d - r) < 0.55);
+      const spoke = t.d > 2 && (Math.abs(t.x) < 0.5 || Math.abs(t.z) < 0.5);
+      if (ring || spoke) c = 0x5a4a8a;
+      const base = new THREE.Color(c).multiplyScalar(t.d > R - 1.4 ? 0.7 : 1);
       this.tileBase.push(base);
-      this.tileForest.push(new THREE.Color(forest[Math.floor(hash2(t.x + 9, t.z + 4) * forest.length)]!).multiplyScalar(t.d > ARENA_R - 1.4 ? 0.75 : 1));
+      this.tileForest.push(new THREE.Color(forest[Math.floor(hash2(t.x + 9, t.z + 4) * forest.length)]!).multiplyScalar(t.d > R - 1.4 ? 0.75 : 1));
       this.platform.setColorAt(i, base);
     });
     this.world.add(this.platform);
     this.setRise(1);
 
-    // stone pillars
+    // stone pillars: a near ring and a far ring, cover from the Watcher's gaze
+    const spots: [number, number][] = [];
     for (let i = 0; i < 4; i++) {
       const a = Math.PI / 4 + (i * Math.PI) / 2;
+      spots.push([Math.cos(a) * 7.5, Math.sin(a) * 7.5 - 2]);
+    }
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + 0.2;
+      spots.push([Math.cos(a) * 13.5, Math.sin(a) * 13.5 - 2]);
+    }
+    for (const [px, pz] of spots) {
       const g = new THREE.Group();
       for (let k = 0; k < 3; k++) {
         const b = new THREE.Mesh(new THREE.BoxGeometry(1.5 - k * 0.12, 1.05, 1.5 - k * 0.12), new THREE.MeshLambertMaterial({ color: k === 2 ? 0x6a5a98 : 0x4a3d6a }));
         b.position.set((k % 2) * 0.08, 0.52 + k * 1.05, 0);
         g.add(b);
       }
-      g.position.set(Math.cos(a) * 5.6, 0, Math.sin(a) * 5.6 - 1.5);
+      g.position.set(px, 0, pz);
       this.pillars.push(g);
-      this.pillarData.push({ x: g.position.x, z: g.position.z, hp: 0.85, alive: true, g });
+      this.pillarData.push({ x: px, z: pz, hp: 0.85, alive: true, g });
       this.world.add(g);
     }
+  }
+
+  /** Small broken islands of the old world drifting around the arena. */
+  private buildRocks() {
+    const r = rng(41);
+    const n = 90;
+    const rocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), n);
+    rocks.frustumCulled = false;
+    const m = new THREE.Object3D();
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const a = r() * TAU;
+      const d = ARENA_R + 8 + r() * 38;
+      const s = 0.8 + r() * r() * 5;
+      m.position.set(Math.cos(a) * d, -3 - r() * 16 + (r() < 0.25 ? 14 : 0), Math.sin(a) * d);
+      m.rotation.set(r() * 3, r() * 3, r() * 3);
+      m.scale.set(s, s * (0.5 + r() * 0.8), s);
+      m.updateMatrix();
+      rocks.setMatrixAt(i, m.matrix);
+      rocks.setColorAt(i, c.setHex([0x2a2048, 0x34285a, 0x1b3a4a, 0x46346f][Math.floor(r() * 4)]!));
+    }
+    this.world.add(rocks);
   }
 
   setRise(u: number) {
@@ -229,9 +270,9 @@ export class Arena {
     for (let i = 0; i < n; i++) {
       const a = r() * TAU;
       const b = (r() - 0.25) * 1.5;
-      const d = 55 + r() * 20;
+      const d = 120 + r() * 30;
       pos[i * 3] = Math.cos(a) * Math.cos(b) * d;
-      pos[i * 3 + 1] = Math.sin(b) * d + 6;
+      pos[i * 3 + 1] = Math.sin(b) * d + 12;
       pos[i * 3 + 2] = Math.sin(a) * Math.cos(b) * d;
       c.setHex([0x9ff4ee, 0xe8fffb, 0xb88aff, 0xff7a9a][Math.floor(r() * 4)]!);
       col.set([c.r, c.g, c.b], i * 3);
@@ -246,15 +287,15 @@ export class Arena {
   private buildWall() {
     const kinds = [0, 1, 2, 3, 4].map(specimen);
     const rnd = rng(21);
-    const geo = new THREE.PlaneGeometry(1.9, 1.9);
-    // a curved backdrop behind the boss, seen to either side of him
-    for (let row = 0; row < 5; row++) {
-      for (let i = 0; i < 17; i++) {
-        const a = -Math.PI / 2 + (i - 8) * 0.17;
-        if (Math.abs(i - 8) < 2 && row > 1) continue;
+    const geo = new THREE.PlaneGeometry(4, 4);
+    // a ring of pinned specimens all around the arena, like a collector's wall
+    const N = 40;
+    for (let row = 0; row < 4; row++) {
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * TAU + row * 0.07;
         const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: kinds[Math.floor(rnd() * 5)]!, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: true }));
-        const r = 27 + (rnd() - 0.5) * 1.5;
-        m.position.set(Math.cos(a) * r, 2.5 + row * 3.4 + rnd() * 0.5, Math.sin(a) * r);
+        const r = 66 + (rnd() - 0.5) * 3;
+        m.position.set(Math.cos(a) * r, 2 + row * 7 + rnd(), Math.sin(a) * r);
         m.lookAt(0, m.position.y, 0);
         m.rotation.z += (rnd() - 0.5) * 0.18;
         this.pinned.push(m);
@@ -263,9 +304,9 @@ export class Arena {
     }
     const big = bigBlob();
     for (const sx of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 4), new THREE.MeshBasicMaterial({ map: big, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
-      m.position.set(sx * 13, 21, -27);
-      m.lookAt(0, 21, 0);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(11, 8.5), new THREE.MeshBasicMaterial({ map: big, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+      m.position.set(sx * 27, 38, -62);
+      m.lookAt(0, 38, 0);
       this.pinned.push(m);
       this.world.add(m);
     }
@@ -277,7 +318,7 @@ export class Arena {
     const bone = new THREE.MeshLambertMaterial({ color: 0xd8d0b8 });
     const redGlow = new THREE.MeshBasicMaterial({ color: 0xff3040 });
     const B = this.boss;
-    B.position.set(0, 0, -17);
+    B.position.set(0, 0, BOSS_Z);
     const torso = new THREE.Mesh(new THREE.BoxGeometry(8, 28, 4.4), dark);
     torso.position.y = 2;
     B.add(torso);
@@ -326,8 +367,8 @@ export class Arena {
     this.head.add(jaw);
     B.add(this.head);
 
-    // three bony arms hanging at the sides (animated in the rake)
-    for (let i = 0; i < 3; i++) {
+    // bony arms that rake across the floor, one per lane
+    for (let i = 0; i < LANES; i++) {
       // the group origin is the claw tip; the bony body trails behind it along local +x
       const arm = new THREE.Group();
       const seg = new THREE.Mesh(new THREE.BoxGeometry(16, 1.1, 1.1), bone);
@@ -383,41 +424,137 @@ export class Arena {
     this.world.add(B);
   }
 
+  /** The baby blob in 3D: a chunky voxel creature with stubby legs and arms, big eyes and a tuft. */
   private buildPlayer() {
     const P = this.player;
-    this.body = new THREE.Mesh(new THREE.SphereGeometry(0.66, 14, 10), new THREE.MeshLambertMaterial({ color: 0xf2d36b, emissive: 0x8a6420, emissiveIntensity: 0.7 }));
-    this.body.scale.set(1, 0.84, 1);
-    this.body.position.y = 0.56;
-    P.add(this.body);
+    const model = new THREE.Group();
+    model.scale.setScalar(1.25);
+    P.add(model);
+    const skin = new THREE.MeshLambertMaterial({ color: 0xf2d36b, emissive: 0x8a6420, emissiveIntensity: 0.7 });
+    this.skin = skin;
+    const belly = new THREE.MeshLambertMaterial({ color: 0xfff1a6, emissive: 0x8a7430, emissiveIntensity: 0.6 });
+    const foot = new THREE.MeshLambertMaterial({ color: 0xd9a93a, emissive: 0x5a3a10, emissiveIntensity: 0.6 });
     const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const dark = new THREE.MeshBasicMaterial({ color: 0x3a1020 });
-    for (const sx of [-1, 1]) {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), white);
-      e.position.set(sx * 0.26, 0.66, 0.56);
-      const pu = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), dark);
-      pu.position.set(0, 0, 0.1);
-      e.add(pu);
-      P.add(e);
+    const ink = new THREE.MeshBasicMaterial({ color: 0x3a1020 });
+    const blush = new THREE.MeshBasicMaterial({ color: 0xf0907c });
+    const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+      mesh.position.set(x, y, z);
+      parent.add(mesh);
+      return mesh;
+    };
+
+    // body: a pillowy cube, like a jelly cube that suits the cube world
+    const body = new THREE.Group();
+    body.position.y = 0.62;
+    model.add(body);
+    const pillow = new THREE.BoxGeometry(1, 1, 1, 7, 7, 7);
+    const pp = pillow.getAttribute('position');
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pp.count; i++) {
+      v.fromBufferAttribute(pp, i);
+      const round = v.clone().normalize().multiplyScalar(0.6);
+      v.lerp(round, 0.5);
+      pp.setXYZ(i, v.x * 1.12, v.y * 1.0, v.z * 1.0);
     }
-    this.thirdEye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2a40 }));
-    this.thirdEye.position.set(0, 1.0, 0.42);
+    pillow.computeVertexNormals();
+    const torso = new THREE.Mesh(pillow, skin);
+    torso.position.y = 0.04;
+    body.add(torso);
+    box(0.54, 0.46, 0.05, belly, 0, -0.12, 0.52, body);
+    // tuft
+    box(0.12, 0.24, 0.12, skin, 0.04, 0.72, 0, body).rotation.z = -0.25;
+    box(0.1, 0.18, 0.1, skin, -0.1, 0.68, 0.02, body).rotation.z = 0.4;
+    // face
+    const eyes: THREE.Group[] = [];
+    for (const sx of [-1, 1]) {
+      const eg = new THREE.Group();
+      eg.position.set(sx * 0.27, 0.28, 0.5);
+      box(0.28, 0.32, 0.06, white, 0, 0, 0, eg);
+      box(0.14, 0.2, 0.06, ink, sx * -0.02, -0.02, 0.04, eg);
+      body.add(eg);
+      eyes.push(eg);
+      box(0.18, 0.1, 0.05, blush, sx * 0.4, 0.04, 0.49, body);
+    }
+    box(0.16, 0.05, 0.05, ink, 0, 0.06, 0.5, body);
+    // the third eye opens later
+    this.thirdEye = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.06), new THREE.MeshBasicMaterial({ color: 0xff2a40 }));
+    this.thirdEye.position.set(0, 0.52, 0.5);
     this.thirdEye.scale.setScalar(0.001);
-    P.add(this.thirdEye);
-    // the claw that grows from its side
+    body.add(this.thirdEye);
+
+    // legs and arms pivot at the hip and shoulder
+    const legs: THREE.Group[] = [];
+    for (const sx of [-1, 1]) {
+      const lg = new THREE.Group();
+      lg.position.set(sx * 0.3, 0.3, 0.04);
+      box(0.3, 0.3, 0.36, foot, 0, -0.1, 0.04, lg);
+      model.add(lg);
+      legs.push(lg);
+    }
+    const arms: THREE.Group[] = [];
+    for (const sx of [-1, 1]) {
+      const ag = new THREE.Group();
+      ag.position.set(sx * 0.62, 0.78, 0.04);
+      box(0.2, 0.36, 0.2, skin, 0, -0.17, 0, ag);
+      model.add(ag);
+      arms.push(ag);
+    }
+
+    // the claw that grows from its right side
     const cm = new THREE.MeshLambertMaterial({ color: 0x120a1c });
-    this.claw.position.set(0.72, 0.55, 0.1);
+    this.claw.position.set(0.7, 0.78, 0.06);
     for (let i = -1; i <= 1; i++) {
       const c = new THREE.Mesh(new THREE.ConeGeometry(0.13, 1.1, 5), cm);
       c.rotation.set(Math.PI / 2 + i * 0.22, 0, -0.5);
       c.position.set(0.35, i * 0.14, 0.45);
       this.claw.add(c);
     }
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.5), cm);
-    arm.position.set(0.1, 0, 0);
-    this.claw.add(arm);
+    const carm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.34, 0.5), cm);
+    carm.position.set(0.1, 0, 0);
+    this.claw.add(carm);
     this.claw.scale.setScalar(0.001);
-    P.add(this.claw);
+    model.add(this.claw);
+
+    this.rig = { model, body, legs, arms, eyes };
     this.world.add(P);
+  }
+
+  /** Walk cycle, breathing, blinking and the claw swing. `phase` advances with distance walked. */
+  animatePlayer(dt: number, time: number, walk: number, phase: number, strike: number, hurt: boolean) {
+    const r = this.rig;
+    const w = Math.min(1, walk);
+    const swing = Math.sin(phase);
+    // body: squash with the step, breathe while idle, lean into the run
+    const sq = 1 + Math.sin(phase * 2) * 0.05 * w + Math.sin(time * 2.4) * 0.025 * (1 - w);
+    r.body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
+    r.body.position.y = 0.62 + Math.abs(swing) * 0.1 * w;
+    r.body.rotation.x = 0.14 * w;
+    // legs and arms
+    r.legs[0]!.position.y = 0.3 + Math.max(0, swing) * 0.16 * w;
+    r.legs[1]!.position.y = 0.3 + Math.max(0, -swing) * 0.16 * w;
+    r.legs[0]!.rotation.x = swing * 0.7 * w;
+    r.legs[1]!.rotation.x = -swing * 0.7 * w;
+    r.arms[0]!.rotation.x = -swing * 0.8 * w + Math.sin(time * 2.4) * 0.05;
+    const clawOut = this.claw.scale.x > 0.3;
+    r.arms[1]!.visible = !clawOut;
+    r.arms[1]!.rotation.x = swing * 0.8 * w;
+    // blink
+    const blink = Math.sin(time * 1.3) > 0.985 || (time % 3.7) < 0.1;
+    r.eyes.forEach((e) => (e.scale.y = blink ? 0.12 : 1));
+    // claw swing during a strike (strike runs 0..1)
+    if (strike > 0) {
+      const u = 1 - strike;
+      this.claw.rotation.y = -0.9 + 2.1 * (1 - Math.pow(1 - u, 3));
+      this.claw.rotation.z = Math.sin(u * Math.PI) * 0.6;
+      r.body.rotation.x += 0.25 * Math.sin(u * Math.PI);
+    } else {
+      this.claw.rotation.y *= 0.8;
+      this.claw.rotation.z *= 0.8;
+    }
+    // hurt flash
+    this.skin.emissive.setHex(hurt ? 0xc02020 : 0x8a6420);
+    void dt;
   }
 
 
@@ -486,9 +623,9 @@ export class Arena {
     const rnd = rng(31);
     const stem = new THREE.MeshLambertMaterial({ color: 0x0a2e30 });
     const bulb = new THREE.MeshBasicMaterial({ color: 0x7fd8f5 });
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 90; i++) {
       const a = rnd() * TAU;
-      const d = 2.6 + rnd() * 5.6;
+      const d = 4 + rnd() * (ARENA_R - 5.5);
       const g = new THREE.Group();
       const st = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), stem);
       st.position.y = 0.4;
@@ -501,9 +638,9 @@ export class Arena {
       this.clearing.add(g);
     }
     // the crater where the family rested
-    const crater = new THREE.Mesh(new THREE.CircleGeometry(3.4, 28), new THREE.MeshBasicMaterial({ color: 0x03050a, transparent: true, opacity: 0.85 }));
+    const crater = new THREE.Mesh(new THREE.CircleGeometry(5.6, 32), new THREE.MeshBasicMaterial({ color: 0x03050a, transparent: true, opacity: 0.85 }));
     crater.rotation.x = -Math.PI / 2;
-    crater.position.set(0, 0.04, -1);
+    crater.position.set(0, 0.04, -2);
     crater.name = 'crater';
     this.clearing.add(crater);
     // tiny monsters peek over the rim
@@ -540,12 +677,16 @@ export class Arena {
       this.peekers.push({ g, delay: 0.5 + rnd() * 0.5 });
       this.clearing.add(g);
     };
-    mk(0, 6.6, -3.4);
-    mk(1, -6.4, -4);
-    mk(2, 5.2, -6.2);
-    mk(3, -5, -6.4);
-    mk(1, 7.4, 1.6);
-    mk(0, -7.6, 1.2);
+    mk(0, 11, -5.5);
+    mk(1, -10.5, -6.5);
+    mk(2, 8.5, -10);
+    mk(3, -8.5, -10.5);
+    mk(1, 12.5, 2.6);
+    mk(0, -12.8, 2);
+    mk(2, 3.4, -9.4);
+    mk(3, -4.6, -8.6);
+    mk(0, 14, -10);
+    mk(1, -14, -9);
     this.clearing.visible = false;
     this.world.add(this.clearing);
   }
@@ -647,13 +788,13 @@ export class Arena {
     const t = tex(canvas);
     const mat = new THREE.MeshBasicMaterial({ map: t, fog: false });
     this.belowMat = mat;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(10.8, 19.2), mat);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(21.6, 38.4), mat);
     m.rotation.x = -Math.PI / 2;
-    m.position.set(0, -34, -6);
+    m.position.set(0, -60, -6);
     this.world.add(m);
-    const frame = new THREE.Mesh(new THREE.PlaneGeometry(11.6, 20), new THREE.MeshBasicMaterial({ color: 0x05030a, fog: false }));
+    const frame = new THREE.Mesh(new THREE.PlaneGeometry(23, 40), new THREE.MeshBasicMaterial({ color: 0x05030a, fog: false }));
     frame.rotation.x = -Math.PI / 2;
-    frame.position.set(0, -34.05, -6);
+    frame.position.set(0, -60.05, -6);
     this.world.add(frame);
   }
 

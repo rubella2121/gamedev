@@ -1,3 +1,4 @@
+import { D } from '../core/difficulty';
 import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
 import { clamp, dist, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../core/util';
@@ -105,7 +106,7 @@ export class Act1 implements Hub {
   /* ---------------------------------------------------------------- */
 
   spawnSlam(x: number, y: number, R: number, T: number, tree = false) {
-    this.slams.push({ x, y, R, T, t: 0, phase: 'tele', ph: 0, tree });
+    this.slams.push({ x, y, R, T: T * D.tele, t: 0, phase: 'tele', ph: 0, tree });
     this.audio.rumble();
   }
 

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Arena, ARENA_R } from './arena';
+import { Arena, ARENA_R, BOSS_Z, LANES } from './arena';
+import { D } from '../core/difficulty';
 import type { Ctx } from '../act1/act1';
 import { H, W } from '../core/pix';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
@@ -23,13 +24,15 @@ const FOOT_STEPS: Step[] = [
 const RAKE_STEPS: Step[] = [
   { w: 1.3, T: 1.3 },
   { w: 0.6, T: 1.15 },
-  { w: 0.15, T: 0.95, flip: true, off: 1.85 },
+  { w: 0.15, T: 0.95, flip: true, off: 2.35 },
   { w: 0.7, T: 1.1 },
-  { w: 0.15, T: 0.9, flip: true, off: -1.85 },
+  { w: 0.15, T: 0.9, flip: true, off: -2.35 },
   { w: 0.7, T: 1.0 },
   { w: 0.7, T: 1.25, fin: true },
 ];
-const GAZE_SWEEP = [2.5, 2.2, 1.9, 1.6];
+/** The beam sweeps almost the whole floor, so you have to hide behind a pillar. */
+const GAZE_ARC = 1.5;
+const GAZE_SWEEP = [3.9, 3.4, 2.9, 2.5];
 const JAW_STEPS = [
   { n: 3, r: 2.8, T: 1.1 },
   { n: 4, r: 2.8, T: 1.0 },
@@ -37,10 +40,17 @@ const JAW_STEPS = [
   { n: 4, r: 2.0, T: 0.75 },
 ];
 const PHASES: { kind: Kind }[] = [{ kind: 'foot' }, { kind: 'rake' }, { kind: 'gaze' }, { kind: 'jaws' }];
-const HEAD_G = { x: 0, z: -6 };
-const BG_BOSS_Z = -15.5;
+const BG_BOSS_Z = BOSS_Z + 1.5;
+/** Where the Watcher's head hangs when it lowers to look along the floor. */
+const HEAD_G = { x: 0, z: BG_BOSS_Z + 9.5 };
 const FOOT_R = 3.5;
-const PLAYER_SPEED = 5.4;
+const PLAYER_SPEED = 7.6;
+const START_Z = 12;
+/** Where the claw tips stop in a rake (the arms come from far beyond the edge). */
+const RAKE_END = 10;
+const LANE_GAP = 4.7;
+const BOOM_POS = new THREE.Vector3(0, 9, 27);
+const BOOM_LOOK = new THREE.Vector3(0, 8, -14);
 
 export class Act2 {
   readonly arena = new Arena();
@@ -62,7 +72,15 @@ export class Act2 {
 
   // player
   private px = 0;
-  private pz = 5;
+  private pz = START_Z;
+  private dvx = 0;
+  private dvz = 0;
+  private walk = 0;
+  private camYaw = 0;
+  private camPitch = 0.56;
+  private camDist = 15;
+  private camManual = false;
+  private lastFace = Math.PI;
   private pvx = 0;
   private pvz = 0;
   private yaw = Math.PI;
@@ -79,7 +97,7 @@ export class Act2 {
   private fst: FSt = 'wait';
   private ft = 0;
   private foot = { x: 0, z: 0 };
-  private rake = { dir: 1, lanes: [0, 0, 0], armX: 0 };
+  private rake = { dir: 1, lanes: [] as number[], armX: 0, base: 0 };
   private deadT = 0;
   private armorFall = -1;
   private gazeDir = 1;
@@ -149,7 +167,7 @@ export class Act2 {
     this.fst = 'wait';
     this.control = false;
     this.px = 0;
-    this.pz = 5;
+    this.pz = START_Z;
     a.player.visible = false;
     a.boss.visible = false;
     a.boss.scale.set(1, 1, 1);
@@ -168,7 +186,7 @@ export class Act2 {
     a.tint(0);
     a.setClearing(0);
     a.moth.visible = false;
-    this.mothP.set(-1.4, 2.1, 5.4);
+    this.mothP.set(-1.7, 2.3, START_Z + 0.4);
     this.warm.visible = false;
     this.lights.forEach((l) => (l.visible = false));
     this.cubeGroup.visible = true;
@@ -277,25 +295,23 @@ export class Act2 {
     // the world rebuilds in 3D
     a.setRise(smooth(unlerp(1.0, 3.4, t)));
     const u = smooth(unlerp(0.7, 3.8, t));
-    const endPos = new THREE.Vector3(0, 7.0, 14);
-    const endLook = new THREE.Vector3(0, 5.2, -2);
     if (t >= 0.55) {
-      this.camPos.lerpVectors(new THREE.Vector3(0, 0, 15.36), endPos, u);
-      this.camLook.lerpVectors(new THREE.Vector3(0, 0, 0), endLook, u);
+      this.camPos.lerpVectors(new THREE.Vector3(0, 0, 15.36), BOOM_POS, u);
+      this.camLook.lerpVectors(new THREE.Vector3(0, 0, 0), BOOM_LOOK, u);
     }
     // you land, then swallow the claw tip
     this.fire('land', t >= 2.2, () => {
       a.player.visible = true;
       this.px = 0;
-      this.pz = 5;
+      this.pz = START_Z;
     });
     if (t >= 2.2) {
       const fall = unlerp(2.2, 3.0, t);
       const y = lerp(7, 0, fall * fall);
-      a.player.position.set(0, Math.max(0, y), 5);
+      a.player.position.set(0, Math.max(0, y), START_Z);
       a.player.rotation.y = Math.PI;
       this.fire('landed', t >= 3.0, () => {
-        a.burst3(0, 0.2, 5, 14, [0x3a2a62, 0x46346f, 0xf2d36b], 5);
+        a.burst3(0, 0.2, START_Z, 14, [0x3a2a62, 0x46346f, 0xf2d36b], 5);
         audio.hit();
         this.shake = 0.5;
       });
@@ -303,7 +319,7 @@ export class Act2 {
     if (t >= 3.6 && t < 4.3) {
       this.shard.visible = true;
       const u2 = unlerp(3.6, 4.3, t);
-      this.shard.position.set(lerp(0, 0.2, u2), lerp(11, 0.9, u2 * u2), lerp(-12, 5.2, u2));
+      this.shard.position.set(lerp(0, 0.2, u2), lerp(14, 1.1, u2 * u2), lerp(BOSS_Z + 4, START_Z + 0.2, u2));
       this.shard.rotation.set(u2 * 9, u2 * 5, 0);
     }
     this.fire('swallow', t >= 4.3, () => {
@@ -312,7 +328,7 @@ export class Act2 {
       audio.hit();
       audio.strike();
       this.shake = 0.8;
-      a.burst3(0.2, 0.9, 5.2, 16, [0xf4efe0, 0x120a1c, 0xff2a40], 6);
+      a.burst3(0.2, 1.1, START_Z + 0.2, 16, [0xf4efe0, 0x120a1c, 0xff2a40], 6);
     });
     if (t >= 4.3) a.showPlayerClaw(easeOutBack((t - 4.3) / 0.7));
     this.fire('reveal', t >= 5.1, () => {
@@ -329,7 +345,7 @@ export class Act2 {
     this.fire('go', t >= 8.2, () => this.beginFight());
     a.player.position.y = t >= 3.0 ? 0 : a.player.position.y;
     if (t >= 3.0) {
-      this.mothP.set(-1.4, 2.1, 5.4);
+      this.mothP.set(-1.7, 2.3, START_Z + 0.4);
       a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true);
     }
   }
@@ -343,15 +359,29 @@ export class Act2 {
     this.control = true;
     this.fst = 'wait';
     this.ft = -1.0;
+    this.hearts = D.hearts;
     this.ctx.input.setMoveEnabled(true);
+    this.ctx.input.setCameraEnabled(true);
     this.ctx.input.setAction('strike');
-    this.ctx.ui.hearts(this.hearts);
+    this.ctx.ui.hearts(this.hearts, D.hearts);
+    this.ctx.ui.recenter(true, () => this.resetCamera());
+    this.resetCamera();
+    this.camManual = false;
     this.ctx.ui.caption('Strike.', 2400);
   }
 
-  private fwd(): THREE.Vector3 {
-    const v = new THREE.Vector3(0 - this.px, 0, BG_BOSS_Z - this.pz);
-    return v.normalize();
+  /** Which way the camera looks along the floor. */
+  private camFwd(): THREE.Vector3 {
+    return new THREE.Vector3(-Math.sin(this.camYaw), 0, -Math.cos(this.camYaw));
+  }
+
+  /** Swing the camera behind the player, looking at the Hollow. */
+  private resetCamera() {
+    const dx = 0 - this.px;
+    const dz = BG_BOSS_Z - this.pz;
+    this.camYaw = Math.atan2(-dx, -dz);
+    this.camPitch = 0.56;
+    this.camManual = false;
   }
 
   private hurt(kx: number, kz: number) {
@@ -382,11 +412,13 @@ export class Act2 {
 
   private resetPhase() {
     const a = this.arena;
-    this.hearts = 3;
+    this.hearts = D.hearts;
     this.px = 0;
-    this.pz = 5;
+    this.pz = START_Z;
     this.pvx = this.pvz = 0;
+    this.dvx = this.dvz = 0;
     this.invuln = 0;
+    this.resetCamera();
     this.fst = 'wait';
     this.ft = -1.2;
     a.foot.visible = false;
@@ -394,7 +426,7 @@ export class Act2 {
     a.hideShadow();
     a.lanes.forEach((l) => (l.visible = false));
     this.resetExtras();
-    this.ctx.ui.hearts(3);
+    this.ctx.ui.hearts(D.hearts, D.hearts);
     this.ctx.ui.fade(0, 450);
     this.control = true;
   }
@@ -411,7 +443,7 @@ export class Act2 {
       a.burst3(this.foot.x, 1.5, this.foot.z, 26, [0x07040e, 0x6ff0ff, 0x2a1a44], 9);
       this.armorFall = 0;
     } else if (PHASES[this.phase]!.kind === 'rake') {
-      for (const l of this.rake.lanes) a.burst3(this.rake.dir * 7.2, 0.7, l, 14, [0xf4efe0, 0xd8d0b8, 0x6a5a98], 8);
+      for (const l of this.rake.lanes) a.burst3(this.rake.dir * RAKE_END, 0.7, l, 14, [0xf4efe0, 0xd8d0b8, 0x6a5a98], 8);
     } else if (PHASES[this.phase]!.kind === 'gaze') {
       a.burst3(HEAD_G.x, 5.5, HEAD_G.z, 30, [0xff3040, 0xffeeee, 0x3a2660], 9);
     } else {
@@ -435,11 +467,11 @@ export class Act2 {
       return;
     }
 
-    // --- player
+    // --- player (movement is relative to the camera)
     this.invuln = Math.max(0, this.invuln - dt);
     this.strikeCd = Math.max(0, this.strikeCd - dt);
     if (this.control) {
-      const f = this.fwd();
+      const f = this.camFwd();
       const rx = -f.z;
       const rz = f.x;
       const mx = rx * input.moveX + f.x * -input.moveY;
@@ -450,24 +482,50 @@ export class Act2 {
       if (input.actionPressed && this.strikeCd <= 0) {
         this.strikeT = 0.3;
         this.strikeCd = 0.42;
-        this.pending = 0.1;
+        this.pending = 0.14;
         audio.strike();
+        this.strikeDash();
       }
     } else {
       this.pvx *= 0.9;
       this.pvz *= 0.9;
     }
-    this.px += this.pvx * dt;
-    this.pz += this.pvz * dt;
+    this.px += (this.pvx + this.dvx) * dt;
+    this.pz += (this.pvz + this.dvz) * dt;
+    const decay = Math.exp(-12 * dt);
+    this.dvx *= decay;
+    this.dvz *= decay;
     const rr = Math.hypot(this.px, this.pz);
     if (rr > ARENA_R - 0.9) {
       this.px *= (ARENA_R - 0.9) / rr;
       this.pz *= (ARENA_R - 0.9) / rr;
     }
+    // pillars are solid
+    for (const pd of a.pillarData) {
+      if (!pd.alive) continue;
+      const ox = this.px - pd.x;
+      const oz = this.pz - pd.z;
+      const od = Math.hypot(ox, oz);
+      if (od < 1.35) {
+        this.px = pd.x + (ox / (od || 1)) * 1.35;
+        this.pz = pd.z + (oz / (od || 1)) * 1.35;
+      }
+    }
     this.strikeT = Math.max(0, this.strikeT - dt);
     if (this.pending > 0) {
       this.pending -= dt;
       if (this.pending <= 0) this.resolveStrike();
+    }
+
+    // --- camera controls: Q / E, drag, and R to recentre
+    const cam = input.takeCam();
+    const turn = input.camKey * 2.4 * dt + cam.dx * -0.011;
+    if (turn !== 0 || cam.dy !== 0) this.camManual = true;
+    this.camYaw += turn;
+    this.camPitch = clamp(this.camPitch + cam.dy * 0.008, 0.12, 1.25);
+    if (input.camReset) {
+      input.camReset = false;
+      this.resetCamera();
     }
 
     // --- boss attack cycle
@@ -497,13 +555,49 @@ export class Act2 {
     void ui;
   }
 
+  /** The thing a strike would hit right now, if X is stuck. */
+  private strikeTarget(): { x: number; z: number; reach: number } | null {
+    if (this.fst !== 'stuck') return null;
+    const kind = PHASES[this.phase]!.kind;
+    if (kind === 'foot') return { x: this.foot.x, z: this.foot.z, reach: FOOT_R + 1.9 };
+    if (kind === 'rake') {
+      let best: { x: number; z: number; reach: number } | null = null;
+      let bd = 1e9;
+      for (const l of this.rake.lanes) {
+        const d = Math.hypot(this.px - this.rake.dir * RAKE_END, this.pz - l);
+        if (d < bd) {
+          bd = d;
+          best = { x: this.rake.dir * RAKE_END, z: l, reach: 3.6 };
+        }
+      }
+      return best;
+    }
+    if (kind === 'gaze') return { x: HEAD_G.x, z: HEAD_G.z, reach: 4.6 };
+    return this.coreLit > 0.5 ? { x: this.lunge.x, z: this.lunge.z, reach: 3.7 } : null;
+  }
+
+  /** A strike lunges toward the stuck target, so a big arena never costs you the window. */
+  private strikeDash() {
+    const tg = this.strikeTarget();
+    if (!tg) return;
+    const dx = tg.x - this.px;
+    const dz = tg.z - this.pz;
+    const d = Math.hypot(dx, dz);
+    this.lastFace = Math.atan2(dx, dz);
+    const need = d - tg.reach * 0.7;
+    if (need <= 0 || d > 11) return;
+    const go = Math.min(7.5, need);
+    this.dvx = (dx / d) * go * 12;
+    this.dvz = (dz / d) * go * 12;
+  }
+
   private resolveStrike() {
     if (this.fst !== 'stuck') return;
     let ok = false;
     if (PHASES[this.phase]!.kind === 'foot') {
       ok = Math.hypot(this.px - this.foot.x, this.pz - this.foot.z) <= FOOT_R + 1.9;
     } else if (PHASES[this.phase]!.kind === 'rake') {
-      for (const l of this.rake.lanes) if (Math.hypot(this.px - this.rake.dir * 7.2, this.pz - l) <= 3.4) ok = true;
+      for (const l of this.rake.lanes) if (Math.hypot(this.px - this.rake.dir * RAKE_END, this.pz - l) <= 3.6) ok = true;
     } else if (PHASES[this.phase]!.kind === 'gaze') {
       ok = Math.hypot(this.px - HEAD_G.x, this.pz - HEAD_G.z) <= 4.6;
     } else {
@@ -542,8 +636,9 @@ export class Act2 {
     a.foot.visible = false;
     a.arms.forEach((m) => (m.visible = false));
     this.phase++;
-    this.hearts = 3;
-    this.ctx.ui.hearts(3);
+    this.hearts = D.hearts;
+    this.ctx.ui.hearts(D.hearts, D.hearts);
+    this.resetCamera();
     if (this.phase >= PHASES.length) this.beginEnding();
     else {
       this.resetExtras();
@@ -566,7 +661,7 @@ export class Act2 {
       }
     } else if (this.fst === 'tele') {
       // the head only lowers once; later sweeps start from where the last one ended
-      const TT = this.headLow ? 0.9 : 1.6;
+      const TT = (this.headLow ? 0.9 : 1.6) * D.tele;
       const u = clamp(ft / TT, 0, 1);
       if (!this.headLow) a.setHead(smooth(u));
       if (ft > this.chimes * 0.5 + 0.1 && this.chimes < (this.headLow ? 2 : 3)) {
@@ -577,24 +672,24 @@ export class Act2 {
         this.ft = 0;
         this.fst = 'impact';
         this.headLow = true;
-        this.gazeTh = -this.gazeDir * 0.95;
+        this.gazeTh = -this.gazeDir * GAZE_ARC;
         audio.whoosh();
       }
     } else if (this.fst === 'impact') {
-      const T = GAZE_SWEEP[Math.min(this.sub, GAZE_SWEEP.length - 1)]!;
+      const T = GAZE_SWEEP[Math.min(this.sub, GAZE_SWEEP.length - 1)]! / D.speed;
       const u = clamp(ft / T, 0, 1);
-      this.gazeTh = lerp(-this.gazeDir * 0.95, this.gazeDir * 0.95, u);
+      this.gazeTh = lerp(-this.gazeDir * GAZE_ARC, this.gazeDir * GAZE_ARC, u);
       const dx = Math.sin(this.gazeTh);
       const dz = Math.cos(this.gazeTh);
       // the beam stops at the first pillar it touches, and wears it down
-      let len = 17;
+      let len = 46;
       this.arena.pillarData.forEach((pd, i) => {
         if (!pd.alive) return;
         const rx = pd.x - HEAD_G.x;
         const rz = pd.z - HEAD_G.z;
         const t = rx * dx + rz * dz;
         const perp = Math.abs(rx * dz - rz * dx);
-        if (t > 0 && perp < 1.0) {
+        if (t > 0 && perp < 1.5) {
           len = Math.min(len, t);
           pd.hp -= dt;
           if (pd.hp <= 0) {
@@ -609,7 +704,7 @@ export class Act2 {
       const rz = this.pz - HEAD_G.z;
       const t = rx * dx + rz * dz;
       const perp = Math.abs(rx * dz - rz * dx);
-      if (t > 0 && t < len && perp < 0.95) this.hurt(rx, rz);
+      if (t > 0 && t < len && perp < 0.85) this.hurt(rx, rz);
       if (ft >= T) {
         a.setGaze(false);
         this.ft = 0;
@@ -625,7 +720,7 @@ export class Act2 {
         }
       }
     } else if (this.fst === 'stuck') {
-      if (ft >= 3.0) {
+      if (ft >= 3.0 * D.window) {
         this.ft = 0;
         this.fst = 'retract';
       }
@@ -667,12 +762,17 @@ export class Act2 {
           }
         } else {
           const f = new THREE.Vector3(this.pvx, 0, this.pvz).multiplyScalar(0.2);
-          this.lunge = { x: clamp(this.px + f.x, -6.5, 6.5), z: clamp(this.pz + f.z, -6.5, 6.5) };
+          this.lunge = { x: this.px + f.x, z: this.pz + f.z };
+          const lr = Math.hypot(this.lunge.x, this.lunge.z);
+          if (lr > ARENA_R - 3) {
+            this.lunge.x *= (ARENA_R - 3) / lr;
+            this.lunge.z *= (ARENA_R - 3) / lr;
+          }
         }
       }
     } else if (this.fst === 'tele') {
       if (this.sub < JAW_STEPS.length) {
-        const TJ = JAW_STEPS[this.sub]!.T;
+        const TJ = JAW_STEPS[this.sub]!.T * D.tele;
         const u = clamp(ft / TJ, 0, 1);
         this.jawT.forEach((j, i) => a.setJawSlot(i, true, j.x, j.z, u, 0));
         if (ft >= TJ) {
@@ -687,11 +787,11 @@ export class Act2 {
           });
         }
       } else {
-        const u = clamp(ft / 1.5, 0, 1);
+        const u = clamp(ft / (1.5 * D.tele), 0, 1);
         a.setHead(smooth(u) * 0.8);
         a.setJaw(smooth(u));
         a.setShadow(this.lunge.x, this.lunge.z, 3.4, u, u > 0.8 && Math.floor(this.time * 10) % 2 === 0);
-        if (ft >= 1.5) {
+        if (ft >= 1.5 * D.tele) {
           this.ft = 0;
           this.fst = 'impact';
           a.hideShadow();
@@ -724,7 +824,7 @@ export class Act2 {
       // the Mournmoth's light exposes the core
       this.coreLit = Math.min(1, this.coreLit + dt * 2.2);
       a.setCore(true, this.lunge.x, 1.1, this.lunge.z, this.coreLit);
-      if (ft >= 3.2) {
+      if (ft >= 3.2 * D.window) {
         this.ft = 0;
         this.fst = 'retract';
       }
@@ -775,12 +875,18 @@ export class Act2 {
         this.fst = 'tele';
         if (kind === 'foot') {
           const f = new THREE.Vector3(this.pvx, 0, this.pvz).multiplyScalar(step.lead ?? 0.22);
-          this.foot = { x: clamp(this.px + f.x, -7.5, 7.5), z: clamp(this.pz + f.z, -7.5, 7.5) };
+          this.foot = { x: this.px + f.x, z: this.pz + f.z };
+          const fr = Math.hypot(this.foot.x, this.foot.z);
+          if (fr > ARENA_R - 1.5) {
+            this.foot.x *= (ARENA_R - 1.5) / fr;
+            this.foot.z *= (ARENA_R - 1.5) / fr;
+          }
           a.foot.visible = true;
         } else {
           const dir = step.flip ? -this.rake.dir : Math.random() < 0.5 ? -1 : 1;
-          const zc = step.flip ? clamp(this.rake.lanes[1]! + step.off!, -3.4, 3.4) : clamp(this.pz + (Math.random() - 0.5) * 3, -3.4, 3.4);
-          this.rake = { dir, lanes: [zc - 3.7, zc, zc + 3.7], armX: -dir * 14 };
+          // nine lanes cover the whole floor; you have to stand in a gap (the second rake lands in the first one's gaps)
+          const base = step.flip ? this.rake.base + step.off! : (Math.random() - 0.5) * LANE_GAP;
+          this.rake = { dir, lanes: Array.from({ length: LANES }, (_, i) => base + (i - (LANES - 1) / 2) * LANE_GAP), armX: -dir * (ARENA_R + 8), base };
           a.arms.forEach((m, i) => {
             m.visible = true;
             a.setArmLength(m, 1);
@@ -791,7 +897,7 @@ export class Act2 {
         audio.rumble();
       }
     } else if (this.fst === 'tele') {
-      const T = step.T;
+      const T = step.T * D.tele;
       const u = clamp(ft / T, 0, 1);
       audio.setHeart(1.2 + u * 1.6, 0.7);
       if (kind === 'foot') {
@@ -829,10 +935,10 @@ export class Act2 {
           this.fst = step.fin ? 'stuck' : 'retract';
         }
       } else {
-        const T = 0.7;
+        const T = 1.0;
         const u = clamp(ft / T, 0, 1);
         const e = 1 - Math.pow(1 - u, 2);
-        this.rake.armX = lerp(-this.rake.dir * 14, this.rake.dir * 7.2, e);
+        this.rake.armX = lerp(-this.rake.dir * (ARENA_R + 8), this.rake.dir * RAKE_END, e);
         a.arms.forEach((m, i) => {
           m.position.set(this.rake.armX, 0.7, this.rake.lanes[i]!);
           const lane = this.rake.lanes[i]!;
@@ -846,11 +952,11 @@ export class Act2 {
           audio.slam();
           this.shake = 0.8;
           if (step.fin) a.arms.forEach((m) => a.setArmLength(m, 0.2));
-          for (const l of this.rake.lanes) a.burst3(this.rake.dir * 7.2, 0.4, l, 8, [0x3a2a62, 0x46346f], 6);
+          for (const l of this.rake.lanes) a.burst3(this.rake.dir * RAKE_END, 0.4, l, 8, [0x3a2a62, 0x46346f], 6);
         }
       }
     } else if (this.fst === 'stuck') {
-      const S = 2.6;
+      const S = 2.6 * D.window;
       if (kind === 'foot') {
         a.foot.position.y = 1.3 + Math.sin(this.time * 20) * 0.04;
       }
@@ -882,28 +988,30 @@ export class Act2 {
     const a = this.arena;
     const p = a.player;
     const sp = Math.hypot(this.pvx, this.pvz);
-    this.bob += dt * (6 + sp * 1.8);
-    const f = this.fwd();
-    const targetYaw = Math.atan2(f.x, f.z);
+    this.walk = sp / PLAYER_SPEED;
+    this.bob += dt * (5 + sp * 1.3);
+    // face the way you run; stand facing where the camera looks; a strike turns you to its target
+    let targetYaw: number;
+    if (this.strikeT > 0) targetYaw = this.lastFace;
+    else if (sp > 0.6) targetYaw = Math.atan2(this.pvx, this.pvz);
+    else {
+      const f = this.camFwd();
+      targetYaw = Math.atan2(f.x, f.z);
+    }
+    if (this.state !== 'fight') targetYaw = Math.PI;
     let dy = targetYaw - this.yaw;
     while (dy > Math.PI) dy -= TAU;
     while (dy < -Math.PI) dy += TAU;
-    this.yaw += dy * (1 - Math.exp(-12 * dt));
-    p.position.set(this.px, Math.abs(Math.sin(this.bob)) * 0.12 * clamp(sp / 3, 0, 1), this.pz);
+    this.yaw += dy * (1 - Math.exp(-14 * dt));
+    p.position.set(this.px, 0, this.pz);
     p.rotation.y = this.yaw;
-    const sq = 1 + Math.sin(this.bob * 2) * 0.05 * clamp(sp / 3, 0, 1);
-    p.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
     p.visible = this.invuln > 0 ? Math.floor(this.time * 14) % 2 === 0 : true;
-    // claw swing
-    const st = this.strikeT;
-    if (st > 0) {
-      const u = 1 - st / 0.3;
-      a.claw.rotation.y = lerp(-0.9, 1.2, easeOutCubic(u));
-      a.claw.rotation.z = Math.sin(u * Math.PI) * 0.6;
-      a.showSlash(this.px + f.x * 1.1, this.pz + f.z * 1.1, Math.atan2(f.x, f.z) + Math.PI / 2 - 0.4, 1 - u);
+    const f = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    const st = this.strikeT / 0.3;
+    a.animatePlayer(dt, this.time, this.walk, this.bob, st, this.invuln > 0);
+    if (this.strikeT > 0) {
+      a.showSlash(this.px + f.x * 1.3, this.pz + f.z * 1.3, Math.atan2(f.x, f.z) + Math.PI / 2 - 0.4, st);
     } else {
-      a.claw.rotation.y *= 0.8;
-      a.claw.rotation.z *= 0.8;
       a.showSlash(0, -50, 0, 0);
     }
   }
@@ -920,6 +1028,8 @@ export class Act2 {
     const { ui, input, audio } = this.ctx;
     input.setAction(null);
     input.setMoveEnabled(false);
+    input.setCameraEnabled(false);
+    ui.recenter(false);
     ui.hearts(null);
     ui.hint(null);
     audio.setDrone(0, 2.5);
@@ -934,8 +1044,8 @@ export class Act2 {
       z: m.position.z,
       at: 3.2 + rnd() * 3.6,
       mine: i >= this.arena.pinned.length - 2,
-      tx: i === this.arena.pinned.length - 2 ? -1.5 : 1.5,
-      tz: 4.2,
+      tx: i === this.arena.pinned.length - 2 ? -2.6 : 2.6,
+      tz: 7.4,
     }));
     this.warm.visible = true;
   }
@@ -945,6 +1055,13 @@ export class Act2 {
     const t = this.et;
     const { ui, audio } = this.ctx;
     const a = this.arena;
+    // you walk back to the middle of the clearing
+    const gx = 0 - this.px;
+    const gz = 5.6 - this.pz;
+    this.pvx = gx * 1.4;
+    this.pvz = gz * 1.4;
+    this.px += this.pvx * dt;
+    this.pz += this.pvz * dt;
     // X does not scream. He flattens into a 2D cut-out, then crumbles.
     const flat = smooth(unlerp(0.4, 2.2, t));
     a.boss.scale.z = lerp(1, 0.03, flat);
@@ -994,8 +1111,8 @@ export class Act2 {
     // the camera rises and looks up
     const rise = smooth(unlerp(6.8, 12.8, t));
     const k = 1 - Math.exp(-2.6 * dt);
-    this.camPos.lerp(new THREE.Vector3(0, lerp(8, 24, rise), lerp(15, 18, rise)), k);
-    this.camLook.lerp(new THREE.Vector3(0, lerp(2.4, 46, rise), lerp(-1, -70, rise)), k);
+    this.camPos.lerp(new THREE.Vector3(0, lerp(9, 40, rise), lerp(20, 30, rise)), k);
+    this.camLook.lerp(new THREE.Vector3(0, lerp(3, 70, rise), lerp(-2, -120, rise)), k);
     if (t >= 10.2) ui.moon(true);
     this.fire('line', t >= 10.8, () => ui.caption('I can look up now.', 3600, true));
     this.fire('blink', t >= 14.4, () => ui.moonBlink());
@@ -1022,10 +1139,11 @@ export class Act2 {
 
     // camera
     if (this.state === 'fight') {
-      const f = this.fwd();
-      const target = new THREE.Vector3(this.px - f.x * 9, 7.0, this.pz - f.z * 9);
-      this.camPos.lerp(target, 1 - Math.exp(-6 * dt));
-      this.camLook.set(this.px + f.x * 7, 5.2, this.pz + f.z * 7);
+      const f = this.camFwd();
+      const cp = Math.cos(this.camPitch);
+      const target = new THREE.Vector3(this.px - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, this.pz - f.z * this.camDist * cp);
+      this.camPos.lerp(target, 1 - Math.exp(-14 * dt));
+      this.camLook.set(this.px + f.x * 5, 1.2, this.pz + f.z * 5);
     }
     this.shake = Math.max(0, this.shake - dt * 2.5);
     const sh = this.shake;
@@ -1046,8 +1164,8 @@ export class Act2 {
     a.hideShadow();
     a.lanes.forEach((l) => (l.visible = false));
     a.pinned.forEach((m) => (m.visible = true));
-    a.camera.position.set(0, 6.2, 14);
-    a.camera.lookAt(0, 5.2, -2);
+    a.camera.position.copy(BOOM_POS);
+    a.camera.lookAt(BOOM_LOOK);
     a.update(0, this.time);
   }
 
@@ -1063,7 +1181,8 @@ export class Act2 {
     a.boss.visible = true;
     a.showPlayerClaw(1);
     a.setRedLight(100);
-    this.camPos.set(0, 7.0, 14);
+    this.camPos.copy(BOOM_POS);
+    this.camLook.copy(BOOM_LOOK);
     this.resetExtras();
     this.beginFight();
   }

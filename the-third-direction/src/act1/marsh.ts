@@ -1,3 +1,4 @@
+import { D } from '../core/difficulty';
 import { drawBellwether, drawReeds } from '../core/art2';
 import { C } from '../core/palette';
 import { H } from '../core/pix';
@@ -101,7 +102,7 @@ export class MarshEncounter implements Encounter {
       let da = Math.atan2(dy, dx) - b.ang;
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
-      const inCone = d < RANGE && Math.abs(da) < HALF;
+      const inCone = d < RANGE * D.vision && Math.abs(da) < HALF * D.vision;
       const seen = inCone && ((!reeds && sp > 14) || (reeds && sp > 34));
       if (seen && b.cool <= 0 && pl.dead <= 0) {
         b.alert = 1.3;
@@ -129,7 +130,7 @@ export class MarshEncounter implements Encounter {
       const sy = b.y - cam;
       if (sy < -90 || sy > H + 90) continue;
       const hot = b.alert > 0;
-      p.cone(b.x, sy - 14, b.ang, HALF, RANGE, hot ? C.red : '#cfc6ff', hot ? 0.22 : 0.12);
+      p.cone(b.x, sy - 14, b.ang, HALF * D.vision, RANGE * D.vision, hot ? C.red : '#cfc6ff', hot ? 0.22 : 0.12);
     }
   }
 

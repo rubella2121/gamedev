@@ -1,3 +1,4 @@
+import { D } from '../core/difficulty';
 import { C } from '../core/palette';
 import { burst } from '../core/art';
 import { drawGloom } from '../core/art2';
@@ -149,7 +150,7 @@ export class GloomEncounter implements Encounter {
     const lit = !!inPatch(pl.x, pl.y);
     const sp = Math.hypot(pl.vx, pl.vy);
     let awakeNear = 0;
-    const speed = 38 + Math.min(10, this.gl.length * 0.4);
+    const speed = (38 + Math.min(10, this.gl.length * 0.4)) * D.speed;
     for (const g of this.gl) {
       const d = dist(g.x, g.y, pl.x, pl.y);
       if (!g.awake && d < 62) g.awake = true;

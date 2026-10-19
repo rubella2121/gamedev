@@ -1,3 +1,4 @@
+import { D } from '../core/difficulty';
 import { burst } from '../core/art';
 import { drawMimic, drawMoth, drawRootCage, type MimicState } from '../core/art2';
 import { makeFlower } from '../core/art';
@@ -135,7 +136,7 @@ export class MeadowEncounter implements Encounter {
     for (const m of this.mimics) {
       const d = dist(pl.x, pl.y, m.x, m.y);
       if (m.auto !== undefined) {
-        const ph = (((t * 0.55 + m.auto) % 1) + 1) % 1;
+        const ph = (((t * 0.55 * D.speed + m.auto) % 1) + 1) % 1;
         const was = m.st;
         m.st = ph < 0.55 ? 'idle' : ph < 0.72 ? 'twitch' : 'snap';
         if (m.st === 'snap' && was !== 'snap' && d < 70) hub.audio.snap();
@@ -149,7 +150,7 @@ export class MeadowEncounter implements Encounter {
         }
       } else if (m.st === 'twitch') {
         m.t += dt;
-        if (m.t >= 0.4) {
+        if (m.t >= 0.4 * D.tele) {
           m.st = 'snap';
           m.t = 0;
           hub.audio.snap();
