@@ -19,6 +19,27 @@ export function track(name: string) {
 }
 
 /**
+ * Share the run: the native share sheet in the RUN app, a copied link on the web.
+ * Resolves to false if sharing is not available.
+ */
+export async function shareRun(time: string, deaths: number): Promise<boolean> {
+  try {
+    await RundotGameAPI.social.shareLinkAsync({
+      shareParams: { time, deaths: String(deaths) },
+      metadata: {
+        title: 'I looked up.',
+        description: `I beat The Hollow in ${time} (${deaths} ${deaths === 1 ? 'death' : 'deaths'}). Can you?`,
+      },
+      slug: 'The Third Direction',
+    });
+    return true;
+  } catch (e) {
+    console.warn('[sdk] share unavailable', e);
+    return false;
+  }
+}
+
+/**
  * Send the clear time (seconds) to the RUN leaderboard. The board is configured in
  * rundot/leaderboard.config.json as "lowest is best". Resolves to the player's rank, or null.
  */

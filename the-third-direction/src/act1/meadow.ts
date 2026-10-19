@@ -13,10 +13,14 @@ interface Mimic {
   st: MimicState;
   t: number;
   seed: number;
+  /** Phase offset for flowers that snap on their own rhythm (the second field). */
+  auto?: number;
 }
 
 const CAGE_Y = -2700;
 const HOLD_TIME = 1.4;
+/** North of this line the flowers stop waiting for you and snap in a rolling wave. */
+const FIELD2_Y = -2930;
 
 /** Encounter 5: free the Mournmoth, then weave between flowers that bite. */
 export class MeadowEncounter implements Encounter {
@@ -32,7 +36,7 @@ export class MeadowEncounter implements Encounter {
 
   constructor(private hub: Hub) {
     let row = 0;
-    for (let y = CAGE_Y - 80; y > CLIFF_Y + 110; y -= 30) {
+    for (let y = CAGE_Y - 80; y > FIELD2_Y; y -= 30) {
       // every row keeps a clear lane that wanders, so the way through always exists
       const safe = trailCx(y) + 30 * Math.sin(row * 0.9);
       const hw = moveHw(y) - 10;
@@ -41,6 +45,17 @@ export class MeadowEncounter implements Encounter {
         const side = hash2(row, k + 10) > 0.5 ? 1 : -1;
         const x = safe + side * (20 + hash2(row, k + 20) * 34);
         if (Math.abs(x - trailCx(y)) < hw) this.mimics.push({ x, y: y + (hash2(row, k) - 0.5) * 12, st: 'idle', t: 0, seed: row * 4 + k });
+      }
+      row++;
+    }
+    // second field: a gently swaying safe lane, and the flowers snap on their own rhythm in a wave rolling north
+    for (let y = FIELD2_Y; y > CLIFF_Y + 110; y -= 26) {
+      const cx = trailCx(y);
+      const safe = cx + 24 * Math.sin(row * 0.75);
+      const hw = moveHw(y) - 10;
+      for (const off of [-52, -28, 28, 52]) {
+        const x = safe + off;
+        if (Math.abs(x - cx) < hw) this.mimics.push({ x, y: y + (hash2(row, off) - 0.5) * 8, st: 'idle', t: 0, seed: row * 4 + off, auto: row * 0.27 });
       }
       row++;
     }
@@ -119,6 +134,14 @@ export class MeadowEncounter implements Encounter {
     // --- Mimic Blooms
     for (const m of this.mimics) {
       const d = dist(pl.x, pl.y, m.x, m.y);
+      if (m.auto !== undefined) {
+        const ph = (((t * 0.55 + m.auto) % 1) + 1) % 1;
+        const was = m.st;
+        m.st = ph < 0.55 ? 'idle' : ph < 0.72 ? 'twitch' : 'snap';
+        if (m.st === 'snap' && was !== 'snap' && d < 70) hub.audio.snap();
+        if (m.st === 'snap' && d < 12 && pl.dead <= 0) hub.killPlayer();
+        continue;
+      }
       if (m.st === 'idle') {
         if (d < 22 && pl.dead <= 0) {
           m.st = 'twitch';

@@ -195,7 +195,7 @@ export class Arena {
       }
       g.position.set(Math.cos(a) * 5.6, 0, Math.sin(a) * 5.6 - 1.5);
       this.pillars.push(g);
-      this.pillarData.push({ x: g.position.x, z: g.position.z, hp: 1.4, alive: true, g });
+      this.pillarData.push({ x: g.position.x, z: g.position.z, hp: 0.85, alive: true, g });
       this.world.add(g);
     }
   }
@@ -630,7 +630,7 @@ export class Arena {
   restorePillars() {
     for (const pd of this.pillarData) {
       pd.alive = true;
-      pd.hp = 1.4;
+      pd.hp = 0.85;
       pd.g.visible = true;
     }
   }

@@ -167,7 +167,7 @@ export class UI {
     this.startEl.classList.remove('hide');
   }
 
-  showEnd(line: string, time: string, deaths: number, onAgain: () => void): HTMLElement {
+  showEnd(line: string, time: string, deaths: number, onAgain: () => void, onShare: () => Promise<boolean>): HTMLElement {
     this.endEl.innerHTML = '';
     const big = document.createElement('div');
     big.className = 'big';
@@ -185,9 +185,17 @@ export class UI {
       this.endEl.classList.add('hide');
       onAgain();
     });
+    const share = document.createElement('button');
+    share.className = 'btn ghost';
+    share.textContent = 'Share';
+    share.addEventListener('click', () => {
+      void onShare().then((ok) => {
+        share.textContent = ok ? 'Shared' : 'Share';
+      });
+    });
     const rank = document.createElement('div');
     rank.className = 'stat rank';
-    this.endEl.append(big, t, d, rank, b);
+    this.endEl.append(big, t, d, rank, b, share);
     this.endEl.classList.remove('hide');
     return rank;
   }

@@ -8,6 +8,34 @@ type St = 'boom' | 'fight' | 'ending' | 'end';
 type FSt = 'wait' | 'tele' | 'impact' | 'stuck' | 'retract' | 'clear' | 'dead';
 
 type Kind = 'foot' | 'rake' | 'gaze' | 'jaws';
+/** One attack in a phase: wait before it, telegraph time, and whether it is the finisher that leaves X stuck. */
+type Step = { w: number; T: number; lead?: number; fin?: boolean; flip?: boolean; off?: number };
+const FOOT_STEPS: Step[] = [
+  { w: 1.3, T: 1.45, lead: 0.22 },
+  { w: 0.6, T: 1.2, lead: 0.45 },
+  { w: 0.35, T: 0.95, lead: 0.6 },
+  { w: 0.6, T: 1.1, lead: 0.3 },
+  { w: 0.3, T: 0.85, lead: 0.65 },
+  { w: 0.25, T: 0.8, lead: 0.65 },
+  { w: 0.7, T: 1.15, lead: 0.3, fin: true },
+];
+// the rake comes from one side, then the other, with the lanes interleaved
+const RAKE_STEPS: Step[] = [
+  { w: 1.3, T: 1.3 },
+  { w: 0.6, T: 1.15 },
+  { w: 0.15, T: 0.95, flip: true, off: 1.85 },
+  { w: 0.7, T: 1.1 },
+  { w: 0.15, T: 0.9, flip: true, off: -1.85 },
+  { w: 0.7, T: 1.0 },
+  { w: 0.7, T: 1.25, fin: true },
+];
+const GAZE_SWEEP = [2.5, 2.2, 1.9, 1.6];
+const JAW_STEPS = [
+  { n: 3, r: 2.8, T: 1.1 },
+  { n: 4, r: 2.8, T: 1.0 },
+  { n: 4, r: 2.3, T: 0.85 },
+  { n: 4, r: 2.0, T: 0.75 },
+];
 const PHASES: { kind: Kind }[] = [{ kind: 'foot' }, { kind: 'rake' }, { kind: 'gaze' }, { kind: 'jaws' }];
 const HEAD_G = { x: 0, z: -6 };
 const BG_BOSS_Z = -15.5;
@@ -57,6 +85,7 @@ export class Act2 {
   private gazeDir = 1;
   private gazeTh = 0;
   private sub = 0;
+  private headLow = false;
   private jawT: { x: number; z: number }[] = [];
   private lunge = { x: 0, z: 0 };
   private coreOn = false;
@@ -495,6 +524,7 @@ export class Act2 {
     this.coreOn = false;
     this.coreLit = 0;
     this.sub = 0;
+    this.headLow = false;
     this.chimes = 0;
     if (this.phase <= 2) a.restorePillars();
   }
@@ -530,25 +560,28 @@ export class Act2 {
       if (ft >= 1.2) {
         this.ft = 0;
         this.fst = 'tele';
-        this.gazeDir = Math.random() < 0.5 ? -1 : 1;
+        if (!this.headLow) this.gazeDir = Math.random() < 0.5 ? -1 : 1;
         this.chimes = 0;
         audio.rumble();
       }
     } else if (this.fst === 'tele') {
-      const u = clamp(ft / 1.6, 0, 1);
-      a.setHead(smooth(u));
-      if (ft > this.chimes * 0.5 + 0.1 && this.chimes < 3) {
+      // the head only lowers once; later sweeps start from where the last one ended
+      const TT = this.headLow ? 0.9 : 1.6;
+      const u = clamp(ft / TT, 0, 1);
+      if (!this.headLow) a.setHead(smooth(u));
+      if (ft > this.chimes * 0.5 + 0.1 && this.chimes < (this.headLow ? 2 : 3)) {
         this.chimes++;
         audio.bell(0.8 + this.chimes * 0.12);
       }
-      if (ft >= 1.6) {
+      if (ft >= TT) {
         this.ft = 0;
         this.fst = 'impact';
+        this.headLow = true;
         this.gazeTh = -this.gazeDir * 0.95;
         audio.whoosh();
       }
     } else if (this.fst === 'impact') {
-      const T = 2.5;
+      const T = GAZE_SWEEP[Math.min(this.sub, GAZE_SWEEP.length - 1)]!;
       const u = clamp(ft / T, 0, 1);
       this.gazeTh = lerp(-this.gazeDir * 0.95, this.gazeDir * 0.95, u);
       const dx = Math.sin(this.gazeTh);
@@ -580,8 +613,16 @@ export class Act2 {
       if (ft >= T) {
         a.setGaze(false);
         this.ft = 0;
-        this.fst = 'stuck';
-        audio.thump(0.8);
+        if (this.sub < GAZE_SWEEP.length - 1) {
+          // not the last sweep: he swings back the other way, faster
+          this.sub++;
+          this.gazeDir = -this.gazeDir;
+          this.fst = 'tele';
+          this.chimes = 0;
+        } else {
+          this.fst = 'stuck';
+          audio.thump(0.8);
+        }
       }
     } else if (this.fst === 'stuck') {
       if (ft >= 3.0) {
@@ -594,6 +635,8 @@ export class Act2 {
       if (u >= 1) {
         this.ft = 0;
         this.fst = 'wait';
+        this.headLow = false;
+        this.sub = GAZE_SWEEP.length - 2;
       }
     }
   }
@@ -603,17 +646,16 @@ export class Act2 {
     const { audio } = this.ctx;
     const ft = this.ft;
     if (this.fst === 'wait') {
-      if (ft >= (this.sub === 0 ? 1.3 : 0.6)) {
+      if (ft >= (this.sub === 0 ? 1.3 : this.sub < JAW_STEPS.length ? 0.6 : 0.8)) {
         this.ft = 0;
         this.fst = 'tele';
         audio.rumble();
-        if (this.sub < 2) {
-          const n = this.sub === 0 ? 3 : 4;
+        if (this.sub < JAW_STEPS.length) {
+          const { n, r } = JAW_STEPS[this.sub]!;
           const base = Math.random() * TAU;
           this.jawT = [];
           for (let i = 0; i < n; i++) {
             const ang = base + (i / n) * TAU;
-            const r = 2.8;
             let x = this.px + Math.cos(ang) * r;
             let z = this.pz + Math.sin(ang) * r;
             const rr = Math.hypot(x, z);
@@ -629,10 +671,11 @@ export class Act2 {
         }
       }
     } else if (this.fst === 'tele') {
-      if (this.sub < 2) {
-        const u = clamp(ft / 1.1, 0, 1);
+      if (this.sub < JAW_STEPS.length) {
+        const TJ = JAW_STEPS[this.sub]!.T;
+        const u = clamp(ft / TJ, 0, 1);
         this.jawT.forEach((j, i) => a.setJawSlot(i, true, j.x, j.z, u, 0));
-        if (ft >= 1.1) {
+        if (ft >= TJ) {
           this.ft = 0;
           this.fst = 'impact';
           audio.snap();
@@ -663,7 +706,7 @@ export class Act2 {
         }
       }
     } else if (this.fst === 'impact') {
-      if (this.sub < 2) {
+      if (this.sub < JAW_STEPS.length) {
         const e = clamp(ft / 0.18, 0, 1);
         const burst = 1 + 0.15 * Math.sin(e * Math.PI) * (e < 1 ? 1 : 0);
         this.jawT.forEach((j, i) => a.setJawSlot(i, true, j.x, j.z, 1, e < 1 ? e * burst : 1));
@@ -694,7 +737,7 @@ export class Act2 {
         this.coreOn = false;
         a.setCore(false);
         a.setHead(0);
-        this.sub = 0;
+        this.sub = JAW_STEPS.length - 2;
         this.ft = 0;
         this.fst = 'wait';
       }
@@ -724,17 +767,19 @@ export class Act2 {
       else this.runJaws(dt);
       return;
     }
+    const steps = kind === 'foot' ? FOOT_STEPS : RAKE_STEPS;
+    const step = steps[Math.min(this.sub, steps.length - 1)]!;
     if (this.fst === 'wait') {
-      if (ft >= 1.3) {
+      if (ft >= step.w) {
         this.ft = 0;
         this.fst = 'tele';
         if (kind === 'foot') {
-          const f = new THREE.Vector3(this.pvx, 0, this.pvz).multiplyScalar(0.22);
+          const f = new THREE.Vector3(this.pvx, 0, this.pvz).multiplyScalar(step.lead ?? 0.22);
           this.foot = { x: clamp(this.px + f.x, -7.5, 7.5), z: clamp(this.pz + f.z, -7.5, 7.5) };
           a.foot.visible = true;
         } else {
-          const dir = Math.random() < 0.5 ? -1 : 1;
-          const zc = clamp(this.pz + (Math.random() - 0.5) * 3, -3.4, 3.4);
+          const dir = step.flip ? -this.rake.dir : Math.random() < 0.5 ? -1 : 1;
+          const zc = step.flip ? clamp(this.rake.lanes[1]! + step.off!, -3.4, 3.4) : clamp(this.pz + (Math.random() - 0.5) * 3, -3.4, 3.4);
           this.rake = { dir, lanes: [zc - 3.7, zc, zc + 3.7], armX: -dir * 14 };
           a.arms.forEach((m, i) => {
             m.visible = true;
@@ -746,7 +791,7 @@ export class Act2 {
         audio.rumble();
       }
     } else if (this.fst === 'tele') {
-      const T = kind === 'foot' ? 1.45 : 1.3;
+      const T = step.T;
       const u = clamp(ft / T, 0, 1);
       audio.setHeart(1.2 + u * 1.6, 0.7);
       if (kind === 'foot') {
@@ -781,7 +826,7 @@ export class Act2 {
       if (kind === 'foot') {
         if (ft >= 0.2) {
           this.ft = 0;
-          this.fst = 'stuck';
+          this.fst = step.fin ? 'stuck' : 'retract';
         }
       } else {
         const T = 0.7;
@@ -797,10 +842,10 @@ export class Act2 {
         });
         if (u >= 1) {
           this.ft = 0;
-          this.fst = 'stuck';
+          this.fst = step.fin ? 'stuck' : 'retract';
           audio.slam();
           this.shake = 0.8;
-          a.arms.forEach((m) => a.setArmLength(m, 0.2));
+          if (step.fin) a.arms.forEach((m) => a.setArmLength(m, 0.2));
           for (const l of this.rake.lanes) a.burst3(this.rake.dir * 7.2, 0.4, l, 8, [0x3a2a62, 0x46346f], 6);
         }
       }
@@ -814,14 +859,16 @@ export class Act2 {
         this.fst = 'retract';
       }
     } else if (this.fst === 'retract') {
-      const u = clamp(ft / 0.9, 0, 1);
+      const u = clamp(ft / (step.fin ? 0.9 : 0.45), 0, 1);
       if (kind === 'foot') a.foot.position.y = lerp(1.3, 40, u * u);
-      else a.arms.forEach((m) => (m.position.x += this.rake.dir * 24 * dt));
+      else a.arms.forEach((m) => (m.position.x += this.rake.dir * (step.fin ? 24 : 40) * dt));
       if (u >= 1) {
         this.ft = 0;
         this.fst = 'wait';
         a.foot.visible = false;
         a.arms.forEach((m) => (m.visible = false));
+        // a missed finisher replays the last three attacks, not the whole sequence
+        this.sub = step.fin ? steps.length - 3 : this.sub + 1;
       }
     } else if (this.fst === 'clear') {
       // after a successful counterattack: attacks retreat, then the next phase (or the end)
@@ -877,6 +924,7 @@ export class Act2 {
     ui.hint(null);
     audio.setDrone(0, 2.5);
     audio.setHeart(0, 0);
+    audio.setLullaby(0.9, 0);
     this.arena.setRedLight(0);
     // each pinned specimen will flicker out at its own moment
     const rnd = rng(9);

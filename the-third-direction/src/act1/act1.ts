@@ -173,6 +173,7 @@ export class Act1 implements Hub {
     this.audio.setCrickets(1);
     this.audio.setHeart(0, 0);
     this.audio.setDrone(0, 0.5);
+    this.audio.setLullaby(0.9, 0);
     this.input.setMoveEnabled(false);
     this.input.setAction(null);
     this.ui.hint(null);
@@ -190,6 +191,7 @@ export class Act1 implements Hub {
     this.audio.setWind(0.16, 1);
     this.audio.setCrickets(0);
     this.audio.setHeart(1.3, 0.6);
+    this.audio.setLullaby(0.5, 0.5);
     this.beginPlay();
   }
 
@@ -266,6 +268,8 @@ export class Act1 implements Hub {
       const s = this.slams.find((q) => q.phase === 'tele');
       const u = s ? s.t / s.T : 0;
       this.audio.setHeart(s ? 1.15 + u * 1.4 : 0.9, s ? 0.65 : 0.3);
+      // calm in the meadow once the Mournmoth is with you, broken everywhere else
+      this.audio.setLullaby(s ? 0.3 : 0.5, s ? 0.95 : this.moth.has ? 0.12 : 0.55);
     }
   }
 
@@ -284,7 +288,10 @@ export class Act1 implements Hub {
       ui.caption("Don't look up.", 2800);
       audio.blip(0.7);
     });
-    this.fire('shadow', t >= OP.shadow, () => audio.setHeart(1.0, 0.85));
+    this.fire('shadow', t >= OP.shadow, () => {
+      audio.setHeart(1.0, 0.85);
+      audio.setLullaby(0.6, 0.8);
+    });
     this.fire('cap2', t >= OP.shove, () => {
       ui.caption("Go. Don't stop.", 2200);
       audio.blip(1.15);

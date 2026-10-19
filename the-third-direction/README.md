@@ -6,7 +6,12 @@ Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design
 ## Status: the whole script is playable
 Opening → Gloomlings (+ the cube-glitch teaser) → Rootmaws puzzle → Bellwethers (Echo Marsh) → Skitterbones →
 Mournmoth + Mimic Blooms → the edge → the boom → 3D arena → four-phase boss fight (Crusher, Many-Limbed, Watcher,
-Hollow Core) → ending with the rebuilt clearing and the fastest-clear leaderboard (`rundot/leaderboard.config.json`).
+Hollow Core) → ending with the rebuilt clearing, a share button and the fastest-clear leaderboard (`rundot/leaderboard.config.json`).
+
+Depth added after the first full playthrough: each boss phase is now a 4-7 attack sequence that ends in the strike window
+(foot chains, a double rake from both sides, four gaze sweeps that get faster, four tightening jaw rings), the marsh has pairs
+of Bellwethers that sweep apart and together, the meadow has a second flower field whose flowers snap in a rolling wave, and a
+quiet music-box lullaby plays under the forest: pure when it is calm, out of tune when X is near.
 
 Not done yet: tuning from real playtests (difficulty, timings, audio mix), real-phone performance checks, and RUN host testing
 (the game has only been run in a plain browser and a headless one, never inside the RUN app).

@@ -13,6 +13,13 @@ export class Sfx {
   private cricketLevel = 0;
   private cricketT = 0;
   private masterLevel = 0.9;
+  // music-box lullaby: pure when it is calm, out of tune and stumbling when X is near
+  private lullTarget = 0;
+  private lullLevel = 0;
+  private lullWarpTarget = 0;
+  private lullWarp = 0;
+  private lullT = 0;
+  private lullI = 0;
 
   /** Must be called from a user gesture (tap / key). */
   start() {
@@ -93,6 +100,11 @@ export class Sfx {
   setCrickets(v: number) {
     this.cricketLevel = v;
   }
+  /** level 0..1 is the volume of the lullaby, warp 0..1 is how broken it sounds. */
+  setLullaby(level: number, warp: number) {
+    this.lullTarget = level;
+    this.lullWarpTarget = warp;
+  }
   setHeart(rate: number, level: number) {
     this.heartRate = rate;
     this.heartLevel = level;
@@ -101,12 +113,38 @@ export class Sfx {
   silence(t = 0.15) {
     this.setCrickets(0);
     this.setHeart(0, 0);
+    this.setLullaby(0, this.lullWarpTarget);
+    this.lullLevel = 0;
     this.setWind(0, t);
     this.setDrone(0, t);
   }
 
+  private lullaby(dt: number) {
+    const k = Math.min(1, dt * 1.6);
+    this.lullLevel += (this.lullTarget - this.lullLevel) * k;
+    this.lullWarp += (this.lullWarpTarget - this.lullWarp) * k;
+    if (this.lullLevel < 0.02) return;
+    this.lullT -= dt;
+    if (this.lullT > 0) return;
+    // A minor pentatonic, a slow rocking tune; the last step is a long rest
+    const NOTES = [440, 523.25, 659.25, 587.33, 523.25, 440, 392, 329.63];
+    const i = this.lullI++ % 9;
+    this.lullT = i === 8 ? 1.9 : 0.62 + (i % 3 === 2 ? 0.28 : 0);
+    if (i === 8) return;
+    const w = this.lullWarp;
+    if (Math.random() < w * 0.3) return; // stumbles
+    let f = NOTES[i]!;
+    if (Math.random() < w * 0.22) f *= Math.pow(2, -1 / 12); // a wrong note
+    f *= Math.pow(2, (-w * 45 * (0.4 + Math.random() * 0.6)) / 1200); // sagging pitch
+    const v = 0.055 * this.lullLevel;
+    this.tone(f, 1.9, 'sine', v);
+    this.tone(f * 2, 0.9, 'sine', v * 0.35);
+    this.tone(f * 3.01, 0.35, 'triangle', v * 0.14);
+  }
+
   update(dt: number) {
     if (!this.ctx) return;
+    this.lullaby(dt);
     if (this.heartRate > 0 && this.heartLevel > 0) {
       this.heartT -= dt;
       if (this.heartT <= 0) {

@@ -5,7 +5,7 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { onLifecycle, submitClearTime, track } from './sdk';
+import { onLifecycle, shareRun, submitClearTime, track } from './sdk';
 import { UI } from './ui';
 
 type State = 'menu' | 'act1' | 'boom' | 'arena' | 'ending' | 'end';
@@ -100,7 +100,7 @@ export class Game {
     this.state = 'end';
     track('game_complete');
     const s = this.summary();
-    const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, () => this.restart());
+    const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, () => this.restart(), () => shareRun(s.time, s.deaths));
     // the showcase skips the story, so its time never goes on the leaderboard
     if (!this.showcaseRun) {
       void submitClearTime(this.elapsed, s.deaths).then((r) => {

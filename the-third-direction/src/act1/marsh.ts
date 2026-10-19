@@ -14,9 +14,17 @@ interface Bell {
   alert: number;
   cool: number;
   ang: number;
+  f: number;
 }
 
-const ROWS = [-1430, -1570, -1710, -1850];
+/** The second half of the marsh has pairs of Bellwethers that sweep apart and together, the last pair faster. */
+const ROWS: { y: number; pair?: boolean; f?: number }[] = [
+  { y: -1410 },
+  { y: -1535 },
+  { y: -1660 },
+  { y: -1785, pair: true },
+  { y: -1910, pair: true, f: 1.35 },
+];
 const RANGE = 84;
 const HALF = 0.46;
 
@@ -28,12 +36,16 @@ export class MarshEncounter implements Encounter {
   private bells: Bell[] = [];
   private hide: { x: number; y: number; seed: number }[] = [];
   private deco: { x: number; y: number; seed: number }[] = [];
-  private cp = [false, false, false, false];
+  private cp: boolean[] = ROWS.map(() => false);
   private done = false;
 
   constructor(private hub: Hub) {
-    this.bells = ROWS.map((y, i) => ({ y, amp: 34, x: trailCx(y), phase: i * 1.7, seed: i * 2.3, alert: 0, cool: 0, ang: Math.PI / 2 }));
-    ROWS.forEach((y, i) => {
+    ROWS.forEach((r, i) => {
+      for (let k = 0; k < (r.pair ? 2 : 1); k++) {
+        this.bells.push({ y: r.y, amp: r.pair ? 46 : 34, x: trailCx(r.y), phase: i * 1.7 + k * Math.PI, seed: i * 2.3 + k, alert: 0, cool: 0, ang: Math.PI / 2, f: r.f ?? 1 });
+      }
+    });
+    ROWS.forEach(({ y }, i) => {
       const side = i % 2 === 0 ? -1 : 1;
       for (let k = 0; k < 3; k++) this.hide.push({ x: trailCx(y + 38) + side * (14 + k * 11) * (k % 2 ? -1 : 1), y: y + 34 + k * 9, seed: i * 10 + k });
     });
@@ -46,7 +58,7 @@ export class MarshEncounter implements Encounter {
   }
 
   reset() {
-    this.cp = [false, false, false, false];
+    this.cp = ROWS.map(() => false);
     this.done = false;
     this.bells.forEach((b) => {
       b.alert = 0;
@@ -79,8 +91,8 @@ export class MarshEncounter implements Encounter {
     pl.speedMul = reeds ? 0.55 : 1;
     const sp = Math.hypot(pl.vx, pl.vy);
     for (const b of this.bells) {
-      b.x = trailCx(b.y) + Math.sin(t * 0.55 + b.phase) * b.amp;
-      b.ang = Math.PI / 2 + 0.78 * Math.sin(t * 0.72 + b.phase * 1.3);
+      b.x = trailCx(b.y) + Math.sin(t * 0.55 * b.f + b.phase) * b.amp;
+      b.ang = Math.PI / 2 + 0.78 * Math.sin(t * 0.72 * b.f + b.phase * 1.3);
       b.alert = Math.max(0, b.alert - dt);
       b.cool = Math.max(0, b.cool - dt);
       const dx = pl.x - b.x;
@@ -99,7 +111,7 @@ export class MarshEncounter implements Encounter {
         hub.spawnSlam(pl.x + pl.vx * 0.15, pl.y + pl.vy * 0.15, 38, 1.25);
       }
     }
-    ROWS.forEach((y, i) => {
+    ROWS.forEach(({ y }, i) => {
       if (!this.cp[i] && pl.y < y - 60) {
         this.cp[i] = true;
         hub.checkpoint(y - 66);
