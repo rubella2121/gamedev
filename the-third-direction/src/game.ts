@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Act1 } from './act1/act1';
 import { Act2 } from './act2/act2';
+import { Forest } from './forest/forest';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
@@ -15,13 +15,13 @@ export class Game {
   readonly ui: UI;
   readonly input: Input;
   readonly audio = new Sfx();
-  readonly stats = { deaths: 0 };
+  readonly stats = { deaths: 0, bonus: 0 };
   state: State = 'menu';
   private renderer!: THREE.WebGLRenderer;
   private scene2d = new THREE.Scene();
   private cam2d = new THREE.OrthographicCamera(-W / 2, W / 2, H / 2, -H / 2, 0, 10);
   private tex2d!: THREE.CanvasTexture;
-  private act1!: Act1;
+  private act1!: Forest;
   private act2!: Act2;
   private last = 0;
   private paused = false;
@@ -47,7 +47,8 @@ export class Game {
     this.renderer.setSize(W, H, false);
     this.renderer.setClearColor(0x05060c, 1);
 
-    this.act1 = new Act1({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
+    const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats };
+    this.act1 = new Forest(ctx);
     this.tex2d = new THREE.CanvasTexture(this.act1.p.canvas);
     this.tex2d.minFilter = this.tex2d.magFilter = THREE.NearestFilter;
     this.tex2d.generateMipmaps = false;

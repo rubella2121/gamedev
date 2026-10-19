@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Arena, ARENA_R, BOSS_Z, LANES } from './arena';
 import { D } from '../core/difficulty';
-import type { Ctx } from '../act1/act1';
+import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
@@ -94,6 +94,10 @@ export class Act2 {
   // fight
   private phase = 0;
   private hearts = 3;
+  /** hearts per phase: the difficulty's hearts plus the bonus hearts found in secrets */
+  private get maxHearts() {
+    return D.hearts + Math.min(3, this.ctx.stats.bonus);
+  }
   private fst: FSt = 'wait';
   private ft = 0;
   private foot = { x: 0, z: 0 };
@@ -359,11 +363,11 @@ export class Act2 {
     this.control = true;
     this.fst = 'wait';
     this.ft = -1.0;
-    this.hearts = D.hearts;
+    this.hearts = this.maxHearts;
     this.ctx.input.setMoveEnabled(true);
     this.ctx.input.setCameraEnabled(true);
     this.ctx.input.setAction('strike');
-    this.ctx.ui.hearts(this.hearts, D.hearts);
+    this.ctx.ui.hearts(this.hearts, this.maxHearts);
     this.ctx.ui.recenter(true, () => this.resetCamera());
     this.resetCamera();
     this.camManual = false;
@@ -389,7 +393,7 @@ export class Act2 {
     const { ui, audio } = this.ctx;
     this.hearts--;
     this.invuln = 1.5;
-    ui.hearts(this.hearts);
+    ui.hearts(this.hearts, this.maxHearts);
     ui.red(0.55, 350);
     audio.hurt();
     this.shake = Math.max(this.shake, 0.7);
@@ -412,7 +416,7 @@ export class Act2 {
 
   private resetPhase() {
     const a = this.arena;
-    this.hearts = D.hearts;
+    this.hearts = this.maxHearts;
     this.px = 0;
     this.pz = START_Z;
     this.pvx = this.pvz = 0;
@@ -426,7 +430,7 @@ export class Act2 {
     a.hideShadow();
     a.lanes.forEach((l) => (l.visible = false));
     this.resetExtras();
-    this.ctx.ui.hearts(D.hearts, D.hearts);
+    this.ctx.ui.hearts(this.hearts, this.maxHearts);
     this.ctx.ui.fade(0, 450);
     this.control = true;
   }
@@ -636,8 +640,8 @@ export class Act2 {
     a.foot.visible = false;
     a.arms.forEach((m) => (m.visible = false));
     this.phase++;
-    this.hearts = D.hearts;
-    this.ctx.ui.hearts(D.hearts, D.hearts);
+    this.hearts = this.maxHearts;
+    this.ctx.ui.hearts(this.hearts, this.maxHearts);
     this.resetCamera();
     if (this.phase >= PHASES.length) this.beginEnding();
     else {

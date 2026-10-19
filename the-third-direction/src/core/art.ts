@@ -6,7 +6,9 @@ import { clamp, hash2, rng, TAU } from './util';
 /* Pre-rendered tiles and sprites (drawn once, then blitted)           */
 /* ------------------------------------------------------------------ */
 
-export function makeGroundTile(kind: 'forest' | 'marsh' | 'meadow' = 'forest'): HTMLCanvasElement {
+export type GroundKind = 'forest' | 'marsh' | 'meadow' | 'bones' | 'thicket';
+
+export function makeGroundTile(kind: GroundKind = 'forest'): HTMLCanvasElement {
   if (kind !== 'forest') return makeBiomeGround(kind);
   const p = makeSprite(64, 64);
   p.clear('#103846');
@@ -30,9 +32,9 @@ export function makeGroundTile(kind: 'forest' | 'marsh' | 'meadow' = 'forest'): 
   return p.canvas;
 }
 
-export function makePathTile(kind: 'forest' | 'marsh' | 'meadow' = 'forest'): HTMLCanvasElement {
+export function makePathTile(kind: GroundKind = 'forest'): HTMLCanvasElement {
   const p = makeSprite(64, 64);
-  p.clear(kind === 'marsh' ? '#1a4a44' : kind === 'meadow' ? '#1b5750' : '#17494f');
+  p.clear(kind === 'marsh' ? '#1a4a44' : kind === 'meadow' ? '#1b5750' : kind === 'bones' ? '#2a4a52' : kind === 'thicket' ? '#1a3c3c' : '#17494f');
   for (let y = 0; y < 64; y++) {
     for (let x = 0; x < 64; x++) {
       const n = hash2(x * 7 + 3, y * 3 + 19);
@@ -44,9 +46,49 @@ export function makePathTile(kind: 'forest' | 'marsh' | 'meadow' = 'forest'): HT
   return p.canvas;
 }
 
-function makeBiomeGround(kind: 'marsh' | 'meadow'): HTMLCanvasElement {
+function makeBiomeGround(kind: 'marsh' | 'meadow' | 'bones' | 'thicket'): HTMLCanvasElement {
   const p = makeSprite(64, 64);
-  if (kind === 'marsh') {
+  if (kind === 'thicket') {
+    // dark soil laced with root veins
+    p.clear('#0c2a2c');
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        const n = hash2(x * 5 + 3, y * 3 + 8);
+        if (n < 0.12) p.px(x, y, '#081f22');
+        else if (n > 0.95) p.px(x, y, '#174548');
+      }
+    }
+    const r = rng(23);
+    for (let i = 0; i < 7; i++) {
+      let x = r() * 64;
+      let y = r() * 64;
+      let a = r() * TAU;
+      for (let k = 0; k < 14; k++) {
+        a += (r() - 0.5) * 0.9;
+        x += Math.cos(a) * 2.4;
+        y += Math.sin(a) * 2.4;
+        p.px(x, y, k % 3 === 0 ? '#3a2a1e' : '#2a1e16');
+      }
+    }
+  } else if (kind === 'bones') {
+    // ash-grey ground scattered with bone chips
+    p.clear('#1b3840');
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 64; x++) {
+        const n = hash2(x * 3 + 17, y * 7 + 5);
+        if (n < 0.1) p.px(x, y, '#142e36');
+        else if (n > 0.95) p.px(x, y, '#2a5560');
+      }
+    }
+    const r = rng(29);
+    for (let i = 0; i < 22; i++) {
+      const x = Math.floor(r() * 60) + 2;
+      const y = Math.floor(r() * 60) + 2;
+      p.px(x, y, '#b8ae94');
+      p.px(x + 1, y, '#e8e0c8');
+      if (r() < 0.4) p.px(x + 2, y + 1, '#b8ae94');
+    }
+  } else if (kind === 'marsh') {
     p.clear('#0c3236');
     for (let y = 0; y < 64; y++) {
       for (let x = 0; x < 64; x++) {
@@ -454,11 +496,11 @@ export function updateParticles(list: Particle[], dt: number) {
   }
 }
 
-export function drawParticles(p: Pix, list: Particle[], camY: number) {
+export function drawParticles(p: Pix, list: Particle[], camY: number, camX = 0) {
   for (const q of list) {
     const a = clamp(q.life / q.max, 0, 1);
     p.alpha(a < 0.35 ? a * 2.5 : 1);
-    p.rect(q.x, q.y - camY, q.size, q.size, q.col);
+    p.rect(q.x - camX, q.y - camY, q.size, q.size, q.col);
   }
   p.alpha(1);
 }

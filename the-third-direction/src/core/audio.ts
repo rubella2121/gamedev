@@ -285,6 +285,33 @@ export class Sfx {
     this.tone(784, 1.8, 'sine', 0.05, undefined, 0.2);
     this.tone(1046, 2.2, 'sine', 0.035, undefined, 0.4);
   }
+  /** The light pulse. */
+  pulse() {
+    this.tone(660, 0.2, 'sine', 0.08, 1100);
+    this.tone(1320, 0.14, 'triangle', 0.04, undefined, 0.03);
+    this.burst(0.16, 0.05, 'highpass', 2500, 6000);
+  }
+  /** A monster is hit by light. */
+  pop() {
+    this.tone(900, 0.09, 'square', 0.05, 300);
+    this.burst(0.08, 0.1, 'bandpass', 1500, 400);
+  }
+  /** A monster is destroyed. */
+  kill() {
+    this.tone(480, 0.22, 'triangle', 0.07, 110);
+    this.burst(0.28, 0.12, 'bandpass', 900, 160);
+  }
+  click() {
+    this.tone(300, 0.05, 'square', 0.06);
+    this.tone(450, 0.06, 'square', 0.04, undefined, 0.05);
+  }
+  /** A puzzle opens. */
+  unlock() {
+    this.tone(392, 0.5, 'sine', 0.07);
+    this.tone(587, 0.6, 'sine', 0.06, undefined, 0.12);
+    this.tone(784, 0.8, 'sine', 0.05, undefined, 0.26);
+    this.burst(0.5, 0.15, 'lowpass', 1200, 200);
+  }
   clamp01(v: number) {
     return clamp(v, 0, 1);
   }
