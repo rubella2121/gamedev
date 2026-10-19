@@ -323,3 +323,17 @@ export function drawLightSeed(p: Pix, x: number, y: number, t: number, awake: nu
     p.dither(x, y - 17 + bob, 14 * awake, 10 * awake, '#ffffff', 0.25);
   }
 }
+
+/** A standing stone with a coloured flame, marking the road into a zone. `lit` 0..1. */
+export function drawBeacon(p: Pix, x: number, y: number, t: number, col: string, lit: number) {
+  p.ellipse(x, y + 1, 7, 2.6, '#04070d');
+  p.rect(x - 3, y - 12, 6, 12, '#26343c');
+  p.rect(x - 3, y - 12, 2, 12, '#3a4e58');
+  p.rect(x - 5, y - 14, 10, 3, '#3a4e58');
+  const f = 0.8 + 0.2 * Math.sin(t * 8 + x);
+  p.ellipse(x, y - 19, 2.2 + lit, 3.4 + lit * f, lit > 0.05 ? col : '#2a3a44');
+  if (lit > 0.05) {
+    p.dither(x, y - 19, 16 * lit + 4, 12 * lit + 4, col, 0.28 * f);
+    p.px(x, y - 20, '#ffffff');
+  }
+}

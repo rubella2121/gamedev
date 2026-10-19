@@ -3,22 +3,23 @@
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension.
 Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design lives in [`GAME_SCRIPT.md`](./GAME_SCRIPT.md).
 
-## Status: the whole script is playable
-Opening → Gloomlings (+ the cube-glitch teaser) → Rootmaws puzzle → Bellwethers (Echo Marsh) → Skitterbones →
-Mournmoth + Mimic Blooms → the edge → the boom → 3D arena → four-phase boss fight (Crusher, Many-Limbed, Watcher,
-Hollow Core) → ending with the rebuilt clearing, a share button and the fastest-clear leaderboard (`rundot/leaderboard.config.json`).
+## Status: the whole game is playable
+Home page (Play, Gentle / Normal / Nightmare, How to play, Quick showcase, sound, best time) -> opening -> the **open forest**
+(walk in any direction; a crossroads and five zones you can do in any order) -> the seal on the road opens -> the Edge -> the
+boom -> a big 3D arena with a free camera and a four-phase boss fight -> the ending with the rebuilt clearing, a share button and
+the fastest-clear leaderboard (`rundot/leaderboard.config.json`).
 
-Depth added after the first full playthrough: each boss phase is now a 4-7 attack sequence that ends in the strike window
-(foot chains, a double rake from both sides, four gaze sweeps that get faster, four tightening jaw rings), the marsh has pairs
-of Bellwethers that sweep apart and together, the meadow has a second flower field whose flowers snap in a rolling wave, and a
-quiet music-box lullaby plays under the forest: pure when it is calm, out of tune when X is near.
+The five zones (each has monsters you fight with light, a puzzle, a secret and a heart to reach):
+Gloom Hollow, Rootmaw Thicket, Echo Marsh, Bone Wastes and Moth Meadow. See [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
+Secrets give bonus hearts (up to +3) for the 3D fight.
 
 Not done yet: tuning from real playtests (difficulty, timings, audio mix), real-phone performance checks, and RUN host testing
 (the game has only been run in a plain browser and a headless one, never inside the RUN app).
 
 ## Controls
 - Move: WASD / arrow keys, or the touch joystick (drag anywhere on the left side).
-- Action: Space, or the on-screen button / right side of the screen. Hold to look up (2D), tap to strike (3D).
+- Action: Space, or the on-screen button. In the forest it is a **light pulse** (tap); it becomes "hold" to free the Mournmoth or look up.
+- 3D arena: the button strikes. Turn the camera with Q / E or by dragging on the right side (mouse: drag anywhere); R or the ◎ button recentres.
 
 ## Run it
 ```bash
@@ -41,7 +42,8 @@ rundot game set-public # only when ready: submits the game for review
 `public/thumbnail.jpg` (512x512) is the required store thumbnail.
 
 ## How it is built
-- One Three.js renderer at 216x384, scaled up with nearest-neighbour filtering. Act 1 is painted pixel by pixel on a
-  Canvas2D (`src/core/pix.ts`, `src/core/art.ts`) and shown as a texture; at the boom those real pixels become cubes.
-- Act 2 is a chunky 3D arena (`src/act2/`). No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`).
+- One Three.js renderer: the 2D forest is 216x384, the 3D world is drawn at twice that, both scaled up with nearest-neighbour filtering.
+  The forest (`src/forest/`) is painted pixel by pixel on a Canvas2D (`src/core/pix.ts`, `src/core/art.ts`, `src/forest/art3.ts`)
+  and shown as a texture; at the boom those real pixels become cubes.
+- The 3D arena (`src/act2/`) is a chunky platform with a boss, pillars, a pinned-specimen wall and an orbit camera. No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`).
 - The RUN SDK is wired by the Vite plugin; `src/sdk.ts` wraps the few calls used so the game also runs outside the RUN app.

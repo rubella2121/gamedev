@@ -1,5 +1,9 @@
 # THE THIRD DIRECTION: FINAL SCRIPT (v3.1)
 
+> **v4 note:** Act I is no longer a straight corridor. It is an open forest with five zones you can do in any order, a light-pulse attack,
+> hearts, more monsters and puzzles, and a bigger 3D arena with a free camera. The story beats below still hold. The new structure is
+> described in [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
+
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension. The monster that hunts it, **X, "The Hollow"**, is stitched together from the creatures you meet.
 
 **Playtime** (estimates, to be verified by playtesting):

@@ -6,6 +6,7 @@ import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRe
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
 import { CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, type ZoneId } from './land';
+import { drawBeacon } from './art3';
 import type { Drawable, Features, Hub, Patch, Player, Rect, Slam, Zone } from './types';
 import { makeZones } from './zones';
 
@@ -20,6 +21,7 @@ const OY = START.y;
 const LOCAL_CAM = -190;
 const PULSE_R = 36;
 const ENTRIES = [...ZONES.map((z) => z.entry), { x: 418, y: 812 }, { x: 858, y: 812 }, { x: 1034, y: 1500 }, { x: HUB.x, y: HUB.y }];
+const ZONE_COLOR: Record<ZoneId, string> = { gloom: C.cyanEye, thicket: '#e0a060', marsh: '#c9b6ff', bones: C.bone, meadow: C.flowerLight };
 const FEATURE: Record<ZoneId, keyof Features | null> = { gloom: 'cyan', thicket: 'teeth', marsh: 'eyes', bones: 'limbs', meadow: null };
 
 export class Forest implements Hub {
@@ -56,6 +58,7 @@ export class Forest implements Hub {
   private glitchT = 0;
   private glitchFlash = false;
   private teased = false;
+  private pulseHinted = false;
   private tmp: HTMLCanvasElement;
   private holdReq: string | null = null;
   private healT = 0;
@@ -243,6 +246,7 @@ export class Forest implements Hub {
     this.patches = [];
     this.glitchT = 0;
     this.teased = false;
+    this.pulseHinted = false;
     this.secrets = 0;
     this.ctx.stats.bonus = 0;
     this.sealOpen = false;
@@ -580,6 +584,18 @@ export class Forest implements Hub {
     const kc = 1 - Math.exp(-5 * dt);
     this.camX += (tx - this.camX) * kc;
     this.camY += (ty - this.camY) * kc;
+
+    // --- the first time you step into a zone, a one-line reminder of what light does
+    if (!this.pulseHinted) {
+      for (const z of ZONES) {
+        if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 0.9) {
+          this.pulseHinted = true;
+          this.ui.hint('tap to pulse light');
+          window.setTimeout(() => this.ui.hint(null), 4800);
+          break;
+        }
+      }
+    }
 
     // --- checkpoints where the roads meet the zones
     for (const e of ENTRIES) if (Math.abs(pl.x - e.x) < 34 && Math.abs(pl.y - e.y) < 34) this.checkpoint(e.x, e.y);
@@ -930,6 +946,16 @@ export class Forest implements Hub {
       });
     }
     for (const z of this.zones) z.push?.(list);
+    if (!opening) {
+      for (const z of ZONES) {
+        const bx = z.entry.x;
+        const by = z.entry.y - 14;
+        if (Math.abs(bx - camX - W / 2) < W / 2 + 40 && Math.abs(by - camY - H / 2) < H / 2 + 40) {
+          const done = this.zones.find((q) => q.id === z.id)!.cleared;
+          list.push({ y: by, fn: () => drawBeacon(p, bx - camX, by - camY, t, ZONE_COLOR[z.id], done ? 0.35 : 1) });
+        }
+      }
+    }
     if (opening) this.pushOpeningActors(list);
     else if (!this.player.hide) {
       const pl = this.player;
@@ -974,7 +1000,10 @@ export class Forest implements Hub {
       if (u > 0.6) this.drawDark((u - 0.6) * 0.5);
     }
     if (opening && ot < 1.6) this.drawDark(1 - ot / 1.6);
-    if (this.mode === 'play' || this.mode === 'consume') this.drawHud();
+    if (this.mode === 'play' || this.mode === 'consume') {
+      this.drawHud();
+      if (this.mode === 'play') this.drawCompass();
+    }
     if (this.mode === 'crack') this.drawCracks();
     if (this.glitchT > 0) this.applyGlitch();
     this.camX = cx0;
@@ -998,6 +1027,45 @@ export class Forest implements Hub {
       const blink = Math.floor(this.time * 3) % 2 === 0;
       p.ellipse(W / 2, 19, 2, 2, blink ? C.red : C.redDark);
     }
+  }
+
+  /** A small arrow beside the blob that points at the nearest zone you have not finished (or at the Edge), while you are out on the roads. */
+  private drawCompass() {
+    const pl = this.player;
+    if (pl.dead > 0 || this.glitchT > 0) return;
+    for (const z of ZONES) if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 1.0) return;
+    let tx = PLATEAU.x;
+    let ty = 560;
+    let col: string = C.red;
+    let best = 1e9;
+    for (const z of ZONES) {
+      if (this.zones.find((q) => q.id === z.id)!.cleared) continue;
+      const d = Math.hypot(pl.x - z.entry.x, pl.y - z.entry.y);
+      if (d < best) {
+        best = d;
+        tx = z.entry.x;
+        ty = z.entry.y;
+        col = ZONE_COLOR[z.id];
+      }
+    }
+    const d = Math.hypot(tx - pl.x, ty - pl.y);
+    if (d < 130) return;
+    const a = Math.atan2(ty - pl.y, tx - pl.x);
+    const p = this.p;
+    const sx = pl.x - this.camX + Math.cos(a) * 34;
+    const sy = pl.y - this.camY - 8 + Math.sin(a) * 26;
+    const hx = sx + Math.cos(a) * 8;
+    const hy = sy + Math.sin(a) * 6;
+    const segs: [number, number, number, number][] = [
+      [sx, sy, hx, hy],
+      [hx, hy, hx - Math.cos(a - 0.75) * 7, hy - Math.sin(a - 0.75) * 5.5],
+      [hx, hy, hx - Math.cos(a + 0.75) * 7, hy - Math.sin(a + 0.75) * 5.5],
+    ];
+    p.alpha(0.8);
+    for (const [x0, y0, x1, y1] of segs) p.line(x0, y0, x1, y1, C.ink, 4);
+    p.alpha(0.7 + 0.3 * Math.sin(this.time * 4));
+    for (const [x0, y0, x1, y1] of segs) p.line(x0, y0, x1, y1, col, 2);
+    p.alpha(1);
   }
 
   /** The thorn seal across the road to the Edge. */

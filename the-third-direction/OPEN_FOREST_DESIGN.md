@@ -43,13 +43,20 @@ Story beats, the Edge, the boom and the 3D fight stay the same (see `GAME_SCRIPT
 - Screenshots of every zone.
 
 ## Progress
-- [ ] land + camera + collision + opening on the new map
-- [ ] hearts, pulse, checkpoints, HUD
-- [ ] Gloom Hollow
-- [ ] Rootmaw Thicket
-- [ ] Echo Marsh
-- [ ] Bone Wastes
-- [ ] Moth Meadow
-- [ ] Edge seal + edge + crack + boom hand-off
-- [ ] secrets and bonus hearts in the 3D fight
-- [ ] bots, balance pass, README, republish preview
+- [x] land + camera + collision + opening on the new map
+- [x] hearts, pulse, checkpoints, HUD, compass arrow, zone beacons
+- [x] Gloom Hollow
+- [x] Rootmaw Thicket
+- [x] Echo Marsh
+- [x] Bone Wastes
+- [x] Moth Meadow
+- [x] Edge seal + edge + crack + boom hand-off
+- [x] secrets and bonus hearts in the 3D fight
+- [x] bots (scripted zone tests, key-driven road navigation, a wandering soak test), README
+- [ ] real playtests: how long a first run takes, how hard each zone is, whether the way is clear
+
+## Final map numbers (world px)
+- World 1280 x 1960. Start glade (640, 1720). Crossroads (640, 1290). Plateau (640, 432), cliff at y = 300.
+- Gloom (250, 1230), Thicket (250, 860), Marsh (1030, 860), Bones (1050, 1230), Meadow (1030, 1640).
+- Each zone has a neck closed by a gate/wall (lamp gate, two root walls, reed gate, bone barricade) that separates the heart from the entrance.
+- The Edge seal is at (640, 700).
