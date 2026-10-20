@@ -181,6 +181,9 @@ export function outwardTube(geo: THREE.BufferGeometry): void {
   const idx = geo.index;
   if (!idx) return;
   const a = idx.array as Uint16Array | Uint32Array;
+  // the first triangle of a tube is (ring 0 point 0, ring 1 point 0, ring 0 point 1) when it winds inwards, which is how the
+  // kit makes it today; if the kit is ever fixed (ring 0 point 1 comes before ring 1 point 0) there is nothing to do
+  if (a.length < 3 || a[1]! < a[2]!) return;
   for (let i = 0; i + 2 < a.length; i += 3) {
     const t = a[i + 1]!;
     a[i + 1] = a[i + 2]!;

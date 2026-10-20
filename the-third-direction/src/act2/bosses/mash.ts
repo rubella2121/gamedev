@@ -483,22 +483,25 @@ export class MashBoss extends Boss3D {
     // the remix: two at once, and the flower. The first pair does not wait for its last ring to leave the floor (the next
     // beat starts when nothing it could still hurt you with is near), so the whole round is a run of overlapping dangers
     // rather than long gaps; the roll and spit pair waits for the shell to be home, the breath for the lure.
-    const sp4 = Math.max(0.85, 1.05 * k);
+    const sp4 = Math.max(0.9, 1.15 * k);
     const combos: Beat[][] = [
       [
-        { make: (b) => [...vol(2, true, 8, sp4)(b), new StingRunner(b.hub)], wait: 0.4 },
-        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.4 },
+        { make: (b) => [...vol(2, true, 8, sp4)(b), new StingRunner(b.hub)], wait: 0.5 },
+        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(3, false, 8, sp4)(b), new SpitRunner(b.hub, 3)], wait: 0.4 },
-        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new StingRunner(b.hub)], hard: true, wait: 0.4 },
+        { make: (b) => [...vol(3, false, 8, sp4)(b), new SpitRunner(b.hub, 3)], wait: 0.5 },
+        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new StingRunner(b.hub)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(2, true, 7, sp4)(b), new SweepRunner(b.hub)], wait: 0.4 },
-        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.4 },
+        { make: (b) => [...vol(2, true, 7, sp4)(b), new SweepRunner(b.hub)], wait: 0.5 },
+        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
     ];
-    return [...combos[c % 3]!, { make: (b) => [new BreathRunner(b.hub)], hard: true, window: true, wait: 0.5 }];
+    const round = [...combos[c % 3]!];
+    // from the second hit on there is a lone sting before the breath: the rounds get shorter, so they get denser
+    if (c >= 1) round.push({ make: (b) => [new StingRunner(b.hub)], wait: 0.4 });
+    return [...round, { make: (b) => [new BreathRunner(b.hub)], hard: true, window: true, wait: 0.5 }];
   }
 
   /* ---------------------------------------------------------------- */

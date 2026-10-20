@@ -61,9 +61,9 @@ function glossSkin(o: { rim: number; rimPower: number; glint: number }): THREE.M
     vec3 nn = normalize(normal);
     float fr = 1.0 - saturate(dot(normalize(vViewPosition), nn));
     // a thin bright rim on the silhouette, a deep violet sheen inside it, and a hard glint where the surface faces the light
-    totalEmissiveRadiance += rimColor * pow(fr, ${o.rimPower.toFixed(2)}) + rimColor * 0.07 * pow(fr, 1.5);
+    totalEmissiveRadiance += rimColor * pow(fr, ${o.rimPower.toFixed(2)}) + rimColor * 0.04 * pow(fr, 1.5);
     float gl = saturate(dot(nn, normalize(vec3(-0.45, 0.7, 0.55))));
-    totalEmissiveRadiance += glintColor * (step(0.955, gl) * 0.8 + pow(gl, 14.0) * 0.1);`,
+    totalEmissiveRadiance += glintColor * (step(0.955, gl) * 0.62 + pow(gl, 14.0) * 0.1);`,
     );
   };
   m.customProgramCacheKey = () => 'mashgloss';
@@ -522,7 +522,9 @@ export class MashModel {
     this.root.add(grp);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + (rnd(i, 1) - 0.5) * 0.25;
-      const len = 5.4 + rnd(i, 2) * 4.2;
+      // the ones that lie towards the player stay short: they must not cover the floor where the tongue and the lure land
+      const front = Math.sin(a) > 0.25;
+      const len = (5.4 + rnd(i, 2) * 4.2) * (front ? 0.42 : 1);
       // thick at the root, a long taper; the vertex colours put faint grooves along it
       const ch = new TubeChain(15, 8, this.darkMat, (u) => 1.0 * Math.pow(1 - u, 0.75) + 0.07, tendrilColor);
       outwardTube(ch.mesh.geometry);

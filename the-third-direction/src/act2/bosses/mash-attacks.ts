@@ -1401,7 +1401,7 @@ export class BreathRunner implements Runner {
 
   constructor(private h: Hub) {
     this.inT = 0.85 * D.tele;
-    this.pullT = Math.max(1.7, 2.2 * h.k);
+    this.pullT = Math.max(1.8, 2.4 * h.k);
     this.lureFor = 3.1 * D.window;
     h.say('breathe in.', 2000);
     h.env.audio.v.mimicHum([220, 262, 330, 392, 494, 587]);
