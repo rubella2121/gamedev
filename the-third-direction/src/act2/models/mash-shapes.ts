@@ -172,6 +172,23 @@ export function mergeGeos(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return out;
 }
 
+/**
+ * The kit's TubeChain winds its triangles inwards: the camera sees the inside of the far wall, with normals that point
+ * away from it, so a tube is lit from behind and its rim light fills the whole width. Turning every triangle round shows
+ * the outside, lit as it should be. (Done here, on the Mash's own tubes, so the shared kit stays as it is.)
+ */
+export function outwardTube(geo: THREE.BufferGeometry): void {
+  const idx = geo.index;
+  if (!idx) return;
+  const a = idx.array as Uint16Array | Uint32Array;
+  for (let i = 0; i + 2 < a.length; i += 3) {
+    const t = a[i + 1]!;
+    a[i + 1] = a[i + 2]!;
+    a[i + 2] = t;
+  }
+  idx.needsUpdate = true;
+}
+
 /** Paint a geometry with a function of its vertices. */
 export function paint(g: THREE.BufferGeometry, f: (x: number, y: number, z: number, i: number) => RGB): THREE.BufferGeometry {
   const p = g.getAttribute('position');

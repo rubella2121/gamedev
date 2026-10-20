@@ -3,8 +3,8 @@ import { TubeChain } from '../kit/chain';
 import { fbm, mix, scale, rgb, type RGB } from '../kit/noise';
 import type { Slicer } from '../kit/sdf';
 import { glow, halo, skin } from '../kit/skin';
-import { BELL_PATCHES, BELL_R, bellRadius, buildBell, buildBloom, buildShell, crackPoints, fangGeometry, featherGeometry, paint, petalGeometry, PAL, rnd, SHELL_R, thornGeometry, FACE_DIR } from './mash-shapes';
-import { BLOOM_POS, BLOOM_TILT, EYE_POS, MASH_S, MASH_Y, MASH_Z, SHELL_DOCK, TAIL_BASE } from './mash-layout';
+import { BELL_PATCHES, BELL_R, bellRadius, buildBell, buildBloom, buildShell, crackPoints, fangGeometry, featherGeometry, outwardTube, paint, petalGeometry, PAL, rnd, SHELL_R, thornGeometry, FACE_DIR } from './mash-shapes';
+import { BLOOM_POS, BLOOM_SQUASH, BLOOM_TILT, EYE_POS, MASH_S, MASH_Y, MASH_Z, SHELL_DOCK, TAIL_BASE } from './mash-layout';
 import { ScorpionTail } from './mash-tail';
 import * as P from './mash-poses';
 
@@ -19,7 +19,7 @@ import * as P from './mash-poses';
  * fangs, thorns, vertebrae, feathers, stitches). This file is the body; the fight lives in bosses/mash.ts.
  */
 
-export { BLOOM_POS, BLOOM_TILT, EYE_POS, MASH_S, MASH_Y, MASH_Z, SHELL_DOCK, TAIL_BASE };
+export { BLOOM_POS, BLOOM_SQUASH, BLOOM_TILT, EYE_POS, MASH_S, MASH_Y, MASH_Z, SHELL_DOCK, TAIL_BASE };
 
 const TAU = Math.PI * 2;
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -33,11 +33,55 @@ const smooth = (t: number) => {
   return t * t * (3 - 2 * t);
 };
 
+/** the tentacles' vertex colours: black-violet, faint grooves along the length, a little lighter towards the tip */
+const tendrilColor = (u: number, _a: number): RGB => {
+  const ring = Math.pow(Math.abs(Math.sin(u * 15 * Math.PI)), 10);
+  const c = mix(rgb(0x030208), rgb(0x0e0722), 0.2 + 0.8 * u * u);
+  return mix(c, rgb(0x241552), ring * 0.4 * (0.4 + u));
+};
+
+/* ---------------------------------------------------------------- */
+/* a wet, dark skin                                                  */
+/* ---------------------------------------------------------------- */
+
+/**
+ * A black toon skin that looks wet: a wide bright rim round the silhouette and a small hard-edged glint where the surface
+ * faces the top left. (The vertex colours carry the dark pattern.)
+ */
+function glossSkin(o: { rim: number; rimPower: number; glint: number }): THREE.MeshToonMaterial {
+  const m = skin({ vertexColors: true });
+  const rimC = new THREE.Color(o.rim);
+  const glintC = new THREE.Color(o.glint);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms['rimColor'] = { value: rimC };
+    sh.uniforms['glintColor'] = { value: glintC };
+    sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 rimColor;\nuniform vec3 glintColor;\nvoid main() {').replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+    vec3 nn = normalize(normal);
+    float fr = 1.0 - saturate(dot(normalize(vViewPosition), nn));
+    // a thin bright rim on the silhouette, a deep violet sheen inside it, and a hard glint where the surface faces the light
+    totalEmissiveRadiance += rimColor * pow(fr, ${o.rimPower.toFixed(2)}) + rimColor * 0.07 * pow(fr, 1.5);
+    float gl = saturate(dot(nn, normalize(vec3(-0.45, 0.7, 0.55))));
+    totalEmissiveRadiance += glintColor * (step(0.955, gl) * 0.8 + pow(gl, 14.0) * 0.1);`,
+    );
+  };
+  m.customProgramCacheKey = () => 'mashgloss';
+  return m;
+}
+
 /* ---------------------------------------------------------------- */
 /* stitches                                                          */
 /* ---------------------------------------------------------------- */
 
-/** Thick black stitches across the seams. They sew themselves on in the entrance and tear off in the death. */
+const STITCH_COOL = new THREE.Color(0x07040a);
+const STITCH_HOT = new THREE.Color(2.2, 1.5, 0.7);
+const _stc = new THREE.Color();
+
+/**
+ * Thick black stitches across the seams. They sew themselves on in the entrance (white-hot as the thread goes in, black
+ * when it cools) and tear off in the death.
+ */
 export class StitchSet {
   readonly mesh: THREE.InstancedMesh;
   private base: THREE.Matrix4[] = [];
@@ -50,6 +94,8 @@ export class StitchSet {
   private pos: THREE.Vector3[] = [];
   private quat: THREE.Quaternion[] = [];
   private sc: THREE.Vector3[] = [];
+  private heat: number[] = [];
+  private seen: boolean[] = [];
 
   constructor(
     parent: THREE.Object3D,
@@ -60,6 +106,7 @@ export class StitchSet {
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.frustumCulled = false;
     this.mesh.count = 0;
+    for (let i = 0; i < max; i++) this.mesh.setColorAt(i, STITCH_COOL);
     parent.add(this.mesh);
   }
 
@@ -74,6 +121,8 @@ export class StitchSet {
     this.sc[i] = new THREE.Vector3(thick, len, thick);
     this.base[i] = new THREE.Matrix4().compose(this.pos[i]!, this.quat[i]!, this.sc[i]!);
     this.at[i] = Math.random();
+    this.heat[i] = 0;
+    this.seen[i] = false;
     this.vel[i] = new THREE.Vector3((Math.random() - 0.5) * 7, 2 + Math.random() * 7, (Math.random() - 0.5) * 7);
   }
 
@@ -87,19 +136,35 @@ export class StitchSet {
     return this.n;
   }
 
-  /** 0 = none sewn, 1 = all sewn: each pops in at its own moment */
-  sew(p: number) {
+  /**
+   * 0 = none sewn, 1 = all sewn: each pops in at its own moment, white-hot, and cools to black over a second or so.
+   * `dt` is the time since the last call; `pop` is told where (world) a stitch has just gone in (every third one).
+   */
+  sew(p: number, dt = 0, pop?: (where: THREE.Vector3) => void) {
+    if (p <= 0) {
+      this.seen.fill(false);
+      this.heat.fill(0);
+    }
     for (let i = 0; i < this.n; i++) {
-      const u = clamp01((p * 1.25 - this.at[i]! * 0.25 - 0.0) / 0.25 - (this.at[i]! * 0.8) / 0.25 * 0 + 0);
       const k = p >= 1 ? 1 : easeOutBack(clamp01((p - this.at[i]! * 0.78) / 0.22));
-      void u;
+      if (k > 0.02 && !this.seen[i]) {
+        this.seen[i] = true;
+        this.heat[i] = 1;
+        if (pop && i % 3 === 0) pop(this.mesh.parent!.localToWorld(this.v.copy(this.pos[i]!)));
+      }
       this.o.position.copy(this.pos[i]!);
       this.o.quaternion.copy(this.quat[i]!);
-      this.o.scale.copy(this.sc[i]!).multiplyScalar(Math.max(0.0001, k));
+      // a stitch swells while it is hot
+      const h = this.heat[i] ?? 0;
+      this.o.scale.copy(this.sc[i]!).multiplyScalar(Math.max(0.0001, k) * (1 + 0.9 * h));
       this.o.updateMatrix();
       this.mesh.setMatrixAt(i, this.o.matrix);
+      _stc.copy(STITCH_COOL).lerp(STITCH_HOT, h * h);
+      this.mesh.setColorAt(i, _stc);
+      if (h > 0) this.heat[i] = Math.max(0, h - dt * 1.3);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
   /** 0 = whole, 1 = all torn away and fallen (time in seconds since the tearing began) */
@@ -134,8 +199,14 @@ export class StitchSet {
   }
 
   reset() {
-    for (let i = 0; i < this.n; i++) this.mesh.setMatrixAt(i, this.base[i]!);
+    for (let i = 0; i < this.n; i++) {
+      this.mesh.setMatrixAt(i, this.base[i]!);
+      this.mesh.setColorAt(i, STITCH_COOL);
+    }
+    this.heat.fill(0);
+    this.seen.fill(true);
     this.mesh.instanceMatrix.needsUpdate = true;
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 }
 
@@ -168,8 +239,10 @@ export class MashModel {
   readonly petalMat = skin({ vertexColors: true, rim: 0x58b8a0, rimPower: 3.2, side: THREE.DoubleSide });
   readonly boneMat = skin({ vertexColors: true, rim: 0xd8c488, rimPower: 3.2 });
   readonly shellMat = skin({ vertexColors: true, rim: 0x4a68b8, rimPower: 3.6 });
-  readonly darkMat = skin({ color: 0x07040b, rim: 0x2e1c64, rimPower: 3.2 });
-  readonly stitchMat = new THREE.MeshBasicMaterial({ color: 0x07040a });
+  /** the Gloommother's tentacles: black-violet, wet, with a bright rim and a hard glint */
+  readonly darkMat = glossSkin({ rim: 0x9a6cff, rimPower: 5.2, glint: 0xd0c0ff });
+  /** (every stitch tints its own colour: white-hot as it goes in, black when it cools) */
+  readonly stitchMat = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false });
   private mats: THREE.MeshToonMaterial[] = [];
 
   // bell
@@ -348,6 +421,7 @@ export class MashModel {
   private buildLure() {
     // the lure: a thin stalk from deep in the throat, and a glowing bulb at its end
     this.lure = new TubeChain(20, 6, this.fleshMat, (u) => 0.2 - 0.09 * u, (u) => mix(PAL.fleshD, PAL.flesh, u * 0.6));
+    outwardTube(this.lure.mesh.geometry);
     this.root.add(this.lure.mesh, this.lureBulb, this.lureHalo);
     // the light lives in the world and is never hidden (only dimmed to nothing), so the number of lights in the scene
     // never changes when the Mash comes and goes: no shader is rebuilt at its entrance
@@ -372,6 +446,7 @@ export class MashModel {
         return c;
       },
     );
+    outwardTube(this.neck.mesh.geometry);
     this.root.add(this.neck.mesh);
   }
 
@@ -447,15 +522,17 @@ export class MashModel {
     this.root.add(grp);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + (rnd(i, 1) - 0.5) * 0.25;
-      const len = 6.5 + rnd(i, 2) * 4.5;
-      const ch = new TubeChain(13, 7, this.darkMat, (u) => 0.78 * Math.pow(1 - u, 0.9) + 0.05);
-      const base = new THREE.Vector3(Math.cos(a) * 5.3, 0.4, Math.sin(a) * 5.3);
+      const len = 5.4 + rnd(i, 2) * 4.2;
+      // thick at the root, a long taper; the vertex colours put faint grooves along it
+      const ch = new TubeChain(15, 8, this.darkMat, (u) => 1.0 * Math.pow(1 - u, 0.75) + 0.07, tendrilColor);
+      outwardTube(ch.mesh.geometry);
+      const base = new THREE.Vector3(Math.cos(a) * 5.3, 0.9, Math.sin(a) * 5.3);
       const dir = new THREE.Vector3(Math.cos(a), 0.4 + rnd(i, 4) * 0.5, Math.sin(a)).normalize();
       this.tendrils.push({ chain: ch, base, dir, ph: rnd(i, 5) * TAU, len });
       grp.add(ch.mesh);
     }
     // a cyan spark on every tip (the Gloommother's eyes)
-    this.tendrilTips = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 6, 5), new THREE.MeshBasicMaterial({ color: 0x6ff0ff, fog: false }), n);
+    this.tendrilTips = new THREE.InstancedMesh(new THREE.SphereGeometry(0.3, 7, 5), new THREE.MeshBasicMaterial({ color: 0x6ff0ff, fog: false }), n);
     this.tendrilTips.frustumCulled = false;
     grp.add(this.tendrilTips);
     this.tendrilGroup = grp;
@@ -512,6 +589,7 @@ export class MashModel {
         return mix(mix(rgb(0x6a4a30), rgb(0xc09a64), braid), PAL.fleshD, clamp01(u * 1.6 - 0.8));
       },
     );
+    outwardTube(this.clapperRope.mesh.geometry);
     this.bellG.add(this.clapperRope.mesh);
     const tongue = new THREE.SphereGeometry(1, 16, 12);
     const tp = tongue.getAttribute('position');
@@ -633,14 +711,37 @@ export class MashModel {
       steps('left');
       steps('right');
     }
-    // 4. the shell is stitched to the bell along their meeting: bars reaching from one to the other
-    for (let i = 0; i < 12; i++) {
-      const v = (i / 11) * 1.9 - 0.95;
-      const y = SHELL_DOCK.y + v * 2.2;
-      const r = bellRadius(Math.max(0.2, y));
-      p.set(-r * 0.97 - 0.1, y, SHELL_DOCK.z + Math.sin(v * 2) * 0.9 + 0.6);
-      d.set(-1, 0.1 * v, 0.2);
-      S.add(p, d, 2.6, 1.1);
+    // 4. the shell is stitched to the bell along the line where their surfaces meet: bars across that seam
+    {
+      const sx = SHELL_DOCK.x;
+      const sy = SHELL_DOCK.y;
+      const sz = SHELL_DOCK.z;
+      const dd = Math.hypot(sx, sz);
+      const ux = sx / dd;
+      const uz = sz / dd;
+      for (let i = 0; i < 15; i++) {
+        const y = sy - 2.7 + (i / 14) * 5.4;
+        const rb = bellRadius(Math.max(0.3, y));
+        const rs2 = SHELL_R * SHELL_R - (y - sy) * (y - sy);
+        if (rs2 <= 0.3 || rb <= 0.3) continue;
+        const rs = Math.sqrt(rs2);
+        if (dd > rb + rs || dd < Math.abs(rb - rs)) continue;
+        // where the bell's circle at this height meets the shell's: the one on the player's side is the seam you see
+        const a = (rb * rb - rs * rs + dd * dd) / (2 * dd);
+        const hh = Math.sqrt(Math.max(0, rb * rb - a * a));
+        const ax = ux * a;
+        const az = uz * a;
+        const q1x = ax - uz * hh;
+        const q1z = az + ux * hh;
+        const q2x = ax + uz * hh;
+        const q2z = az - ux * hh;
+        const front = q1z > q2z;
+        const px = front ? q1x : q2x;
+        const pz = front ? q1z : q2z;
+        p.set(px, y, pz);
+        d.set(sx - px, 0, sz - pz);
+        S.add(p, d, 1.7, 1.15);
+      }
     }
     // 5. a ring of stitches where the tail goes into the bell's back
     const tb = TAIL_BASE;
@@ -784,7 +885,8 @@ export class MashModel {
     for (const mt of this.mats) mt.emissive.setRGB(f, f * 0.9, f * 0.95);
     this.tail.flash(f);
     // the heavy parts' pop-in scale
-    this.bloom.scale.setScalar(Math.max(0.0001, m.bloom) * (1 + this.roar * 0.1 + 0.015 * Math.sin(t * 1.3)));
+    const bs = Math.max(0.0001, m.bloom) * (1 + this.roar * 0.1 + 0.015 * Math.sin(t * 1.3));
+    this.bloom.scale.set(bs, bs * BLOOM_SQUASH, bs);
     this.eye.scale.setScalar(Math.max(0.0001, m.eye));
     this.shell.scale.setScalar(MASH_S * Math.max(0.0001, m.shell));
     this.tendrilGroup.scale.setScalar(Math.max(0.0001, m.tendrils));
@@ -974,7 +1076,7 @@ export class MashModel {
     const n = this.neck.pts.length;
     const p0 = this.o.position.set(0, 4.4, 0.3);
     const p1x = 0;
-    const p1y = 8.2;
+    const p1y = 6.6;
     const p1z = 0.2 + this.lean * 1.2;
     const p2y = a.y - 1.6;
     const p2z = a.z - 2.0;
@@ -1082,10 +1184,12 @@ export class MashModel {
       const n = td.chain.pts.length;
       for (let i = 0; i < n; i++) {
         const u = i / (n - 1);
-        const sway = 0.8 + 0.5 * reach;
-        let x = td.base.x + td.dir.x * u * td.len + Math.sin(t * 1.3 + td.ph + u * 3.4) * sway * u;
-        let y = td.base.y + td.dir.y * u * td.len * 0.9 - u * u * td.len * 0.42 + Math.sin(t * 0.9 + td.ph * 1.3 + u * 2.6) * 0.7 * u;
-        let z = td.base.z + td.dir.z * u * td.len + Math.cos(t * 1.1 + td.ph) * sway * u;
+        const sway = 1.1 + 0.5 * reach;
+        // a slow heave along the whole length, and a quicker ripple running out to the tip: they writhe
+        const rip = Math.sin(t * 2.7 + td.ph * 2 - u * 8) * 0.55 * u;
+        let x = td.base.x + td.dir.x * u * td.len + Math.sin(t * 1.3 + td.ph + u * 3.4) * sway * u + rip * td.dir.z;
+        let y = td.base.y + td.dir.y * u * td.len * 0.9 - u * u * td.len * 0.42 + Math.sin(t * 0.9 + td.ph * 1.3 + u * 2.6) * 0.9 * u + Math.abs(rip) * 0.4;
+        let z = td.base.z + td.dir.z * u * td.len + Math.cos(t * 1.1 + td.ph) * sway * u - rip * td.dir.x;
         // breathing in: they stream towards the maw
         if (pull > 0) {
           x = lerp(x, x * (1 - 0.5 * u * pull), 1);
@@ -1104,7 +1208,9 @@ export class MashModel {
           y = lerp(y, 0.2 + 0.5 * Math.sin(u * 9 + td.ph) * (1 - u), this.limp);
           x += Math.sin(u * 5 + td.ph) * 0.8 * this.limp * u;
         }
-        if (y < 0.15) y = 0.15;
+        // the thick root lies on the floor
+        const floor = 0.2 + 0.8 * Math.pow(1 - u, 0.75);
+        if (y < floor) y = floor;
         td.chain.pts[i]!.set(x, y, z);
       }
       td.chain.update();
@@ -1165,8 +1271,8 @@ export async function labMash(slicer: Slicer, world: THREE.Group) {
       } else if (anim === 2) {
         // sweep: 0.8 s of warning (rear), then 1.3 s lash from -0.65 to +0.65 rad round the pivot
         m.toLocal(pivot.set(0, 0, MASH_Z), pivot);
-        const rin = 11 / MASH_S;
-        const rt = 36 / MASH_S;
+        const rin = 13 / MASH_S;
+        const rt = 38 / MASH_S;
         if (at < 0.8) P.rearPose(at / 0.8, tt, tgt.set(Math.sin(-0.65) * 20, 0, pivot.z + Math.cos(-0.65) * 20), c);
         else if (at < 2.1) {
           const th = -0.65 + 1.3 * Math.pow((at - 0.8) / 1.3, 1.15);

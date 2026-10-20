@@ -57,9 +57,13 @@ export interface Runner {
 /** the middle of the bell: where the rings begin and the sweep pivots */
 export const BELL_C = { x: 0, z: MASH_Z };
 export const BELL_WR = BELL_R * MASH_S;
+/** where the bell's front meets the floor (the rim of the platform): everything the Mash puts in reach is measured from here */
+export const FRONT = MASH_Z + BELL_WR;
 const RING_R0 = BELL_WR + 0.2;
 const RING_STEP = TAU / RING_SEGS;
 const SHELL_WR = 3.4 * MASH_S;
+/** the rolling shell hurts, and its lane is drawn, this far either side of its path */
+const ROLL_HALF = SHELL_WR * 0.7;
 
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
@@ -148,7 +152,7 @@ export class VolleyRunner implements Runner {
     h.model.toll = 1;
     h.env.audio.v.queenToll(0.8 + (this.tolls % 3) * 0.14, 0.8);
     h.env.shake(0.35);
-    h.fx.shocks.add(BELL_C.x, BELL_C.z, 12, 0xffd870, 0.7);
+    h.fx.shocks.add(BELL_C.x, BELL_C.z, BELL_WR + 4, 0xffd870, 0.7);
   }
 
   update(dt: number) {
@@ -364,7 +368,7 @@ export class StingRunner implements Runner {
     const lead = 0.3;
     let [gx, gz] = arenaClamp(pl.x + pl.vx * lead, pl.z + pl.vz * lead, ARENA_R - 1.3);
     // the sting cannot come down right under the bell
-    if (gz < -15) gz = -15;
+    if (gz < FRONT + 2.4) gz = FRONT + 2.4;
     if (first) {
       this.target.set(gx, 0, gz);
     } else {
@@ -487,9 +491,10 @@ export class StingRunner implements Runner {
 /* the tail: a sweep low across the floor                             */
 /* ================================================================ */
 
-const SWEEP_RIN = 11;
-const SWEEP_ROUT = 38;
-const SWEEP_TIP = 36;
+/** the lash starts this far from the middle of the bell (a few steps beyond its skirt: that strip is safe) and ends at the far end of the floor */
+const SWEEP_RIN = BELL_WR + 4.1;
+const SWEEP_ROUT = 40;
+const SWEEP_TIP = 38;
 
 export class SweepRunner implements Runner {
   readonly kind = "sweep";
@@ -638,7 +643,7 @@ export class SweepRunner implements Runner {
       const l2 = dx * dx + dz * dz || 1;
       const t = clamp(((pl.x - ax) * dx + (pl.z - az) * dz) / l2, 0, 1);
       const d = Math.hypot(pl.x - (ax + dx * t), pl.z - (az + dz * t));
-      if (d < 1.55) {
+      if (d < 1.8) {
         hit = true;
         break;
       }
@@ -663,7 +668,7 @@ export class SweepRunner implements Runner {
       if (this.st === 'lash' && when <= 0 && this.L * Math.pow(f, 1 / 1.15) < this.t - 0.3) continue;
       const ox = BELL_C.x + Math.sin(a) * SWEEP_RIN;
       const oz = BELL_C.z + Math.cos(a) * SWEEP_RIN;
-      out.push({ shape: 'cone', x: ox, z: oz, ang: a, len: SWEEP_ROUT - SWEEP_RIN, half: w * 24 + 0.8, at: when, dur: this.L / K + 0.35 });
+      out.push({ shape: 'cone', x: ox, z: oz, ang: a, len: SWEEP_ROUT - SWEEP_RIN, half: w * ((SWEEP_RIN + SWEEP_ROUT) / 2) + 0.9, at: when, dur: this.L / K + 0.35 });
     }
     void lashLeft;
   }
@@ -931,7 +936,7 @@ export function planRoll(h: Hub, ball: Ball, tx: number, tz: number, mode: 'play
       const along = rx * ddx + rz * ddz;
       if (along < 0 || along > tMax) continue;
       const perp = Math.abs(rx * ddz - rz * ddx);
-      const R = p.r + 2.7;
+      const R = p.r + ROLL_HALF * 0.9;
       if (perp < R) {
         const t = along - Math.sqrt(Math.max(0, R * R - perp * perp));
         if (t >= 0 && (!best || t < best.t)) best = { t, i };
@@ -1072,7 +1077,7 @@ export class RollRunner implements Runner {
     const p = this.plan;
     // show the lane; the part outside the platform is not drawn
     const pts = p.pts.slice();
-    this.lane.set(pts, SHELL_WR * 0.78);
+    this.lane.set(pts, ROLL_HALF);
     this.lane.setAlpha(0.9);
     this.s = 0;
     this.lastLeg = -1;
@@ -1144,7 +1149,7 @@ export class RollRunner implements Runner {
       void prevS;
       // it crushes what it rolls over, and hurts what it touches
       if (Math.floor(h.env.time * 22) !== Math.floor((h.env.time - dt) * 22)) a.burst3(ball.pos.x, 0.4, ball.pos.z, 1, [0x3a2a62, 0x46346f, 0xeadba8], 3);
-      if (!pl.dead && Math.hypot(pl.x - ball.pos.x, pl.z - ball.pos.z) < SHELL_WR * 0.78 + 0.4) h.env.hurt(pl.x - ball.pos.x, pl.z - ball.pos.z);
+      if (!pl.dead && Math.hypot(pl.x - ball.pos.x, pl.z - ball.pos.z) < ROLL_HALF + 0.4) h.env.hurt(pl.x - ball.pos.x, pl.z - ball.pos.z);
       h.env.shake(0.12);
       if (this.s >= p.total) this.arrive();
     } else if (this.st === 'rest') {
@@ -1306,7 +1311,7 @@ export class RollRunner implements Runner {
             z: mz,
             ang: Math.atan2(x1 - x0, z1 - z0),
             len: (len / n) * 1.05 + SHELL_WR,
-            half: SHELL_WR * 0.78,
+            half: ROLL_HALF,
             at: Math.max(0, this.T - this.t) + (acc + len * f0) / (v * D.speed),
             dur: (len / n) / (v * D.speed) + 0.9,
           });
@@ -1315,7 +1320,7 @@ export class RollRunner implements Runner {
       }
     } else if (this.st === 'roll') {
       // where it is now, and the lane still ahead
-      out.push({ shape: 'disc', x: ball.pos.x, z: ball.pos.z, r: SHELL_WR * 0.78, at: 0, dur: 0.3 });
+      out.push({ shape: 'disc', x: ball.pos.x, z: ball.pos.z, r: ROLL_HALF, at: 0, dur: 0.3 });
       let acc = 0;
       for (let l = 0; l < p.legs.length; l++) {
         const len = p.legs[l]!;
@@ -1337,7 +1342,7 @@ export class RollRunner implements Runner {
               z: lerp(z0, z1, (fa + fb) / 2),
               ang: Math.atan2(x1 - x0, z1 - z0),
               len: (len * (fb - fa)) * 1.05 + SHELL_WR,
-              half: SHELL_WR * 0.78,
+              half: ROLL_HALF,
               at: Math.max(0, (len * fa - (this.s - acc > 0 ? this.s - acc : 0)) / v),
               dur: (len * (fb - fa)) / v + 0.7,
             });
@@ -1349,7 +1354,7 @@ export class RollRunner implements Runner {
   }
 
   weak(out: Weak[]) {
-    if (this.st === 'stun' && this.windowOpen) out.push({ x: this.ball.pos.x, y: 2.4, z: this.ball.pos.z, reach: 6.0, r: 4.2, tag: 'belly' });
+    if (this.st === 'stun' && this.windowOpen) out.push({ x: this.ball.pos.x, y: 2.4, z: this.ball.pos.z, reach: 6.8, r: 4.8, tag: 'belly' });
   }
 
   stop() {
@@ -1378,7 +1383,7 @@ const _Z = new THREE.Vector3(0, 0, 1);
 /* the flower breathes in                                             */
 /* ================================================================ */
 
-const MAW = { x: 0, z: MASH_Z + 3.4 };
+const MAW = { x: 0, z: FRONT - 3.4 };
 const BITE_R = 4.3;
 
 export class BreathRunner implements Runner {
@@ -1396,7 +1401,7 @@ export class BreathRunner implements Runner {
 
   constructor(private h: Hub) {
     this.inT = 0.85 * D.tele;
-    this.pullT = Math.max(1.9, 2.5 * h.k) * 1.0;
+    this.pullT = Math.max(1.7, 2.2 * h.k);
     this.lureFor = 3.1 * D.window;
     h.say('breathe in.', 2000);
     h.env.audio.v.mimicHum([220, 262, 330, 392, 494, 587]);
@@ -1425,7 +1430,7 @@ export class BreathRunner implements Runner {
       m.lureGlow = 0.6 + 0.6 * u;
       h.model.tendrilPull = u * 0.6;
       e.audio.setHeart(1.0 + u * 1.5, 0.45);
-      h.fx.wind.update(dt, MAW.x, 7, MAW.z, 0.25 + 0.3 * u);
+      h.fx.wind.update(dt, MAW.x, 7.5, MAW.z, 0.25 + 0.3 * u);
       if (this.t >= this.inT) {
         this.st = 'pull';
         this.t = 0;
@@ -1440,7 +1445,7 @@ export class BreathRunner implements Runner {
       m.lureGlow = 1.2;
       m.tendrilPull = 0.6 + 0.4 * k;
       e.audio.setHeart(2.5 + k * 1.4, 0.6);
-      h.fx.wind.update(dt, MAW.x, 7, MAW.z, 0.6 + 0.4 * k);
+      h.fx.wind.update(dt, MAW.x, 7.5, MAW.z, 0.6 + 0.4 * k);
       // the pull: towards the maw, harder the longer it goes
       if (!pl.dead) {
         const dx = MAW.x - pl.x;
@@ -1474,7 +1479,7 @@ export class BreathRunner implements Runner {
         m.roar = 1;
         // where the lure will land is known (and marked) from here: the breath is out, the player can already run for it
         const lx = (Math.random() < 0.5 ? -1 : 1) * (3.8 + Math.random() * 1.6);
-        const lz = MASH_Z + 10.2;
+        const lz = FRONT + 3.4;
         this.lure.set(lx, 0.8, lz);
         m.setLureFloor(m.toLocal(_v.set(lx, 0, lz), _w).x, _w.z);
       }
@@ -1500,15 +1505,15 @@ export class BreathRunner implements Runner {
       m.lean = 0.8 - 0.25 * smooth(this.t / 0.8);
       m.roar = Math.max(0, 1 - this.t * 1.1);
       m.tendrilPull = Math.max(0, 1 - this.t * 2);
-      e.arena.marks.set(14, true, this.lure.x, this.lure.z, 2.2, { col: 0xff7ac0, fill: 0.1 + 0.2 * clamp(this.t / 0.75, 0, 1), alpha: 0.5 + 0.4 * clamp(this.t / 0.75, 0, 1) });
-      if (this.t >= 0.75) {
+      e.arena.marks.set(14, true, this.lure.x, this.lure.z, 2.2, { col: 0xff7ac0, fill: 0.1 + 0.2 * clamp(this.t / 0.6, 0, 1), alpha: 0.5 + 0.4 * clamp(this.t / 0.6, 0, 1) });
+      if (this.t >= 0.6) {
         this.st = 'drop';
         this.t = 0;
         // the lure falls out of the maw and lands in front of it, within reach of the floor
         e.audio.v.queenToll(1.4, 0.7);
       }
     } else if (this.st === 'drop') {
-      const u = clamp(this.t / 0.7, 0, 1);
+      const u = clamp(this.t / 0.6, 0, 1);
       m.setLure(smooth(u), 1.3);
       m.mawOpen = 1;
       m.lean = 0.55;
@@ -1606,7 +1611,7 @@ export class ClapperRunner implements Runner {
     this.startCrack = h.model.crack;
     const x = (Math.random() < 0.5 ? -1 : 1) * (3.8 + Math.random() * 1.6);
     // the tongue comes out of the bell's mouth and lies on the floor, in reach
-    this.tip.set(x, 0.9, MASH_Z + 10.4);
+    this.tip.set(x, 0.9, FRONT + 3.6);
     h.say('...', 1000);
     h.env.audio.v.queenShriek(0.9);
     h.env.audio.v.queenToll(0.6, 1.2);
@@ -1629,7 +1634,7 @@ export class ClapperRunner implements Runner {
       m.shake = (1 - u) * 1.2;
       m.toll = Math.max(m.toll, 0.8 * (1 - u));
       m.bellLift = smooth(u);
-      if (Math.random() < dt * 20) e.arena.burst3(BELL_C.x + (Math.random() - 0.5) * 8, 4 + Math.random() * 3, BELL_C.z + 5, 2, [0xffb060, 0xf4c95c, 0x2a9482], 6);
+      if (Math.random() < dt * 20) e.arena.burst3(BELL_C.x + (Math.random() - 0.5) * 9, 3 + Math.random() * 6, FRONT - 1.5, 2,[0xffb060, 0xf4c95c, 0x2a9482], 6);
       if (u >= 1) {
         this.st = 'drop';
         this.t = 0;
