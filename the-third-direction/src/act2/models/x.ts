@@ -11,13 +11,13 @@ import { glow, halo, skin } from '../kit/skin';
 /* colours                                                           */
 /* ---------------------------------------------------------------- */
 
-const SKIN_A = rgb(0x3a3544);
-const SKIN_B = rgb(0x776f82);
-const SKIN_DARK = rgb(0x15111d);
+const SKIN_A = rgb(0x3a3a42);
+const SKIN_B = rgb(0x7c7a80);
+const SKIN_DARK = rgb(0x121018);
 const VEIN = rgb(0x1a0f24);
 const BLOOD = rgb(0x7a1a2c);
-const BONE = rgb(0xd9d0b4);
-const BONE_SHADE = rgb(0x8a8068);
+const BONE = rgb(0xe6d6a8);
+const BONE_SHADE = rgb(0x8f7f58);
 
 /* ---------------------------------------------------------------- */
 /* head                                                              */
@@ -810,9 +810,9 @@ export class XModel {
     }
     // the gaze: a slanted ray from the eyes to the floor, then a strip along it
     const beamMat = () => new THREE.MeshBasicMaterial({ color: 0xff2a3a, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-    this.beamSlant = new THREE.Mesh(new THREE.BoxGeometry(1, 0.7, 0.7), beamMat());
-    this.beamStrip = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 1.5), beamMat());
-    this.beamCore = new THREE.Mesh(new THREE.BoxGeometry(1, 0.12, 0.4), new THREE.MeshBasicMaterial({ color: 0xffe8e8, fog: false }));
+    this.beamSlant = new THREE.Mesh(new THREE.BoxGeometry(1, 1.1, 1.1), beamMat());
+    this.beamStrip = new THREE.Mesh(new THREE.BoxGeometry(1, 0.12, 2.6), beamMat());
+    this.beamCore = new THREE.Mesh(new THREE.BoxGeometry(1, 0.16, 0.8), new THREE.MeshBasicMaterial({ color: 0xffe8e8, fog: false }));
     this.beamFlare = halo(0xff5a4a, 4.5, 0.9);
     this.gaze.add(this.beamSlant, this.beamStrip, this.beamCore, this.beamFlare);
     this.gaze.visible = false;
@@ -927,7 +927,7 @@ export class XModel {
     this.beamCore.rotation.y = Math.atan2(-dz, dx);
     this.beamFlare.position.set(fx + dx * sl2, 0.6, fz + dz * sl2);
     this.beamFlare.scale.setScalar(4 + Math.sin(this.time * 40) * 0.6);
-    (this.beamStrip.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.15 * Math.sin(this.time * 55);
+    (this.beamStrip.material as THREE.MeshBasicMaterial).opacity = 0.65 + 0.2 * Math.sin(this.time * 55);
   }
 
   /** The core, up or down, and how brightly lit. */
