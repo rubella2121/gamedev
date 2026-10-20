@@ -89,7 +89,7 @@ export class Game {
   private showHome() {
     this.ui.showStart({
       onPlay: () => this.begin(),
-      onShowcase: () => this.showcase(),
+      onShowcase: (boss) => this.showcase(boss),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -125,10 +125,10 @@ export class Game {
     this.state = 'act1';
   }
 
-  private beginBoom() {
+  private beginBoom(boss = 0) {
     this.state = 'boom';
     track('boom');
-    this.act2.begin(this.act1.p.canvas);
+    this.act2.begin(this.act1.p.canvas, boss);
   }
 
   private onEnd() {
@@ -155,7 +155,7 @@ export class Game {
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
-  showcase() {
+  showcase(boss = 0) {
     this.audio.start();
     this.showcaseRun = true;
     track('showcase');
@@ -167,7 +167,7 @@ export class Game {
     this.act1.prepareShowcase();
     this.act1.render();
     this.ui.fade(0, 0);
-    this.beginBoom();
+    this.beginBoom(boss);
   }
 
   debugFight(phase = 0, boss = 0) {

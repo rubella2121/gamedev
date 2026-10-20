@@ -198,15 +198,15 @@ export class Act2 {
   /* the boom                                                          */
   /* ---------------------------------------------------------------- */
 
-  begin(frame: HTMLCanvasElement) {
+  begin(frame: HTMLCanvasElement, boss = 0) {
     const a = this.arena;
     this.state = 'boom';
     this.t = 0;
     this.fired.clear();
     // if the monsters are not built yet (a slow phone), finish them now: a stall is better than a missing boss
     this.slicer.flush();
-    this.bi = 0;
-    this.boss = this.bosses[0]!;
+    this.bi = Math.min(Math.max(0, boss), this.bosses.length - 1);
+    this.boss = this.bosses[this.bi]!;
     for (const b of this.bosses) b.hide();
     this.hearts = this.maxHearts;
     this.light = 0;
