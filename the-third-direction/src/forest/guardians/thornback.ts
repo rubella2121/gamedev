@@ -100,7 +100,7 @@ export class ThornbackKing extends Guardian {
   private snortT = 1;
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Thornback King', 'let him hit a tree', ACCENT, [3, 3, 3], onVictory);
+    super(hub, a, 'Thornback King', 'let him hit a tree', ACCENT, [3, 4, 4], onVictory);
     this.x = a.x;
     this.y = a.boss.y;
     if (!treeImgs) treeImgs = [11, 12, 13, 14, 15].map((i) => makeTree(900 + i * 13, 92 + (i % 3) * 6));
@@ -315,7 +315,8 @@ export class ThornbackKing extends Guardian {
     const sp = 88 * D.speed;
     const stepX = clamp(dx, -sp * dt, sp * dt);
     const stepY = clamp(dy, -sp * 0.7 * dt, sp * 0.7 * dt);
-    if (hub.land.isWalk(this.x + stepX + this.prowlSide * 38, this.y)) this.x += stepX;
+    // (look where he is going: after a crash he can stand closer to the wall than his usual spot and must be able to walk back out)
+    if (hub.land.isWalk(this.x + stepX + Math.sign(stepX) * 38, this.y)) this.x += stepX;
     if (hub.land.isWalk(this.x, this.y + stepY)) this.y += stepY;
     if (Math.abs(dx) > 2) this.face = dx > 0 ? 1 : -1;
     const near = Math.abs(dx) < 6 && Math.abs(dy) < 14;
@@ -541,7 +542,7 @@ export class ThornbackKing extends Guardian {
     this.shots.clearIn(x, y, R + 2, true);
     if (this.mode === 'stun' && !this.hitDone) {
       const h = this.head();
-      if (this.pulseReach(h.x, h.y, R, x, y, 16)) this.tryHit(x, y);
+      if (this.pulseReach(h.x, h.y, R, x, y, 22)) this.tryHit(x, y);
     }
   }
 
@@ -553,8 +554,9 @@ export class ThornbackKing extends Guardian {
         return true;
       }
     }
-    // his shell turns a lance away
-    if (this.mode !== 'dying' && Math.abs(l.x - this.x) < 44 && l.y > this.y - 56 && l.y < this.y + 2) {
+    // his shell turns a lance away, unless his head is out and waiting for it
+    const headOut = this.mode === 'stun' && !this.hitDone;
+    if (!headOut && this.mode !== 'dying' && Math.abs(l.x - this.x) < 44 && l.y > this.y - 56 && l.y < this.y + 2) {
       burst(this.hub.parts, l.x, l.y, 5, ['#8fb0c0', '#ffffff'], 40, 0);
       return true;
     }

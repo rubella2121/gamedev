@@ -789,7 +789,7 @@ export class Gloommother extends Guardian {
     }
     // a pulse also pops her homing orbs
     this.shots.clearIn(x, y, R + 4, true);
-    if (this.canHurt() && this.pulseReach(this.core().x, this.core().y, R, x, y, 14)) this.damage(1, this.core().x, this.core().y);
+    if (this.canHurt() && this.pulseReach(this.core().x, this.core().y, R, x, y, 24)) this.damage(1, this.core().x, this.core().y);
     // lamps
     if (this.lampsOn && this.lamps.onPulse(x, y, R)) this.hub.audio.click();
   }
@@ -800,11 +800,14 @@ export class Gloommother extends Guardian {
     }
     this.shots.clearIn(l.x, l.y, 8, true);
     const c = this.core();
-    if (this.canHurt() && dist(l.x, l.y, c.x, c.y) < 14) {
-      this.damage(1, c.x, c.y);
-      return true;
+    // while her chest is open a lance flies straight in; the rest of the time her body stops it
+    if (this.canHurt()) {
+      if (dist(l.x, l.y, c.x, c.y) < 18) {
+        this.damage(1, c.x, c.y);
+        return true;
+      }
+      return false;
     }
-    // her body stops a lance
     if (this.sink < 0.5 && Math.abs(l.x - this.bx) < 40 && l.y > this.by - 70 && l.y < this.by - 4) return true;
     return false;
   }

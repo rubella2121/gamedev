@@ -72,7 +72,7 @@ export class MimicQueen extends Guardian {
   private swirl = 0;
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Mimic Queen', 'follow the glow', ACCENT, [2, 2, 3], onVictory);
+    super(hub, a, 'Mimic Queen', 'follow the glow', ACCENT, [2, 3, 3], onVictory);
     this.qx = a.x;
     this.qy = a.boss.y + 36;
     this.lure = { x: this.qx - 8, y: this.qy - 66, glow: 0.5, down: 0 };
@@ -488,7 +488,7 @@ export class MimicQueen extends Guardian {
         this.hub.audio.kill();
       }
     }
-    if (this.exposed && !this.hitDone && this.pulseReach(this.lure.x, this.lure.y, R, x, y, 14)) this.hurtLure();
+    if (this.exposed && !this.hitDone && this.pulseReach(this.lure.x, this.lure.y, R, x, y, 22)) this.hurtLure();
   }
 
   onLance(l: Lance): boolean {
@@ -503,8 +503,9 @@ export class MimicQueen extends Guardian {
       this.hurtLure();
       return true;
     }
-    // her petals turn a lance aside
-    if (this.sink < 0.5 && Math.abs(l.x - this.qx) < 38 && l.y > this.qy - 124 && l.y < this.qy - 30) {
+    // her petals turn a lance aside, unless the lure is out in the open
+    const lureOut = this.exposed && !this.hitDone;
+    if (!lureOut && this.sink < 0.5 && Math.abs(l.x - this.qx) < 38 && l.y > this.qy - 124 && l.y < this.qy - 30) {
       burst(this.hub.parts, l.x, l.y, 5, [PETAL, '#ffffff'], 40, 0);
       return true;
     }

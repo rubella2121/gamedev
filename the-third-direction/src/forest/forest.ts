@@ -329,6 +329,7 @@ export class Forest implements Hub {
       this.ui.light(0);
       this.snapCamera();
       this.ui.fade(0, 800);
+      this.input.setMoveEnabled(true);
       tr.zone.onArrive?.();
       this.trans = null;
     } else if (tr.kind === 'out' && !tr.done && tr.t >= 1.0) {

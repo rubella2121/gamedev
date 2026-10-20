@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   root: path.resolve(__dirname, 'tools'),
   base: './',
+  define: { __BOTS__: false },
   esbuild: { target: 'es2022' },
   build: {
     target: 'es2022',

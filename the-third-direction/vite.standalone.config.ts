@@ -7,6 +7,7 @@ export default defineConfig({
   resolve: {
     alias: [{ find: /^(\.\/|\.\.\/)+sdk$/, replacement: path.resolve(__dirname, 'src/sdk.stub.ts') }],
   },
+  define: { __BOTS__: true },
   esbuild: { target: 'es2022' },
   build: { target: 'es2022', outDir: 'dist-standalone', emptyOutDir: true, chunkSizeWarningLimit: 1500 },
 });

@@ -440,6 +440,8 @@ export class Voice {
       [8.93, 0.18, 0.22],
     ];
     parts.forEach(([m, v, d], i) => {
+      // partials above the audible range are left out (and would trip the oscillator's limit)
+      if (freq * m > 14000) return;
       const osc = ctx.createOscillator();
       osc.type = 'sine';
       osc.frequency.value = freq * m * (1 + (Math.random() - 0.5) * 0.002);

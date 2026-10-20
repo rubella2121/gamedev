@@ -393,7 +393,7 @@ export class TollQueen extends Guardian {
 
   /** she can be reached on the ground only while she is down */
   private bellReach(x: number, y: number, R: number): boolean {
-    return this.mode === 'crash' && !this.hitDone && Math.hypot(x - this.qx, (y - this.qy) / 0.8) <= R + 30;
+    return this.mode === 'crash' && !this.hitDone && Math.hypot(x - this.qx, (y - this.qy) / 0.8) <= R + 36;
   }
 
   private hurtBell(): boolean {
@@ -434,8 +434,9 @@ export class TollQueen extends Guardian {
       this.hurtBell();
       return true;
     }
-    // the bell rings when a lance strikes it
-    if (this.mode !== 'dying' && this.mode !== 'crash' && Math.abs(l.x - this.qx) < 30 && l.y > this.qy - this.hover - 70 && l.y < this.qy - this.hover + 8) {
+    // the bell rings when a lance strikes it, but it never stands in the way of her open eye
+    const eyeOpen = this.mode === 'watch' && this.open > 0.7 && !this.hitDone;
+    if (!eyeOpen && this.mode !== 'dying' && this.mode !== 'crash' && Math.abs(l.x - this.qx) < 30 && l.y > this.qy - this.hover - 70 && l.y < this.qy - this.hover + 8) {
       hub.audio.v.glassPing();
       burst(hub.parts, l.x, l.y, 5, ['#ffe9a0', '#ffffff'], 40, 0);
       return true;

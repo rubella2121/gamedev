@@ -29,6 +29,8 @@ export class Game {
   private flash3D = 0;
   private res = 1;
   private showcaseRun = false;
+  /** (tests) run the simulation this many times per frame */
+  debugSpeed = 1;
   fps = 0;
   private fpsN = 0;
   private fpsT = 0;
@@ -207,17 +209,21 @@ export class Game {
       this.fpsT = 0;
     }
     this.last = now;
-    this.input.update(dt);
-    this.audio.update(dt);
+    const n = Math.max(1, Math.round(this.debugSpeed));
+    for (let k = 0; k < n; k++) {
+      this.input.update(dt);
+      this.audio.update(dt);
+      if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
+        this.act2.update(dt);
+        if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
+        if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
+      } else if (this.state === 'act1') this.act1.update(dt);
+    }
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.setRes(2);
-      this.act2.update(dt);
-      if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
-      if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
       this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
     } else if (this.state === 'act1' || this.state === 'menu') {
       this.setRes(1);
-      if (this.state === 'act1') this.act1.update(dt);
       this.act1.render();
       this.tex2d.needsUpdate = true;
       if (this.flash3D > 0) {

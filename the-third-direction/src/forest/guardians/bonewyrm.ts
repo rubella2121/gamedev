@@ -174,7 +174,7 @@ export class BoneWyrm extends Guardian {
   private bones: { x: number; y: number; vx: number; vy: number; a: number }[] = [];
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Bone Wyrm', 'it hears you', ACCENT, [3, 3, 3], onVictory);
+    super(hub, a, 'Bone Wyrm', 'it hears you', ACCENT, [3, 4, 4], onVictory);
     this.hx = a.x;
     this.hy = a.boss.y + 40;
     this.tail = { x: a.x, y: a.y, rise: 0, dir: 1, strike: 0, state: 'down', t: 0, tx: 0, ty: 0 };
@@ -585,7 +585,7 @@ export class BoneWyrm extends Guardian {
 
   onPulse(x: number, y: number, R: number) {
     this.shots.clearIn(x, y, R + 2, false);
-    if (this.mode === 'up' && !this.hitDone && this.hRise > 0.6 && this.pulseReach(this.hx, this.hy, R, x, y, 24)) this.hurtSkull();
+    if (this.mode === 'up' && !this.hitDone && this.hRise > 0.6 && this.pulseReach(this.hx, this.hy, R, x, y, 30)) this.hurtSkull();
   }
 
   onLance(l: Lance): boolean {
