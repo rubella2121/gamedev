@@ -9,7 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && rundot deploy",
-    "build:standalone": "tsc && vite build --config vite.standalone.config.ts"
+    "build:standalone": "tsc && vite build --config vite.standalone.config.ts",
+    "gallery": "tsc && vite build --config vite.gallery.config.ts",
+    "concepts": "npm run gallery && node tools/render-concepts.mjs"
   },
   "dependencies": {
     "@series-inc/rundot-game-sdk": "5.28.1",
@@ -17,6 +19,7 @@
   },
   "devDependencies": {
     "@types/three": "~0.170.0",
+    "playwright-core": "^1.64.1",
     "typescript": "^5.7.3",
     "vite": "^6.3.5"
   }
