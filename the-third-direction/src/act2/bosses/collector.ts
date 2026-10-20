@@ -51,7 +51,8 @@ const ROUNDS: Step[][] = [
   [{ k: 'wait', n: 0.9 }, { k: 'jar' }, { k: 'wait', n: 0.4 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.3 }, { k: 'drawers', n: 5 }, { k: 'wait', n: 0.3 }, { k: 'inspect' }],
 ];
 
-type Pattern = 'scatter' | 'sweep' | 'cage';
+/** how a volley of pins is aimed: at where you are going and where you stand ('lead'), in a ring that closes round you ('cage'), in a line you must step out of ('sweep'), or all over the floor ('scatter') */
+type Pattern = 'lead' | 'cage' | 'sweep' | 'scatter';
 type MSt = 'queued' | 'open' | 'launch' | 'dazed' | 'crawl' | 'dying' | 'gone';
 
 interface Pending {
@@ -77,6 +78,8 @@ interface StuckPin {
 
 interface Minion {
   id: number;
+  /** the name its weak point goes by (made once, so the per-frame code makes no strings) */
+  tag: string;
   kind: MinionKind;
   st: MSt;
   t: number;
@@ -121,7 +124,10 @@ export class CollectorBoss extends Boss3D {
   private armNext = 0;
   private armPin: (Pending | null)[] = [null, null];
   private volley = 0;
-  private pattern: Pattern = 'scatter';
+  private pattern: Pattern = 'lead';
+  /** how many pins this volley throws */
+  private volleyN = 3;
+  private tgt = { x: 0, z: 0 };
   private volleyIdx = 0;
   private cageA = 0;
   private sweepC = new THREE.Vector2();
@@ -495,20 +501,22 @@ export class CollectorBoss extends Boss3D {
     const { env } = this;
     this.trace(`step ${step.k} ${step.n ?? ''}`);
     if (step.k === 'pins') {
-      this.pinsLeft = step.n ?? 3;
+      // later rounds of a phase throw one more pin
+      this.pinsLeft = (step.n ?? 3) + (this.cycle >= 2 ? 1 : 0);
+      this.volleyN = this.pinsLeft;
       this.pinTimer = 0;
       this.pinGap = 0.55 * D.tele * this.speedK;
       this.pinEnd = 0;
       this.volleyIdx++;
-      const pats: Pattern[] = this.phase === 0 ? ['scatter', 'sweep'] : ['scatter', 'cage', 'sweep'];
+      const pats: Pattern[] = this.phase === 0 ? ['lead', 'scatter'] : ['lead', 'cage', 'sweep', 'scatter'];
       this.pattern = pats[(this.volleyIdx - 1) % pats.length]!;
-      if (this.pattern === 'cage' && this.pinsLeft > 4) this.pattern = 'scatter';
+      if (this.pattern === 'cage' && this.volleyN < 4) this.pattern = 'lead';
       this.cageA = Math.random() * TAU;
       this.volley = 0;
-      // a sweep starts at one side of the player and marches across
+      // a sweep is a line across the floor in some direction
       const sa = Math.random() * TAU;
       this.sweepD.set(Math.cos(sa), Math.sin(sa));
-      this.sweepC.set(env.p.x + env.p.vx * 0.4, env.p.z + env.p.vz * 0.4);
+      this.sweepC.set(env.p.x + env.p.vx * 0.6, env.p.z + env.p.vz * 0.6);
     } else if (step.k === 'jar') this.enterJar();
     else if (step.k === 'drawers') this.enterDrawers(step.n ?? 5);
     else if (step.k === 'inspect') this.enterInspect();
@@ -564,42 +572,68 @@ export class CollectorBoss extends Boss3D {
     return true;
   }
 
+  /** Aim at (x, z), or at the nearest free spot beside it. Writes `this.tgt` and says whether it found one. */
+  private spot(x: number, z: number, gap: number): boolean {
+    const lim = ARENA_R - 2.0;
+    const r = Math.hypot(x, z);
+    if (r > lim) {
+      x *= lim / r;
+      z *= lim / r;
+    }
+    for (let ring = 0; ring <= 2; ring++) {
+      for (let k = 0; k < (ring === 0 ? 1 : 8); k++) {
+        const a = (k / 8) * TAU + ring * 0.7;
+        const px = x + Math.cos(a) * ring * 1.4;
+        const pz = z + Math.sin(a) * ring * 1.4;
+        if (this.pinOk(px, pz, gap)) {
+          this.tgt.x = px;
+          this.tgt.z = pz;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   private pickPinTarget(): { x: number; z: number } {
-    const { env } = this;
-    const pl = env.p;
-    const first = this.volley === 0;
-    // the first pin lands where you are going; the pattern decides the rest
-    if (first && this.pattern !== 'sweep') {
-      const x = pl.x + pl.vx * 0.5;
-      const z = pl.z + pl.vz * 0.5;
-      const r = Math.hypot(x, z);
-      const k = r > ARENA_R - 2.2 ? (ARENA_R - 2.2) / r : 1;
-      const px = x * k;
-      const pz = z * k;
-      if (this.pinOk(px, pz, 2.2)) return { x: px, z: pz };
-    }
-    if (this.pattern === 'cage' && this.volley < 4) {
-      const n = Math.max(3, this.pinsLeft + this.volley);
-      const a = this.cageA + (this.volley / n) * TAU;
-      const cx = pl.x + pl.vx * 0.4;
-      const cz = pl.z + pl.vz * 0.4;
-      const x = cx + Math.cos(a) * 5.2;
-      const z = cz + Math.sin(a) * 5.2;
-      if (this.pinOk(x, z, 2.2)) return { x, z };
-    }
-    if (this.pattern === 'sweep') {
-      const k = this.volley - 1.5;
-      const x = this.sweepC.x + this.sweepD.x * k * 4.4;
-      const z = this.sweepC.y + this.sweepD.y * k * 4.4;
-      if (this.pinOk(x, z, 2.2)) return { x, z };
+    const pl = this.env.p;
+    const k = this.volley;
+    const n = this.volleyN;
+    // a pin that is aimed at you may land right beside the others; the rest keep their distance
+    switch (this.pattern) {
+      case 'lead':
+        // where you are going, where you are standing, where you will be a moment after: neither running straight nor stopping is an answer
+        if (k === 0 && this.spot(pl.x + pl.vx * 0.8, pl.z + pl.vz * 0.8, 1.3)) return this.tgt;
+        if (k === 1 && this.spot(pl.x, pl.z, 1.3)) return this.tgt;
+        if (k === 2 && this.spot(pl.x + pl.vx * 1.5, pl.z + pl.vz * 1.5, 1.6)) return this.tgt;
+        break;
+      case 'cage': {
+        // a ring of pins closes round you, and the last one comes down in the middle of it: leave through a gap
+        if (k < n - 1) {
+          const a = this.cageA + (k / (n - 1)) * TAU;
+          if (this.spot(pl.x + pl.vx * 0.4 + Math.cos(a) * 5, pl.z + pl.vz * 0.4 + Math.sin(a) * 5, 2)) return this.tgt;
+        } else if (this.spot(pl.x, pl.z, 1.3)) return this.tgt;
+        break;
+      }
+      case 'sweep': {
+        // a row of pins across the floor, through where you are going: step out sideways
+        const s = (k - (n - 1) / 2) * 4.2;
+        if (this.spot(this.sweepC.x + this.sweepD.x * s, this.sweepC.y + this.sweepD.y * s, 1.8)) return this.tgt;
+        break;
+      }
+      case 'scatter':
+        if (k === 0 && this.spot(pl.x + pl.vx * 0.8, pl.z + pl.vz * 0.8, 1.3)) return this.tgt;
+        break;
     }
     // scatter: the best of a handful of random spots, near enough to matter and far from each other
-    let best = { x: 0, z: 8 };
+    let bx = 0;
+    let bz = 8;
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * TAU;
       const r = Math.sqrt(Math.random()) * (ARENA_R - 2.2);
       if (this.pinOk(Math.cos(a) * r, Math.sin(a) * r, 1.8)) {
-        best = { x: Math.cos(a) * r, z: Math.sin(a) * r };
+        bx = Math.cos(a) * r;
+        bz = Math.sin(a) * r;
         break;
       }
     }
@@ -611,15 +645,18 @@ export class CollectorBoss extends Boss3D {
       const z = Math.sin(a) * r;
       if (!this.pinOk(x, z, 2.6)) continue;
       const d = Math.hypot(x - pl.x, z - pl.z);
-      let s = -Math.abs(d - (4 + Math.random() * 5));
+      let sc = -Math.abs(d - (3 + Math.random() * 5));
       // spread over the floor: away from the last few
-      for (const p of this.pend) s += Math.min(5, Math.hypot(p.x - x, p.z - z)) * 0.4;
-      if (s > bestS) {
-        bestS = s;
-        best = { x, z };
+      for (const p of this.pend) sc += Math.min(5, Math.hypot(p.x - x, p.z - z)) * 0.4;
+      if (sc > bestS) {
+        bestS = sc;
+        bx = x;
+        bz = z;
       }
     }
-    return best;
+    this.tgt.x = bx;
+    this.tgt.z = bz;
+    return this.tgt;
   }
 
   private pinEnd = 0;
@@ -631,8 +668,7 @@ export class CollectorBoss extends Boss3D {
       // pick an arm that is free
       let arm = this.armNext;
       if (this.armPin[arm] || m.isThrowing(arm)) arm = 1 - arm;
-      if (!this.armPin[arm] && !m.isThrowing(arm)) {
-        this.spawnPin(arm);
+      if (!this.armPin[arm] && !m.isThrowing(arm) && this.spawnPin(arm)) {
         this.armNext = 1 - arm;
         this.pinsLeft--;
         this.volley++;
@@ -641,29 +677,41 @@ export class CollectorBoss extends Boss3D {
       }
     }
     // the volley is over a moment after the last pin has stabbed the floor
-    if (this.pinsLeft === 0 && this.pend.every((p) => p.done)) {
+    let allDone = this.pinsLeft === 0;
+    for (let i = 0; allDone && i < this.pend.length; i++) if (!this.pend[i]!.done) allDone = false;
+    if (allDone) {
       this.pinEnd += dt;
       if (this.pinEnd > 0.4) this.stepDone = true;
     } else this.pinEnd = 0;
   }
 
-  private spawnPin(arm: number) {
+  /** a floor mark no other pending pin is using */
+  private freeMark(): number {
+    for (let m = MARK_PINS; m < MARK_PINS + 8; m++) {
+      let used = false;
+      for (let i = 0; i < this.pend.length; i++) if (this.pend[i]!.mark === m) used = true;
+      if (!used) return m;
+    }
+    return MARK_PINS + 7;
+  }
+
+  private spawnPin(arm: number): boolean {
     const { env, model: m } = this;
     // keep the arena to a handful of pins: the oldest is pulled back out
     while (this.stuck.length >= MAX_PINS) this.pullPin(this.stuck[0]!);
     const slot = m.pins.alloc();
-    if (slot < 0) return;
+    if (slot < 0) return false;
     const tgt = this.pickPinTarget();
     if (!m.throwPin(arm)) {
       m.pins.slots[slot]!.state = 'free';
-      return;
+      return false;
     }
-    let mark = MARK_PINS;
-    while (this.pend.some((q) => q.mark === mark) && mark < MARK_PINS + 7) mark++;
+    const mark = this.freeMark();
     const p: Pending = { slot, x: tgt.x, z: tgt.z, t: 0, T: 0.08 + this.tele(0.9), arm, launched: false, dropped: false, mark, done: false };
     this.pend.push(p);
     this.armPin[arm] = p;
     env.audio.warnPing();
+    return true;
   }
 
   private pinReleased(arm: number, pos: THREE.Vector3, dir: THREE.Vector3) {
@@ -1002,6 +1050,7 @@ export class CollectorBoss extends Boss3D {
       const k = kinds[i % kinds.length]!;
       this.minions.push({
         id: i,
+        tag: `m${i}`,
         kind: k,
         st: 'queued',
         t: 0,
@@ -1442,7 +1491,7 @@ export class CollectorBoss extends Boss3D {
       w.z = mn.z;
       w.reach = 2.3;
       w.r = 1.3;
-      w.tag = `m${mn.id}`;
+      w.tag = mn.tag;
       out.push(w);
     }
     return out;
@@ -1456,8 +1505,7 @@ export class CollectorBoss extends Boss3D {
       return true;
     }
     if (w.tag.startsWith('m')) {
-      const mn = this.minions.find((q) => q.id === Number(w.tag.slice(1)));
-      if (mn) this.killMinion(mn);
+      for (const mn of this.minions) if (mn.tag === w.tag) this.killMinion(mn);
       return true;
     }
     return super.hitBy(kind, w);
@@ -1473,7 +1521,10 @@ export class CollectorBoss extends Boss3D {
     const { env } = this;
     // a nova clears every minion, every pin and the jar within its reach
     for (const mn of this.minions) if ((mn.st === 'crawl' || mn.st === 'dazed') && Math.hypot(mn.x - n.x, mn.z - n.z) <= n.R + 0.6) this.killMinion(mn);
-    for (const sp of this.stuck.slice()) if (Math.hypot(sp.x - n.x, sp.z - n.z) <= n.R + 0.5) this.breakPin(sp);
+    for (let i = this.stuck.length - 1; i >= 0; i--) {
+      const sp = this.stuck[i]!;
+      if (Math.hypot(sp.x - n.x, sp.z - n.z) <= n.R + 0.5) this.breakPin(sp);
+    }
     if (this.jst === 'empty' && Math.hypot(this.jx - n.x, this.jz - n.z) <= n.R + JAR_R) this.breakJar(true);
     void env;
   }
@@ -1482,7 +1533,10 @@ export class CollectorBoss extends Boss3D {
     // a claw through the pins and the empty jar's glass
     const sx = x + fx * 1.2;
     const sz = z + fz * 1.2;
-    for (const sp of this.stuck.slice()) if (Math.hypot(sp.x - sx, sp.z - sz) <= 1.6 + 0.55) this.breakPin(sp);
+    for (let i = this.stuck.length - 1; i >= 0; i--) {
+      const sp = this.stuck[i]!;
+      if (Math.hypot(sp.x - sx, sp.z - sz) <= 1.6 + 0.55) this.breakPin(sp);
+    }
     if (this.jst === 'empty' && this.jSolid && Math.hypot(this.jx - sx, this.jz - sz) <= JAR_R + 0.8) {
       this.env.addLight(0.34);
       this.breakJar(true);
@@ -1520,7 +1574,7 @@ export class CollectorBoss extends Boss3D {
     // all that he had out goes with him
     for (const mn of this.minions) if (mn.st !== 'gone') this.killMinion(mn, false);
     if (this.jst !== 'none') this.breakJar(true);
-    for (const s of this.stuck.slice()) this.pullPin(s);
+    for (let i = this.stuck.length - 1; i >= 0; i--) this.pullPin(this.stuck[i]!);
     for (let i = 0; i < 16; i++) env.arena.marks.set(i, false);
     env.trap(false);
     env.audio.setHeart(0, 0);

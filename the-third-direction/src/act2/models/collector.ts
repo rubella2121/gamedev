@@ -1018,8 +1018,8 @@ export class CollectorModel {
       let grip = i < 2 ? 0.85 : 0.75;
       if (i === 2) {
         // writing
-        idle.x += Math.sin(t * 6.1) * 0.06;
-        idle.y += Math.sin(t * 7.3) * 0.05;
+        idle.x += Math.sin(t * 6.1) * 0.1 + Math.sin(t * 0.9) * 0.2;
+        idle.y += Math.sin(t * 7.3) * 0.08;
       }
       // the throw
       if (i < 2 && this.throwT[i]! >= 0) {
@@ -1054,6 +1054,16 @@ export class CollectorModel {
       // steered by hand
       const w = this.armW[i]!;
       let stretch = 1;
+      // every few seconds the stamp hand lifts and stamps something in the air
+      if (i === 3 && w === 0 && this.lidU < 0.02 && rs >= 1 && dying === 0) {
+        const sp = (t + 1.3) % 4.8;
+        if (sp < 0.9) {
+          const up = smooth(unlerp(0, 0.42, sp)) * (1 - smooth(unlerp(0.42, 0.5, sp)));
+          const down = smooth(unlerp(0.42, 0.5, sp)) * (1 - smooth(unlerp(0.58, 0.9, sp)));
+          idle.y += 1.7 * up - 1.2 * down;
+          idle.z += -0.5 * up + 0.6 * down;
+        }
+      }
       if (w > 0) {
         this.tmpB.copy(this.armGoal[i]!);
         this.worldToRoot(this.tmpB);

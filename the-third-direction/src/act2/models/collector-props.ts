@@ -230,7 +230,7 @@ export const PIN_FALL = 0.1;
 
 export class PropPins {
   readonly slots: PinSlot[] = [];
-  readonly size = 12;
+  readonly size = 16;
   onLand: ((i: number) => void) | null = null;
   private pin: THREE.InstancedMesh;
   private tags: THREE.InstancedMesh;
