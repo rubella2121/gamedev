@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { TubeChain } from '../kit/chain';
 import { mix, rgb } from '../kit/noise';
 import { halo, skin } from '../kit/skin';
-import { PAL, stingerGeometry, vertebraGeometry } from './mash-shapes';
+import { outwardTube, PAL, stingerGeometry, vertebraGeometry } from './mash-shapes';
 
 /**
  * The Mash's scorpion tail: 26 spiked vertebrae on a stretchy sinew, ending in a hollow bone stinger.
@@ -159,6 +159,7 @@ export class ScorpionTail {
       (u) => 0.5 - 0.2 * u,
       (u, a) => mix(rgb(0x1a0a10), rgb(0x582030), 0.5 + 0.5 * Math.sin(a * 2 + u * 14) * Math.sin(u * 30 + a)),
     );
+    outwardTube(this.tube.mesh.geometry);
     this.group.add(this.tube.mesh);
     // the vertebrae: instanced, one per joint after the root
     this.verts = new THREE.InstancedMesh(vertebraGeometry(), bone, TAIL_N - 1);

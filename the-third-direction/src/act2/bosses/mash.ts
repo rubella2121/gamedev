@@ -26,7 +26,7 @@ import {
   type MashFx,
   type Runner,
 } from './mash-attacks';
-import { BeaconFX, BeamFX, BlobFX, FanFX, LaneFX, PuddleFX, RingFX, ShockFX, StreamFX, WindFX, type StreamDef } from './mash-fx';
+import { BeaconFX, BeamFX, BlobFX, FanFX, FlashFX, LaneFX, PuddleFX, RingFX, ShockFX, StreamFX, WindFX, type StreamDef } from './mash-fx';
 
 /**
  * THE MASH. Every guardian the forest gave you, stitched into one thing. It cannot be hurt until one of its patches
@@ -60,6 +60,7 @@ export class MashBoss extends Boss3D {
   readonly model: MashModel;
   private fx: MashFx;
   private streams: StreamFX;
+  private flashes: FlashFX;
   private beacon: BeaconFX;
   private hub: Hub;
   private ball = new Ball();
@@ -84,6 +85,7 @@ export class MashBoss extends Boss3D {
   private deadT = -1;
   private introSaid = 0;
   private sewT = 0;
+  private sewStarted = false;
   private misses = 0;
   private _ctrl = newCtrl();
 
@@ -102,6 +104,7 @@ export class MashBoss extends Boss3D {
       wind: new WindFX(world),
     };
     this.streams = new StreamFX(world, this.streamDefs());
+    this.flashes = new FlashFX(world);
     this.beacon = new BeaconFX(world);
     this.hub = { env, model: this.model, fx: this.fx, k: 1, tail: newCtrl(), tailDriven: false, say: (l, ms) => this.say(l, ms) };
     this.ball.pos.set(0, 4, MASH_Z);
@@ -186,6 +189,7 @@ export class MashBoss extends Boss3D {
     this.fx.beam.hide();
     this.fx.wind.hide();
     this.streams.hide();
+    this.flashes.hide();
     this.beacon.hide();
     env.arena.marks.hideAll();
     env.arena.setRedLight(0);
@@ -213,15 +217,15 @@ export class MashBoss extends Boss3D {
     const to = (x: number, y: number, z: number) => m.toWorld(new THREE.Vector3(x, y, z));
     return [
       // the Gloommother: cyan, from the dark on the left, to the base
-      { color: 0x6ff0ff, from: new THREE.Vector3(-58, 22, -52), to: to(0, 1.5, 5), at: 0.15, dur: 1.55, swirl: 5, turns: 1.6 },
+      { color: 0x6ff0ff, from: new THREE.Vector3(-58, 22, -52), to: to(0, 1.5, 5), at: 0.15, dur: 1.55, swirl: 8, turns: 1.6 },
       // the Thornback King: amber, from the right, to the shell
-      { color: 0xffb35a, from: new THREE.Vector3(60, 12, -40), to: to(SHELL_DOCK.x, SHELL_DOCK.y, SHELL_DOCK.z), at: 0.5, dur: 1.6, swirl: 5, turns: 1.3 },
+      { color: 0xffb35a, from: new THREE.Vector3(60, 12, -40), to: to(SHELL_DOCK.x, SHELL_DOCK.y, SHELL_DOCK.z), at: 0.5, dur: 1.6, swirl: 8, turns: 1.3 },
       // the Toll Queen: violet, from above, to the bell
-      { color: 0xb08cff, from: new THREE.Vector3(-20, 46, -66), to: to(0, 4, 2), at: 0.85, dur: 1.65, swirl: 6, turns: 1.8 },
+      { color: 0xb08cff, from: new THREE.Vector3(-20, 46, -66), to: to(0, 4, 2), at: 0.85, dur: 1.65, swirl: 9, turns: 1.8 },
       // the Bone Wyrm: bone white, from the wall far on the right, to the root of the spine
-      { color: 0xf4efe0, from: new THREE.Vector3(48, 34, -62), to: to(3, 5, -3), at: 1.2, dur: 1.65, swirl: 5, turns: 1.4 },
+      { color: 0xf4efe0, from: new THREE.Vector3(48, 34, -62), to: to(2.6, 4, -3), at: 1.2, dur: 1.65, swirl: 8, turns: 1.4 },
       // the Mimic Queen: pink, from the dark above, to the flower
-      { color: 0xff7aa8, from: new THREE.Vector3(10, 52, -58), to: to(0, 9, 2), at: 1.55, dur: 1.7, swirl: 6, turns: 2.0 },
+      { color: 0xff7aa8, from: new THREE.Vector3(10, 52, -58), to: to(0, 5.0, 3.3), at: 1.55, dur: 1.7, swirl: 9, turns: 2.0 },
     ];
   }
 
@@ -241,6 +245,7 @@ export class MashBoss extends Boss3D {
     m.eyeOpen = 0.1;
     this.introSaid = 0;
     this.sewT = 0;
+    this.sewStarted = false;
     this.said.clear();
     env.audio.setDrone(0.2, 1.5);
     env.audio.v.motherWhispers(3);
@@ -259,35 +264,47 @@ export class MashBoss extends Boss3D {
     s.tail = pop(2.75);
     s.bloom = pop(3.1);
     s.eye = pop(3.2);
-    // every part lands with a thump and a flash of its colour
-    const marks: [number, number, number, number][] = [
-      [1.7, 0x6ff0ff, 0, 1.5],
-      [2.05, 0xffb35a, SHELL_DOCK.x, SHELL_DOCK.y],
-      [2.4, 0xb08cff, 0, 4],
-      [2.75, 0xf4efe0, 3, 5],
-      [3.1, 0xff7aa8, 0, 9],
+    // every part lands with a thump, a flare and a ring of its colour on the floor
+    const marks: [number, number, number, number, number][] = [
+      [1.7, 0x6ff0ff, 0, 1.5, 4],
+      [2.05, 0xffb35a, SHELL_DOCK.x, SHELL_DOCK.y, SHELL_DOCK.z],
+      [2.4, 0xb08cff, 0, 4, 2],
+      [2.75, 0xf4efe0, 2.6, 4, -3],
+      [3.1, 0xff7aa8, 0, 5.0, 3.3],
     ];
-    marks.forEach(([at, col, x, y], i) => {
+    marks.forEach(([at, col, x, y, z], i) => {
       if (this.introSaid <= i && t >= at) {
         this.introSaid = i + 1;
-        const w = m.toWorld(new THREE.Vector3(x, y, 2));
-        env.arena.burst3(w.x, w.y, w.z, 14, [col, 0xffffff, 0x07040a], 9);
-        env.audio.thump(0.7);
-        env.shake(0.35);
+        const w = m.toWorld(new THREE.Vector3(x, y, z));
+        env.arena.burst3(w.x, w.y, w.z, 30, [col, 0xffffff, col, 0x07040a], 12);
+        this.flashes.add(w.x, w.y, w.z, 18, 0.55, col);
+        this.fx.shocks.add(w.x, Math.max(w.z, MASH_Z + 4), 13, col, 0.65);
+        env.ui.flash(0.14, 140);
+        m.flash(0.55);
+        env.audio.thump(0.9);
+        env.shake(0.55);
         env.audio.click();
       }
     });
-    // the stitching: a ratchet of tiny clicks while the black thread goes in
+    // the stitching: the black thread goes in white-hot, with a ratchet of clicks and a spark at every needle
     const p = unlerp(2.3, 3.95, t);
-    m.stitches.sew(p);
-    m.bloomStitches.sew(p);
-    m.eyeStitches.sew(p);
-    m.shellStitches.sew(p);
+    const spark = (w: THREE.Vector3) => {
+      this.flashes.add(w.x, w.y, w.z, 7.5, 0.5);
+      env.arena.burst3(w.x, w.y, w.z, 2, [0xffd890, 0xffffff, 0xff9a4a], 5);
+    };
+    if (p > 0 && !this.sewStarted) {
+      this.sewStarted = true;
+      env.ui.flash(0.22, 200);
+    }
+    m.stitches.sew(p, dt, spark);
+    m.bloomStitches.sew(p, dt, spark);
+    m.eyeStitches.sew(p, dt, spark);
+    m.shellStitches.sew(p, dt, spark);
     this.sewT -= dt;
     if (p > 0 && p < 1 && this.sewT <= 0) {
-      this.sewT = 0.16;
+      this.sewT = 0.12;
       env.audio.click();
-      env.audio.v.rattle({ n: 3, gap: 0.03, f: 2600, q: 5, gain: 0.5, dur: 0.02, wet: 0.1 });
+      env.audio.v.rattle({ n: 4, gap: 0.025, f: 2600, q: 5, gain: 0.55, dur: 0.02, wet: 0.1 });
     }
     // it wakes: the bloom opens, the eye
     const wake = smooth(unlerp(3.9, 4.7, t));
@@ -320,6 +337,7 @@ export class MashBoss extends Boss3D {
     m.eyeOpen = 0.35;
     m.roar = 0;
     this.streams.hide();
+    this.flashes.hide();
   }
 
   /* ---------------------------------------------------------------- */
@@ -439,7 +457,7 @@ export class MashBoss extends Boss3D {
     const ph = Math.min(this.phase, 3);
     const c = this.cycle;
     const space = Math.max(0.95, 1.3 * k);
-    const vol = (n: number, echo: boolean, gapN = 8) => (b: MashBoss) => [new VolleyRunner(b.hub, { n, echo, gapN: Math.max(7, gapN - (c > 0 ? 1 : 0)), space, speed: 9.5 })];
+    const vol = (n: number, echo: boolean, gapN = 8, sp = space) => (b: MashBoss) => [new VolleyRunner(b.hub, { n, echo, gapN: Math.max(7, gapN - (c > 0 ? 1 : 0)), space: sp, speed: 9.5 })];
     if (ph === 0) {
       return [
         { make: vol(2, false, 9), hard: true, wait: 0.5 },
@@ -462,22 +480,28 @@ export class MashBoss extends Boss3D {
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: true })], hard: true, window: true, wait: 0.6 },
       ];
     }
-    // the remix: two at once, and the flower
+    // the remix: two at once, and the flower. The first pair does not wait for its last ring to leave the floor (the next
+    // beat starts when nothing it could still hurt you with is near), so the whole round is a run of overlapping dangers
+    // rather than long gaps; the roll and spit pair waits for the shell to be home, the breath for the lure.
+    const sp4 = Math.max(0.9, 1.15 * k);
     const combos: Beat[][] = [
       [
-        { make: (b) => [...vol(2, true, 8)(b), new StingRunner(b.hub)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(2, true, 8, sp4)(b), new StingRunner(b.hub)], wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(3, false, 8)(b), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(3, false, 8, sp4)(b), new SpitRunner(b.hub, 3)], wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new StingRunner(b.hub)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(2, true, 7)(b), new SweepRunner(b.hub)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(2, true, 7, sp4)(b), new SweepRunner(b.hub)], wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
     ];
-    return [...combos[c % 3]!, { make: (b) => [new BreathRunner(b.hub)], hard: true, window: true, wait: 0.6 }];
+    const round = [...combos[c % 3]!];
+    // from the second hit on there is a lone sting before the breath: the rounds get shorter, so they get denser
+    if (c >= 1) round.push({ make: (b) => [new StingRunner(b.hub)], wait: 0.4 });
+    return [...round, { make: (b) => [new BreathRunner(b.hub)], hard: true, window: true, wait: 0.5 }];
   }
 
   /* ---------------------------------------------------------------- */
@@ -504,7 +528,7 @@ export class MashBoss extends Boss3D {
         P.recoilPose(this.hurtT / 1.6, this.t, h.tail);
         h.tailDriven = true;
       }
-      if (this.hurtT >= 1.5 && this.active.every((r) => r.done || r.soft)) this.endHurt();
+      if (this.hurtT >= 1.3 && this.active.every((r) => r.done || r.soft)) this.endHurt();
       return;
     }
     // the script
@@ -560,7 +584,7 @@ export class MashBoss extends Boss3D {
     this.model.setClapper(0, 0, 9.5);
     this.beats = this.script();
     this.bi = 0;
-    this.pause = 1.0;
+    this.pause = 0.8;
     this.misses = 0;
   }
 
@@ -612,6 +636,7 @@ export class MashBoss extends Boss3D {
     this.fx.rings.update();
     this.fx.puddles.update(dt, env.time);
     this.fx.shocks.update(dt);
+    this.flashes.update(dt);
     this.fx.lanes.forEach((l) => l.scroll(env.time));
     // the tail: whatever an attack asked for, or the curl; a sudden change is blended
     let desired = h.tail;
@@ -740,7 +765,8 @@ export class MashBoss extends Boss3D {
   }
 
   cinematic() {
-    if (this.state === 'dying') return { x: 0, y: 10, z: MASH_Z, dist: 30 };
+    // (the camera goes to (0.3 x, 0.8 y + 4, z + dist) and looks at (x, y, z): from far enough out the whole width is in view)
+    if (this.state === 'dying') return { x: 0, y: 9, z: MASH_Z, dist: 46 };
     return null;
   }
 }

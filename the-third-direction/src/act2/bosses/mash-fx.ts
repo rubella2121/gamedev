@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { halo } from '../kit/skin';
 
 /**
  * What the Mash puts on the floor and in the air besides its body: tolling rings with a gap, the sweep's fan, the roll's
@@ -854,7 +855,7 @@ export interface StreamDef {
 export class StreamFX {
   readonly mesh: THREE.InstancedMesh;
   readonly defs: StreamDef[] = [];
-  private per = 34;
+  private per = 56;
   private o = new THREE.Object3D();
   private c = new THREE.Color();
   private a = new THREE.Vector3();
@@ -862,14 +863,21 @@ export class StreamFX {
   private p = new THREE.Vector3();
   private ctl1 = new THREE.Vector3();
   private ctl2 = new THREE.Vector3();
+  /** a big soft glow rides at the front of each ribbon */
+  private heads: THREE.Sprite[] = [];
 
   constructor(world: THREE.Group, defs: StreamDef[]) {
     const n = defs.length * this.per;
-    this.mesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.34, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }), n);
+    this.mesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.62, 0), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }), n);
     this.mesh.frustumCulled = false;
     this.defs = defs;
     defs.forEach((d, s) => {
-      for (let j = 0; j < this.per; j++) this.mesh.setColorAt(s * this.per + j, this.c.setHex(d.color));
+      // (brighter than white-hot: where specks overlap they burn out to white)
+      for (let j = 0; j < this.per; j++) this.mesh.setColorAt(s * this.per + j, this.c.setHex(d.color).multiplyScalar(1.6));
+      const h = halo(d.color, 10, 0);
+      h.visible = false;
+      world.add(h);
+      this.heads.push(h);
     });
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     this.mesh.visible = false;
@@ -881,10 +889,11 @@ export class StreamFX {
     const { o } = this;
     let any = false;
     this.defs.forEach((d, s) => {
+      this.heads[s]!.visible = false;
       for (let j = 0; j < this.per; j++) {
         const i = s * this.per + j;
         // each speck trails the one before it
-        const q = (t - d.at - j * 0.028) / d.dur;
+        const q = (t - d.at - j * 0.019) / d.dur;
         if (q <= 0 || q >= 1) {
           o.position.set(0, -50, 0);
           o.scale.setScalar(0.0001);
@@ -913,7 +922,14 @@ export class StreamFX {
         this.p.x += Math.cos(ang) * sw;
         this.p.y += Math.sin(ang) * sw * 0.8;
         o.position.copy(this.p);
-        const sc = 0.5 + 1.2 * Math.sin(Math.PI * q) * (1 - j / this.per * 0.5);
+        if (j === 0) {
+          const head = this.heads[s]!;
+          head.visible = true;
+          head.position.copy(this.p);
+          head.scale.setScalar(6 + 9 * Math.sin(Math.PI * q));
+          head.material.opacity = 0.9 * Math.sqrt(Math.sin(Math.PI * q));
+        }
+        const sc = 0.7 + 1.5 * Math.sin(Math.PI * q) * (1 - (j / this.per) * 0.55);
         o.scale.setScalar(sc);
         o.rotation.set(q * 9 + j, q * 7, 0);
         o.updateMatrix();
@@ -926,5 +942,54 @@ export class StreamFX {
 
   hide() {
     this.mesh.visible = false;
+    for (const h of this.heads) h.visible = false;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* flashes                                                            */
+/* ---------------------------------------------------------------- */
+
+/** Short, bright flashes at points in the air: the needle going through as the thread is sewn. */
+export class FlashFX {
+  private items: { s: THREE.Sprite; t: number; life: number; size: number }[] = [];
+  private next = 0;
+
+  constructor(world: THREE.Group, n = 48) {
+    for (let i = 0; i < n; i++) {
+      const s = halo(0xffd890, 1, 0);
+      s.visible = false;
+      world.add(s);
+      this.items.push({ s, t: 9, life: 1, size: 1 });
+    }
+  }
+
+  add(x: number, y: number, z: number, size = 4, life = 0.4, color = 0xffd890) {
+    const it = this.items[this.next]!;
+    this.next = (this.next + 1) % this.items.length;
+    it.s.position.set(x, y, z);
+    it.s.material.color.setHex(color);
+    it.t = 0;
+    it.life = life;
+    it.size = size;
+    it.s.visible = true;
+  }
+
+  update(dt: number) {
+    for (const it of this.items) {
+      if (!it.s.visible) continue;
+      it.t += dt;
+      const u = it.t / it.life;
+      if (u >= 1) {
+        it.s.visible = false;
+        continue;
+      }
+      it.s.scale.setScalar(it.size * (0.45 + 1.1 * Math.sqrt(u)));
+      it.s.material.opacity = (1 - u) * (1 - u) * 1.1;
+    }
+  }
+
+  hide() {
+    for (const it of this.items) it.s.visible = false;
   }
 }

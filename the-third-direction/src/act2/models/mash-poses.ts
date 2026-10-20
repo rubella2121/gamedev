@@ -21,8 +21,8 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const BASE_DIR = V(0.45, 1, -0.3).normalize();
 
 /** the idle curl, as waypoints: up the back, over the top, down the right side, the stinger hanging */
-const IDLE_VIA = [V(5.6, 6.8, -4.0), V(7.8, 10.3, -2.8), V(8.2, 11.0, 1.2), V(8.2, 9.2, 4.6)];
-const IDLE_END = V(8.3, 7.5, 5.6);
+const IDLE_VIA = [V(4.9, 5.6, -3.6), V(6.4, 8.0, -2.4), V(6.9, 8.8, 0.8), V(6.9, 7.4, 3.9)];
+const IDLE_END = V(7.0, 6.1, 4.8);
 const IDLE_DIR = V(0.2, -0.86, 0.46).normalize();
 export const IDLE_TIP = IDLE_END.clone().addScaledVector(IDLE_DIR, STING_LEN);
 
@@ -56,13 +56,13 @@ export function idlePose(t: number, out: TailCtrl) {
 
 /** The cocked tail: coiled tighter and higher than the idle curl, the stinger drawn back over the body and turned to its target. */
 function cockedPose(nx: number, nz: number, out: TailCtrl) {
-  out.via[0]!.set(5.0, 7.4, -4.6);
-  out.via[1]!.set(6.0, 11.0, -3.8);
-  out.via[2]!.set(6.4 + nx * 0.8, 12.2, -0.6 + nz * 0.8);
-  out.via[3]!.set(6.4 + nx * 1.6, 11.4, 1.6 + nz * 1.6);
+  out.via[0]!.set(4.6, 6.6, -4.2);
+  out.via[1]!.set(5.6, 9.0, -3.4);
+  out.via[2]!.set(5.9 + nx * 0.7, 9.8, -0.6 + nz * 0.7);
+  out.via[3]!.set(5.9 + nx * 1.4, 9.2, 1.4 + nz * 1.4);
   out.viaW = 1;
   out.tipDir.set(nx * 0.45, -0.7, nz * 0.45).normalize();
-  const E = t1.set(6.8 + nx * 2.0, 10.2, 2.8 + nz * 2.0);
+  const E = t1.set(6.3 + nx * 1.8, 8.2, 2.4 + nz * 1.8);
   out.tip.copy(E).addScaledVector(out.tipDir, STING_LEN);
   out.baseDir.set(0.3, 1, -0.45).normalize();
   out.len = TAIL_L_IDLE + 1.5;
@@ -92,7 +92,7 @@ function reachPose(target: THREE.Vector3, tipY: number, out: TailCtrl) {
   const B = TAIL_BASE;
   const chord = Math.hypot(E.x - B.x, E.y - B.y, E.z - B.z);
   // an arch: it rises quickly off the back and comes down on the target
-  const H = Math.min(9.5, Math.max(3.2, Math.sqrt(0.375 * chord * (0.14 * chord + 3))));
+  const H = Math.min(8.0, Math.max(3.2, Math.sqrt(0.375 * chord * (0.14 * chord + 3))));
   const S = [0.16, 0.36, 0.62];
   for (let i = 0; i < 3; i++) {
     const s = S[i]!;
@@ -172,7 +172,7 @@ export function retractPose(u: number, t: number, from: THREE.Vector3, out: Tail
 export function sweepPose(th: number, rin: number, rtip: number, pivot: THREE.Vector3, out: TailCtrl) {
   const sx = Math.sin(th);
   const cz = Math.cos(th);
-  out.via[0]!.set(3.4, 14.0, 0.0);
+  out.via[0]!.set(3.2, 11.0, 0.0);
   out.via[1]!.set(pivot.x + sx * rin * 0.65, 6.5, pivot.z + cz * rin * 0.65);
   out.via[2]!.set(pivot.x + sx * rin * 1.05, 0.7, pivot.z + cz * rin * 1.05);
   out.via[3]!.set(pivot.x + sx * (rin + (rtip - rin) * 0.5), 0.6, pivot.z + cz * (rin + (rtip - rin) * 0.5));
@@ -195,9 +195,9 @@ export function spitPose(u: number, t: number, target: THREE.Vector3, kick: numb
   cockedPose(nx, nz, _b);
   // the stinger lifts to aim up and out over the arena; each lob kicks it back
   _b.tipDir.set(nx * 0.75, 0.5, nz * 0.75).normalize();
-  const E = t1.set(6.8 + nx * 2.6, 11.2 - kick * 1.4, 3.4 + nz * 2.6);
+  const E = t1.set(6.3 + nx * 2.4, 9.4 - kick * 1.3, 3.0 + nz * 2.4);
   _b.tip.copy(E).addScaledVector(_b.tipDir, STING_LEN);
-  _b.via[3]!.set(6.6 + nx * 2.0, 12.0 - kick * 0.6, 2.2 + nz * 2.0);
+  _b.via[3]!.set(6.0 + nx * 1.8, 10.2 - kick * 0.6, 2.0 + nz * 1.8);
   _b.wave = 0.7 + kick * 0.8;
   _b.waveHz = 5;
   mixCtrl(out, _a, _b, smooth(u));
@@ -224,10 +224,10 @@ export function deadPose(t: number, out: TailCtrl) {
 export function recoilPose(u: number, t: number, out: TailCtrl) {
   idlePose(t, _a);
   cockedPose(0, -1, _b);
-  _b.via[2]!.set(3.5, 14.0, -3);
-  _b.via[3]!.set(2.0, 13.0, -4.6);
+  _b.via[2]!.set(3.2, 11.4, -3);
+  _b.via[3]!.set(2.0, 10.6, -4.6);
   _b.tipDir.set(0.2, 0.3, -0.9).normalize();
-  _b.tip.set(1.5, 12.5, -6.5);
+  _b.tip.set(1.5, 10.2, -6.5);
   _b.wave = 2.2;
   _b.waveHz = 9;
   _b.glow = 0.2;
