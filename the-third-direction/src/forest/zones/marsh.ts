@@ -4,7 +4,9 @@ import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { dist, hash2 } from '../../core/util';
 import { drawBellTower, drawLily, drawThornGate } from '../art3';
-import type { Drawable, Hub, Patch, Rect, Zone } from '../types';
+import { arenaDef } from '../land';
+import { TollQueen } from '../guardians/tollqueen';
+import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
 import { Gate, onScreen } from './parts';
 
 interface Bell {
@@ -61,10 +63,38 @@ export class MarshZone implements Zone {
   private lily = { next: 0, lit: [0, 0, 0, 0], done: false, wrong: 0 };
   private rung = 0;
   private t = 0;
+  private guardian: TollQueen | null = null;
 
   constructor(private hub: Hub) {
     for (const pt of PATCHES) hub.land.addPatchFlowers(pt.x, pt.y, pt.rx, pt.ry, Math.floor(pt.x));
   }
+
+  get always() {
+    return this.guardian !== null;
+  }
+
+  /** The player is in the arena: the Toll Queen descends. */
+  onArrive() {
+    this.guardian = new TollQueen(this.hub, arenaDef('marsh'), () => this.hub.leaveArena(this, true));
+    this.guardian.begin();
+  }
+
+  onLance(l: Lance): boolean {
+    return this.guardian?.onLance(l) ?? false;
+  }
+
+  onNova(n: Nova) {
+    this.guardian?.onNova(n);
+  }
+
+  lanceTarget() {
+    return this.guardian?.lanceTarget() ?? null;
+  }
+
+  overlay() {
+    this.guardian?.overlay();
+  }
+
 
   reset() {
     this.cleared = false;
@@ -73,10 +103,15 @@ export class MarshZone implements Zone {
     this.lily = { next: 0, lit: [0, 0, 0, 0], done: false, wrong: 0 };
     this.gate.open = 0;
     this.t = 0;
+    this.guardian = null;
     this.hub.patches.push(...PATCHES);
   }
 
   onRespawn() {
+    if (this.guardian) {
+      this.guardian.onPlayerDied();
+      return;
+    }
     this.bells.forEach((b) => {
       b.alert = 0;
       b.cool = 1.2;
@@ -86,6 +121,7 @@ export class MarshZone implements Zone {
   }
 
   complete() {
+    this.guardian = null;
     this.cleared = true;
     this.bells = [];
     this.lily.done = true;
@@ -93,6 +129,7 @@ export class MarshZone implements Zone {
   }
 
   colliders(): Rect[] {
+    if (this.guardian) return this.guardian.colliders();
     return this.gate.solid() && !this.cleared ? [GATE] : [];
   }
 
@@ -118,6 +155,10 @@ export class MarshZone implements Zone {
 
   onPulse(px: number, py: number, R: number) {
     const hub = this.hub;
+    if (this.guardian) {
+      this.guardian.onPulse(px, py, R);
+      return;
+    }
     for (const b of this.bells) {
       if (dist(px, py, b.x, b.y - 14) <= R + 6) {
         b.stun = 4.5;
@@ -159,6 +200,13 @@ export class MarshZone implements Zone {
   }
 
   update(dt: number) {
+    if (this.guardian) {
+      if (!this.hub.arena && this.guardian.state === 'gone') this.guardian = null;
+      else {
+        this.guardian.update(dt);
+        return;
+      }
+    }
     const hub = this.hub;
     const pl = hub.player;
     this.t += dt;
@@ -185,7 +233,7 @@ export class MarshZone implements Zone {
     if (dist(pl.x, pl.y, TOWER.x, TOWER.y) < 20 && pl.dead <= 0) {
       this.rung = 1;
       hub.audio.bell(0.9);
-      hub.reachHeart(this);
+      hub.enterArena(this);
     }
 
     // --- Bellwethers
@@ -237,6 +285,10 @@ export class MarshZone implements Zone {
   }
 
   ground() {
+    if (this.guardian) {
+      this.guardian.ground();
+      return;
+    }
     const hub = this.hub;
     const p = hub.p;
     for (const b of this.bells) {
@@ -254,6 +306,10 @@ export class MarshZone implements Zone {
     const t = hub.time;
     const cx = hub.camX;
     const cy = hub.camY;
+    if (this.guardian) {
+      this.guardian.push(list);
+      return;
+    }
     for (const r of REEDS) {
       if (!onScreen(hub, r[0]!, r[1]!)) continue;
       list.push({ y: r[1]! + 3, fn: () => drawReeds(p, r[0]! - cx, r[1]! - cy, r[0]! + r[1]!, t, 9) });

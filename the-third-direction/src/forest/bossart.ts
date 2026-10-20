@@ -1,5 +1,5 @@
 import { Pix } from '../core/pix';
-import { arc, buf, rimPass, tendril } from './guardians/draw';
+import { arc, blitSink, buf, rimPass, tendril } from './guardians/draw';
 import { C } from '../core/palette';
 import { drawGloom } from '../core/art2';
 import { clamp, hash2, lerp, rng, TAU } from '../core/util';
@@ -149,6 +149,12 @@ export function drawGloommother(p: Pix, x: number, y: number, t: number, o: Moth
 /* ------------------------------------------------------------------ */
 
 export interface KingOpts {
+  /** 1 faces right (the way he is drawn), -1 faces left */
+  face?: 1 | -1;
+  /** 0..1: how fast his legs are going when he is not charging (a prowl) */
+  walk?: number;
+  /** 0..1 fade */
+  fade?: number;
   /** 0 idle, 1 winding up, 2 charging, 3 stunned */
   mode?: 0 | 1 | 2 | 3;
   flash?: number;
@@ -162,16 +168,19 @@ export function drawThornbackKing(p: Pix, x: number, y: number, t: number, o: Ki
   const bx = 62;
   const by = 98;
   const mode = o.mode ?? 0;
-  const run = mode === 2 ? 1 : mode === 0 ? 0.2 : 0;
-  const bob = mode === 2 ? Math.sin(t * 26) * 1.4 : mode === 3 ? 0 : Math.sin(t * 2) * 0.7;
+  const face = o.face ?? 1;
+  const run = mode === 2 ? 1 : mode === 0 ? 0.2 + (o.walk ?? 0) * 0.5 : 0;
+  const bob = mode === 2 ? Math.sin(t * 26) * 1.4 : mode === 3 ? 0 : Math.sin(t * (2 + (o.walk ?? 0) * 8)) * (0.7 + (o.walk ?? 0));
   const tilt = mode === 3 ? 6 : 0;
   const shell = o.flash ? '#5a7a8a' : '#0e1a24';
   // dust and shadow go straight onto the scene
+  const fa = o.fade ?? 1;
+  p.alpha(fa);
   p.dither(x, y + 1, 58, 8, '#02050a', 0.8);
   if (mode === 2) {
-    p.dither(x - 52, y - 3, 18, 6, '#7a9a9a', 0.4);
-    p.dither(x - 62, y - 11, 12, 7, '#5a7a7a', 0.3);
-    p.dither(x - 46, y - 17, 10, 6, '#5a7a7a', 0.25);
+    p.dither(x - 52 * face, y - 3, 18, 6, '#7a9a9a', 0.4);
+    p.dither(x - 62 * face, y - 11, 12, 7, '#5a7a7a', 0.3);
+    p.dither(x - 46 * face, y - 17, 10, 6, '#5a7a7a', 0.25);
   }
   // six legs, jointed and spiked, under the shell
   for (let i = 0; i < 6; i++) {
@@ -313,7 +322,9 @@ export function drawThornbackKing(p: Pix, x: number, y: number, t: number, o: Ki
     }
   }
   rimPass(s, '#5a82a0', 0.65, 17, '#8fb0c0');
-  p.blit(s.canvas, x - bx, y - by);
+  if (face < 0) p.blitFlip(s.canvas, x - (W - bx), y - by);
+  else p.blit(s.canvas, x - bx, y - by);
+  p.alpha(1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -330,6 +341,12 @@ export interface QueenOpts {
   look?: [number, number];
   /** 0..1 wings folded (diving) */
   fold?: number;
+  /** 0 = the eye is shut, 1 = wide open */
+  open?: number;
+  /** 0..1 fade */
+  fade?: number;
+  /** a flash (hit) */
+  flash?: boolean;
 }
 
 function goldAt(xn: number): [number, number, number] {
@@ -454,25 +471,39 @@ export function drawTollQueen(p: Pix, x: number, y: number, t: number, o: QueenO
     s.px(cx + 3, topY - 4 - k * 6 + bob, '#d8d8e8');
   }
   s.ellipse(cx, topY + 1 + bob, 9, 4, '#a8842a');
-  // the great eye
+  // the great eye (it can be shut)
   const ey = EY + bob;
-  s.ellipse(cx, ey, 21, 18, '#4a3a88');
-  s.ellipse(cx, ey, 19, 16, '#ece8ff');
-  s.ellipse(cx + 2, ey - 3, 14, 8, '#f8f6ff');
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * TAU;
-    s.line(cx + Math.cos(a) * 18, ey + Math.sin(a) * 15, cx + Math.cos(a) * 11, ey + Math.sin(a) * 9, '#e8b8d8', 1);
+  const op = clamp(o.open ?? 1, 0, 1);
+  s.ellipse(cx, ey, 21, 18, o.flash ? '#ffffff' : '#4a3a88');
+  if (op < 0.12) {
+    // shut: a heavy violet lid, a seam and lashes
+    s.ellipse(cx, ey, 19, 16, '#3a2a78');
+    s.ellipse(cx + 2, ey - 3, 14, 8, '#4a3a98');
+    arc(s, cx, ey + 3, 19, 8, 0.15, Math.PI - 0.15, '#150f30', 2);
+    for (let i = -4; i <= 4; i++) s.line(cx + i * 4.2, ey + 9 - Math.abs(i) * 0.4, cx + i * 4.6, ey + 14 - Math.abs(i) * 0.5, '#150f30', 1);
+  } else {
+    const ry = 16 * (0.35 + 0.65 * op);
+    s.ellipse(cx, ey, 19, ry, '#ece8ff');
+    s.ellipse(cx + 2, ey - 3 * op, 14, 8 * op, '#f8f6ff');
+    for (let i = 0; i < 9; i++) {
+      const a2 = (i / 9) * TAU;
+      s.line(cx + Math.cos(a2) * 18, ey + Math.sin(a2) * ry * 0.95, cx + Math.cos(a2) * 11, ey + Math.sin(a2) * ry * 0.55, '#e8b8d8', 1);
+    }
+    const lx = (o.look?.[0] ?? 0) * 4;
+    const ly = (o.look?.[1] ?? 0.4) * 3;
+    const ir = 9.5 * (0.6 + 0.4 * op);
+    s.ellipse(cx + lx, ey + ly, ir, ir, '#6a4ad0');
+    s.ellipse(cx + lx, ey + ly, ir - 1.5, ir - 1.5, '#8a6af0');
+    s.ellipse(cx + lx, ey + ly, ir - 4, ir - 4, '#4a2aa0');
+    s.ring(cx + lx, ey + ly, ir - 0.5, ir - 0.5, 1, '#e0b84a');
+    s.rect(cx + lx - 1, ey + ly - 6 * op, 2.5, 12 * op, '#05060c');
+    s.px(cx + lx - 4, ey + ly - 4 * op, '#ffffff');
+    s.px(cx + lx - 3, ey + ly - 5 * op, '#ffffff');
+    // her lid comes down as the eye closes
+    if (op < 1) {
+      s.ellipse(cx, ey - ry - 2 + (1 - op) * 12, 21, 8 + (1 - op) * 8, '#3a2a78');
+    }
   }
-  const lx = (o.look?.[0] ?? 0) * 4;
-  const ly = (o.look?.[1] ?? 0.4) * 3;
-  s.ellipse(cx + lx, ey + ly, 9.5, 9.5, '#6a4ad0');
-  s.ellipse(cx + lx, ey + ly, 8, 8, '#8a6af0');
-  s.ellipse(cx + lx, ey + ly, 5.5, 5.5, '#4a2aa0');
-  s.ring(cx + lx, ey + ly, 9, 9, 1, '#e0b84a');
-  s.rect(cx + lx - 1, ey + ly - 6, 2.5, 12, '#05060c');
-  s.px(cx + lx - 4, ey + ly - 4, '#ffffff');
-  s.px(cx + lx - 3, ey + ly - 5, '#ffffff');
-  // her lid and lashes of reed
   arc(s, cx, ey, 20, 17, Math.PI * 1.05, Math.PI * 1.95, '#1a1438', 2);
   // a crown of reeds and a plume
   for (let i = -4; i <= 4; i++) {
@@ -485,7 +516,9 @@ export function drawTollQueen(p: Pix, x: number, y: number, t: number, o: QueenO
   }
   s.rect(cx - 12, ey - 17, 24, 2, '#c89a3a');
   rimPass(s, '#fff4c0', 0.5, 23, '#ffffff');
+  if (o.fade !== undefined) p.alpha(clamp(o.fade, 0, 1));
   p.blit(s.canvas, x - cx, y - lipY - hover);
+  p.alpha(1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -616,7 +649,12 @@ export function drawBoneWyrm(p: Pix, x: number, y: number, t: number, o: WyrmOpt
 export interface MimicQueenOpts {
   /** 0..1 how wide the maw is open */
   open?: number;
-  flash?: number;
+  flash?: boolean;
+  /** draw the stalk and bulb (false when the game draws the lure itself) */
+  lure?: boolean;
+  /** 0 = standing, 1 = under the ground */
+  sink?: number;
+  fade?: number;
 }
 
 /** A flower the size of a tree, with a maw full of teeth and a lure that glows like the real thing. */
@@ -700,18 +738,23 @@ export function drawMimicQueen(p: Pix, x: number, y: number, t: number, o: Mimic
     s.ellipse(cx + sg * 9 + 0.5, hy - 11.5, 2, 2, '#4a2aa0');
     s.px(cx + sg * 9 - 1, hy - 13, '#ffffff');
   }
-  // the lure: it glows just like the real flower
-  const lureTipX = cx - 8;
-  const lureTipY = hy - 2 + open * 3;
-  const stem = tendril(s, cx + 10, hy - 26, [[-6, -8], [-16, -6], [-20, 2], [-18, 12]], 4, '#0e5a44', 0);
-  s.line(stem.x, stem.y, lureTipX, lureTipY, '#0e5a44', 2);
-  const gl = 1 + 0.2 * Math.sin(t * 5);
-  s.dither(lureTipX, lureTipY, 12 * gl, 10 * gl, '#ffd0e0', 0.35);
-  s.ellipse(lureTipX, lureTipY, 4, 4, '#ff8aa8');
-  s.ellipse(lureTipX - 1, lureTipY - 1, 2, 2, '#ffffff');
-  rimPass(s, '#bff0ff', 0.45, 41, '#ffffff');
-  p.blit(s.canvas, x - cx, y - gy);
-  void o.flash;
+  if (o.lure !== false) {
+    // the lure: it glows just like the real flower
+    const lureTipX = cx - 8;
+    const lureTipY = hy - 2 + open * 3;
+    const stem = tendril(s, cx + 10, hy - 26, [[-6, -8], [-16, -6], [-20, 2], [-18, 12]], 4, '#0e5a44', 0);
+    s.line(stem.x, stem.y, lureTipX, lureTipY, '#0e5a44', 2);
+    const gl = 1 + 0.2 * Math.sin(t * 5);
+    s.dither(lureTipX, lureTipY, 12 * gl, 10 * gl, '#ffd0e0', 0.35);
+    s.ellipse(lureTipX, lureTipY, 4, 4, '#ff8aa8');
+    s.ellipse(lureTipX - 1, lureTipY - 1, 2, 2, '#ffffff');
+  }
+  rimPass(s, o.flash ? '#ffffff' : '#bff0ff', o.flash ? 0.95 : 0.45, 41, '#ffffff');
+  if (o.fade !== undefined) p.alpha(clamp(o.fade, 0, 1));
+  const sink = o.sink ?? 0;
+  if (sink > 0) blitSink(p, s.canvas, x - cx, y - gy, gy, sink);
+  else p.blit(s.canvas, x - cx, y - gy);
+  p.alpha(1);
 }
 
 export { clamp, hash2, rimPass };

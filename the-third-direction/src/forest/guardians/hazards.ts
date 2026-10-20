@@ -59,6 +59,8 @@ const FLAT = 0.72;
 
 export class Hazards {
   list: Hazard[] = [];
+  /** things that shield what stands behind them from rings and lines (reeds, pillars) */
+  blockers: { x: number; y: number; r: number }[] = [];
   private fired = new WeakSet<Hazard>();
 
   add(h: HazardInit): Hazard {
@@ -111,7 +113,7 @@ export class Hazards {
         this.fired.add(h);
         h.onLive?.(h);
       }
-      if (this.isLive(h) && !h.hit && pl.dead <= 0 && !pl.hide && this.touches(h, pl.x, pl.y)) {
+      if (h.dmg > 0 && this.isLive(h) && !h.hit && pl.dead <= 0 && !pl.hide && this.touches(h, pl.x, pl.y)) {
         h.hit = true;
         hub.hurt(h.x, h.y, h.dmg);
       }
@@ -122,7 +124,28 @@ export class Hazards {
     }
   }
 
+  /** Is there a blocker between the hazard's origin and this point? */
+  private shielded(ox: number, oy: number, px: number, py: number): boolean {
+    const vx = px - ox;
+    const vy = py - oy;
+    const l2 = vx * vx + vy * vy || 1;
+    for (const b of this.blockers) {
+      const u = clamp(((b.x - ox) * vx + (b.y - oy) * vy) / l2, 0, 1);
+      if (u > 0.98) continue;
+      const cx = ox + vx * u;
+      const cy = oy + vy * u;
+      if (Math.hypot(b.x - cx, (b.y - cy) / 0.8) < b.r) return true;
+    }
+    return false;
+  }
+
   touches(h: Hazard, px: number, py: number): boolean {
+    const hit = this.touchesRaw(h, px, py);
+    if (hit && this.blockers.length && h.kind !== 'disc' && this.shielded(h.x, h.y, px, py)) return false;
+    return hit;
+  }
+
+  private touchesRaw(h: Hazard, px: number, py: number): boolean {
     if (h.kind === 'disc') {
       const dx = (px - h.x) / (h.r + 3);
       const dy = (py - h.y) / ((h.r + 3) * FLAT);

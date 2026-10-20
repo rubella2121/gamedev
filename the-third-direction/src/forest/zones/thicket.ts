@@ -3,7 +3,9 @@ import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { clamp, dist } from '../../core/util';
 import { drawHeartBloom, drawPips, drawPlate, drawRootHeart, drawRootWall, drawStone, drawThornback, type BeetleState } from '../art3';
-import type { Drawable, Hub, Rect, Slam, Zone } from '../types';
+import { arenaDef } from '../land';
+import { ThornbackKing } from '../guardians/thornback';
+import type { Drawable, Hub, Lance, Nova, Rect, Slam, Zone } from '../types';
 import { onScreen } from './parts';
 
 interface Maw {
@@ -93,8 +95,38 @@ export class ThicketZone implements Zone {
   private secretDone = false;
   private heart = { ...HEART, st: 'closed' as 'closed' | 'rumble' | 'open' | 'snap', t: 0, flash: 0, dead: false };
   private t = 0;
+  private guardian: ThornbackKing | null = null;
 
   constructor(private hub: Hub) {}
+
+  get always() {
+    return this.guardian !== null;
+  }
+
+  /** The player is in the arena: the Thornback King drops in. */
+  onArrive() {
+    this.guardian = new ThornbackKing(this.hub, arenaDef('thicket'), () => {
+      this.heart.dead = true;
+      this.hub.leaveArena(this, true);
+    });
+    this.guardian.begin();
+  }
+
+  onLance(l: Lance): boolean {
+    return this.guardian?.onLance(l) ?? false;
+  }
+
+  onNova(n: Nova) {
+    this.guardian?.onNova(n);
+  }
+
+  lanceTarget() {
+    return this.guardian?.lanceTarget() ?? null;
+  }
+
+  overlay() {
+    this.guardian?.overlay();
+  }
 
   reset() {
     this.cleared = false;
@@ -108,6 +140,7 @@ export class ThicketZone implements Zone {
     this.plateOn = [false, false];
     this.secretDone = false;
     this.heart = { ...HEART, st: 'closed', t: 0, flash: 0, dead: false };
+    this.guardian = null;
   }
 
   private resetBlocks() {
@@ -115,6 +148,10 @@ export class ThicketZone implements Zone {
   }
 
   onRespawn() {
+    if (this.guardian) {
+      this.guardian.onPlayerDied();
+      return;
+    }
     if (!this.secretDone) this.resetBlocks();
     this.maws.forEach((m) => {
       m.st = 'idle';
@@ -137,6 +174,7 @@ export class ThicketZone implements Zone {
   }
 
   complete() {
+    this.guardian = null;
     this.cleared = true;
     this.maws = [];
     this.beetles = [];
@@ -148,6 +186,7 @@ export class ThicketZone implements Zone {
   }
 
   colliders(): Rect[] {
+    if (this.guardian) return this.guardian.colliders();
     const out: Rect[] = [];
     for (const w of this.walls) if (w.broken < 0.85) out.push(w.rect);
     for (const b of this.blocks) out.push(this.blockRect(b));
@@ -172,6 +211,10 @@ export class ThicketZone implements Zone {
 
   onPulse(px: number, py: number, R: number) {
     const hub = this.hub;
+    if (this.guardian) {
+      this.guardian.onPulse(px, py, R);
+      return;
+    }
     for (const m of this.maws) {
       if (dist(px, py, m.x, m.y - 6) <= R + 8) {
         m.stun = 3.2;
@@ -200,19 +243,14 @@ export class ThicketZone implements Zone {
     const h = this.heart;
     if (!h.dead && dist(px, py, h.x, h.y - 10) <= R + 16) {
       if (h.st === 'open') {
-        h.hp--;
+        // the Rootheart bites back: the Thornback King that sleeps in it wakes
         h.flash = 0.25;
         hub.audio.pop();
         hub.shake(4);
         burst(hub.parts, h.x, h.y - 14, 14, [C.redGlow, C.root, C.white], 50, 1);
-        // it closes its mouth when hurt
         h.st = 'snap';
         h.t = 0;
-        if (h.hp <= 0) {
-          h.dead = true;
-          hub.audio.kill();
-          hub.reachHeart(this);
-        }
+        hub.enterArena(this);
       } else {
         hub.audio.click();
       }
@@ -234,6 +272,13 @@ export class ThicketZone implements Zone {
   }
 
   update(dt: number) {
+    if (this.guardian) {
+      if (!this.hub.arena && this.guardian.state === 'gone') this.guardian = null;
+      else {
+        this.guardian.update(dt);
+        return;
+      }
+    }
     const hub = this.hub;
     const pl = hub.player;
     this.t += dt;
@@ -436,6 +481,10 @@ export class ThicketZone implements Zone {
   }
 
   ground() {
+    if (this.guardian) {
+      this.guardian.ground();
+      return;
+    }
     const { hub } = this;
     const p = hub.p;
     const cx = hub.camX;
@@ -460,6 +509,10 @@ export class ThicketZone implements Zone {
     const t = hub.time;
     const cx = hub.camX;
     const cy = hub.camY;
+    if (this.guardian) {
+      this.guardian.push(list);
+      return;
+    }
     for (const pt of PLATES) {
       if (onScreen(hub, pt.x, pt.y)) {
         const i = PLATES.indexOf(pt);

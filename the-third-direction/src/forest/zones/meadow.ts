@@ -4,7 +4,9 @@ import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { clamp, dist, hash2 } from '../../core/util';
 import { drawBlossom, drawLightSeed } from '../art3';
-import type { Drawable, Hub, Patch, Zone } from '../types';
+import { arenaDef } from '../land';
+import { MimicQueen } from '../guardians/mimicqueen';
+import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
 import { onScreen } from './parts';
 
 interface Mimic {
@@ -56,10 +58,45 @@ export class MeadowZone implements Zone {
   private moon = [false, false, false];
   private moonDone = false;
   private t = 0;
+  private guardian: MimicQueen | null = null;
 
   constructor(private hub: Hub) {
     for (const pt of PATCHES) hub.land.addPatchFlowers(pt.x, pt.y, pt.rx, pt.ry, Math.floor(pt.x));
     this.layout();
+  }
+
+  get always() {
+    return this.guardian !== null;
+  }
+
+  /** The player is in the arena: the Mimic Queen blooms. */
+  onArrive() {
+    this.guardian = new MimicQueen(this.hub, arenaDef('meadow'), () => this.hub.leaveArena(this, true));
+    this.guardian.begin();
+  }
+
+  onLance(l: Lance): boolean {
+    return this.guardian?.onLance(l) ?? false;
+  }
+
+  onNova(n: Nova) {
+    this.guardian?.onNova(n);
+  }
+
+  lanceTarget() {
+    return this.guardian?.lanceTarget() ?? null;
+  }
+
+  overlay() {
+    this.guardian?.overlay();
+  }
+
+  ground() {
+    this.guardian?.ground();
+  }
+
+  colliders(): Rect[] {
+    return this.guardian?.colliders() ?? [];
   }
 
   /** The two fields: the first reacts to you, the second snaps in a rolling wave. */
@@ -108,10 +145,15 @@ export class MeadowZone implements Zone {
       m.st = 'idle';
       m.t = 0;
     });
+    this.guardian = null;
     this.hub.patches.push(...PATCHES);
   }
 
   onRespawn() {
+    if (this.guardian) {
+      this.guardian.onPlayerDied();
+      return;
+    }
     // dying before the cage checkpoint puts the moth back in its cage
     if (!this.cleared && !this.cpSet) {
       this.freed = false;
@@ -127,6 +169,7 @@ export class MeadowZone implements Zone {
   private cpSet = false;
 
   complete() {
+    this.guardian = null;
     this.cleared = true;
     this.freed = true;
     this.cpSet = true;
@@ -150,9 +193,18 @@ export class MeadowZone implements Zone {
     this.hub.moth.has = true;
   }
 
-  onPulse() {}
+  onPulse(px: number, py: number, R: number) {
+    this.guardian?.onPulse(px, py, R);
+  }
 
   update(dt: number) {
+    if (this.guardian) {
+      if (!this.hub.arena && this.guardian.state === 'gone') this.guardian = null;
+      else {
+        this.guardian.update(dt);
+        return;
+      }
+    }
     const hub = this.hub;
     const pl = hub.player;
     const moth = hub.moth;
@@ -253,11 +305,15 @@ export class MeadowZone implements Zone {
         }
       }
       // --- the Lightseed
-      if (all && dist(pl.x, pl.y, SEED.x, SEED.y) < 20 && pl.dead <= 0) hub.reachHeart(this);
+      if (all && dist(pl.x, pl.y, SEED.x, SEED.y) < 20 && pl.dead <= 0) hub.enterArena(this);
     }
   }
 
   push(list: Drawable[]) {
+    if (this.guardian) {
+      this.guardian.push(list);
+      return;
+    }
     const hub = this.hub;
     const p = hub.p;
     const t = hub.time;

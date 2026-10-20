@@ -4,7 +4,9 @@ import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { clamp, dist, lerp } from '../../core/util';
 import { drawBoneBarricade, drawBoneNest, drawPips, drawPlate, drawPounceMark } from '../art3';
-import type { Drawable, Hub, Patch, Rect, Zone } from '../types';
+import { arenaDef } from '../land';
+import { BoneWyrm } from '../guardians/bonewyrm';
+import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
 import { LightPuzzle, onScreen } from './parts';
 
 type SkSt = 'idle' | 'tele' | 'air' | 'rest' | 'stun';
@@ -59,9 +61,39 @@ export class BonesZone implements Zone {
   private plates = new LightPuzzle(PLATES, 8, 0);
   private plateDone = false;
   private t = 0;
+  private guardian: BoneWyrm | null = null;
 
   constructor(private hub: Hub) {
     for (const pt of PATCHES) hub.land.addPatchFlowers(pt.x, pt.y, pt.rx, pt.ry, Math.floor(pt.x));
+  }
+
+  get always() {
+    return this.guardian !== null;
+  }
+
+  /** The player is in the arena: the Bone Wyrm wakes under the floor. */
+  onArrive() {
+    this.guardian = new BoneWyrm(this.hub, arenaDef('bones'), () => {
+      this.nest.dead = true;
+      this.hub.leaveArena(this, true);
+    });
+    this.guardian.begin();
+  }
+
+  onLance(l: Lance): boolean {
+    return this.guardian?.onLance(l) ?? false;
+  }
+
+  onNova(n: Nova) {
+    this.guardian?.onNova(n);
+  }
+
+  lanceTarget() {
+    return this.guardian?.lanceTarget() ?? null;
+  }
+
+  overlay() {
+    this.guardian?.overlay();
   }
 
   reset() {
@@ -71,6 +103,7 @@ export class BonesZone implements Zone {
     this.nest = { ...NEST, flash: 0, dead: false };
     this.plates.reset();
     this.plateDone = false;
+    this.guardian = null;
     this.hub.patches.push(...PATCHES);
   }
 
@@ -79,6 +112,10 @@ export class BonesZone implements Zone {
   }
 
   onRespawn() {
+    if (this.guardian) {
+      this.guardian.onPlayerDied();
+      return;
+    }
     this.sk.forEach((s) => {
       if (!s.dead) {
         s.x = s.hx;
@@ -93,6 +130,7 @@ export class BonesZone implements Zone {
   }
 
   complete() {
+    this.guardian = null;
     this.cleared = true;
     this.sk = [];
     this.bar.broken = 1;
@@ -102,6 +140,7 @@ export class BonesZone implements Zone {
   }
 
   colliders(): Rect[] {
+    if (this.guardian) return this.guardian.colliders();
     return this.bar.broken < 0.85 ? [BAR] : [];
   }
 
@@ -132,6 +171,10 @@ export class BonesZone implements Zone {
 
   onPulse(px: number, py: number, R: number) {
     const hub = this.hub;
+    if (this.guardian) {
+      this.guardian.onPulse(px, py, R);
+      return;
+    }
     for (const s of this.sk) {
       if (s.dead) continue;
       const lift = s.st === 'air' ? 5 : 0;
@@ -156,25 +199,24 @@ export class BonesZone implements Zone {
       }
     }
     const n = this.nest;
+    // the Bone Nest is the Wyrm's egg: strike it and the Bone Wyrm wakes under the floor
     if (!n.dead && this.bar.broken >= 0.85 && dist(px, py, n.x, n.y - 10) <= R + 16) {
-      n.hp--;
       n.flash = 0.25;
       hub.audio.pop();
       hub.shake(3);
       burst(hub.parts, n.x, n.y - 14, 14, [C.bone, C.red, '#ffffff'], 50, 1);
-      if (this.sk.filter((s) => !s.dead).length < 7) {
-        this.sk.push(this.make(n.x - 18, n.y + 12, 20 + n.hp));
-        this.sk.push(this.make(n.x + 12, n.y + 16, 40 + n.hp));
-      }
-      if (n.hp <= 0) {
-        n.dead = true;
-        hub.audio.kill();
-        hub.reachHeart(this);
-      }
+      hub.enterArena(this);
     }
   }
 
   update(dt: number) {
+    if (this.guardian) {
+      if (!this.hub.arena && this.guardian.state === 'gone') this.guardian = null;
+      else {
+        this.guardian.update(dt);
+        return;
+      }
+    }
     const hub = this.hub;
     const pl = hub.player;
     this.t += dt;
@@ -275,6 +317,10 @@ export class BonesZone implements Zone {
   }
 
   ground() {
+    if (this.guardian) {
+      this.guardian.ground();
+      return;
+    }
     const hub = this.hub;
     const p = hub.p;
     const t = hub.time;
@@ -289,6 +335,10 @@ export class BonesZone implements Zone {
     const t = hub.time;
     const cx = hub.camX;
     const cy = hub.camY;
+    if (this.guardian) {
+      this.guardian.push(list);
+      return;
+    }
     PLATES.forEach((pt, i) => {
       if (onScreen(hub, pt.x, pt.y)) list.push({ y: pt.y - 30, fn: () => drawPlate(p, pt.x - cx, pt.y - cy, t, this.plateDone || this.plates.t[i]! > 0) });
     });

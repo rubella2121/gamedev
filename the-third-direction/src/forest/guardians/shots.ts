@@ -92,7 +92,7 @@ export class Shots {
         s.x = nx;
         s.y = ny;
       }
-      if (!dead && pl.dead <= 0 && !pl.hide && Math.hypot(pl.x - s.x, (pl.y - 5 - s.y) / 0.9) < s.r + 3.5) {
+      if (!dead && s.dmg > 0 && pl.dead <= 0 && !pl.hide && Math.hypot(pl.x - s.x, (pl.y - 5 - s.y) / 0.9) < s.r + 3.5) {
         hub.hurt(s.x, s.y, s.dmg);
         if (!s.pierce) dead = true;
       }
