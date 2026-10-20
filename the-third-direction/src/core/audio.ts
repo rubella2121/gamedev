@@ -1,8 +1,14 @@
 import { clamp } from './util';
+import { Voice } from './voice';
+
+/** What `audio.v` is before the audio context exists: every monster voice becomes a silent no-op. */
+const NO_VOICE = new Proxy({}, { get: () => () => 0 }) as unknown as Voice;
 
 /** Tiny WebAudio synth: no audio files, everything is generated. */
 export class Sfx {
   ctx: AudioContext | null = null;
+  /** the monster voices (null until the first tap starts the audio) */
+  voice: Voice | null = null;
   private master!: GainNode;
   private noise!: AudioBuffer;
   private windGain!: GainNode;
@@ -43,6 +49,7 @@ export class Sfx {
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    this.voice = new Voice(ctx, this.master, this.noise);
 
     // wind: looping noise through a slow, breathing band-pass
     const wind = ctx.createBufferSource();
@@ -77,6 +84,11 @@ export class Sfx {
       o.start();
     }
     lp.connect(this.droneGain).connect(this.master);
+  }
+
+  /** The monster voices, safe to call before the audio has started. */
+  get v(): Voice {
+    return this.voice ?? NO_VOICE;
   }
 
   private ramp(p: AudioParam, v: number, t: number) {
