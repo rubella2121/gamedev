@@ -59,12 +59,12 @@ export class SinewChain {
         const b = i * m + ((j + 1) % m);
         const c = (i + 1) * m + j;
         const d = (i + 1) * m + ((j + 1) % m);
-        idx.push(a, c, b, b, c, d);
+        idx.push(a, b, c, b, d, c);
       }
     }
     for (let j = 0; j < m; j++) {
-      idx.push(n * m, j, (j + 1) % m);
-      idx.push(n * m + 1, (n - 1) * m + ((j + 1) % m), (n - 1) * m + j);
+      idx.push(n * m, (j + 1) % m, j);
+      idx.push(n * m + 1, (n - 1) * m + j, (n - 1) * m + ((j + 1) % m));
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
