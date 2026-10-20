@@ -1472,6 +1472,11 @@ export class BreathRunner implements Runner {
         e.audio.v.queenChoir(0.7);
         e.shake(0.8);
         m.roar = 1;
+        // where the lure will land is known (and marked) from here: the breath is out, the player can already run for it
+        const lx = (Math.random() < 0.5 ? -1 : 1) * (3.8 + Math.random() * 1.6);
+        const lz = MASH_Z + 10.2;
+        this.lure.set(lx, 0.8, lz);
+        m.setLureFloor(m.toLocal(_v.set(lx, 0, lz), _w).x, _w.z);
       }
     } else if (this.st === 'bitten') {
       // it snaps shut with no reward
@@ -1495,14 +1500,11 @@ export class BreathRunner implements Runner {
       m.lean = 0.8 - 0.25 * smooth(this.t / 0.8);
       m.roar = Math.max(0, 1 - this.t * 1.1);
       m.tendrilPull = Math.max(0, 1 - this.t * 2);
+      e.arena.marks.set(14, true, this.lure.x, this.lure.z, 2.2, { col: 0xff7ac0, fill: 0.1 + 0.2 * clamp(this.t / 0.75, 0, 1), alpha: 0.5 + 0.4 * clamp(this.t / 0.75, 0, 1) });
       if (this.t >= 0.75) {
         this.st = 'drop';
         this.t = 0;
-        // the lure lands in front of the maw, within reach of the floor
-        const lx = (Math.random() < 0.5 ? -1 : 1) * (3.8 + Math.random() * 1.6);
-        const lz = MASH_Z + 10.2;
-        this.lure.set(lx, 0.8, lz);
-        m.setLureFloor(m.toLocal(_v.set(lx, 0, lz), _w).x, _w.z);
+        // the lure falls out of the maw and lands in front of it, within reach of the floor
         e.audio.v.queenToll(1.4, 0.7);
       }
     } else if (this.st === 'drop') {
@@ -1510,10 +1512,12 @@ export class BreathRunner implements Runner {
       m.setLure(smooth(u), 1.3);
       m.mawOpen = 1;
       m.lean = 0.55;
+      e.arena.marks.set(14, true, this.lure.x, this.lure.z, 2.2, { col: 0xff7ac0, fill: 0.3 + 0.3 * u, alpha: 1, hot: Math.floor(e.time * 12) % 2 === 0 });
       if (u >= 1) {
         this.st = 'lure';
         this.t = 0;
         this.windowOpen = true;
+        e.arena.marks.set(14, false);
         e.audio.slam();
         e.shake(0.5);
         e.arena.burst3(this.lure.x, 0.5, this.lure.z, 14, [0xff7ac0, 0xffffff, 0xc84a74], 8);
@@ -1570,6 +1574,7 @@ export class BreathRunner implements Runner {
     this.windowOpen = false;
     this.h.fx.wind.hide();
     this.h.env.arena.marks.set(8, false);
+    this.h.env.arena.marks.set(14, false);
     this.h.env.audio.setHeart(0, 0);
     const m = this.h.model;
     m.inhale = 0;
@@ -1613,6 +1618,11 @@ export class ClapperRunner implements Runner {
     const m = h.model;
     const e = h.env;
     this.t += dt;
+    // where the tongue is going to land is marked on the floor from the first crack, so there is time to get there
+    if (this.st === 'crack' || this.st === 'drop') {
+      const k = this.st === 'crack' ? clamp(this.t / 1.0, 0, 1) * 0.5 : 0.5 + 0.5 * clamp(this.t / 0.75, 0, 1);
+      e.arena.marks.set(14, true, this.tip.x, this.tip.z, 2.3, { col: 0xff9ad0, fill: 0.1 + 0.4 * k, alpha: 0.5 + 0.5 * k, hot: this.st === 'drop' && Math.floor(e.time * 12) % 2 === 0 });
+    } else e.arena.marks.set(14, false);
     if (this.st === 'crack') {
       const u = clamp(this.t / 1.0, 0, 1);
       m.crack = lerp(this.startCrack, 1, u);
@@ -1691,6 +1701,7 @@ export class ClapperRunner implements Runner {
     m.shake = 0;
     m.bellLift = 0;
     m.setClapper(0, 0, 9.5);
+    this.h.env.arena.marks.set(14, false);
     this.done = this.soft = true;
   }
 }
