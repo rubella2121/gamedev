@@ -2,7 +2,7 @@
 //   npm run build:standalone                  (builds dist-standalone: the game with the test bots compiled in)
 //   QS='?debug' node tools/e2e.mjs dist-standalone steps.json outDir
 // steps.json is a list of steps, run in order: {wait: ms} {click: selector} {eval: js} {evalFile: path} {until: js, timeout: ms}
-// {shot: name} (PNG into outDir) {press: key} {hold: {key, ms}} {keyDown: key} {keyUp: key}. `?debug` exposes window.__tt (the game),
+// {shot: name} (PNG into outDir) {mouseHold: {sel, ms}} / {pointerHold: {sel, ms}} (press and hold a button with the mouse / with touch pointer events, then let go) {press: key} {hold: {key, ms}} {keyDown: key} {keyUp: key}. `?debug` exposes window.__tt (the game),
 // window.__bot (2D guardian bots) and window.__bot3 (3D boss bots), see src/dev.
 import { chromium } from 'playwright-core';
 import http from 'http';
@@ -43,6 +43,29 @@ for (const s of steps) {
   if (s.keyUp) await page.keyboard.up(s.keyUp);
   if (s.press) await page.keyboard.press(s.press);
   if (s.hold) { await page.keyboard.down(s.hold.key); await page.waitForTimeout(s.hold.ms); await page.keyboard.up(s.hold.key); }
+  if (s.mouseHold) {
+    // press and hold a button with the mouse, then let go (the touch controls use the same pointer events)
+    const box = await page.locator(s.mouseHold.sel).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(s.mouseHold.ms);
+    await page.mouse.up();
+  }
+  if (s.pointerHold) {
+    // the same, with synthetic touch pointer events dispatched on the element (for buttons that only listen to pointer events)
+    const fire = (type, sel) =>
+      page.evaluate(
+        ([type, sel]) => {
+          const b = document.querySelector(sel);
+          const r = b.getBoundingClientRect();
+          b.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));
+        },
+        [type, sel],
+      );
+    await fire('pointerdown', s.pointerHold.sel);
+    await page.waitForTimeout(s.pointerHold.ms);
+    await fire('pointerup', s.pointerHold.sel);
+  }
   if (s.until) { try { await page.waitForFunction(s.until, null, { timeout: s.timeout || 15000, polling: 50 }); } catch (e) { console.log('until timeout:', s.until); } }
   if (s.evalFile) { try { const r = await page.evaluate(fs.readFileSync(s.evalFile, 'utf8')); if (r !== undefined) console.log('evalFile>', JSON.stringify(r)); } catch (e) { console.log('evalFile error:', e.message); } }
   if (s.eval) { try { const r = await page.evaluate(s.eval); if (r !== undefined) console.log('eval>', JSON.stringify(r)); } catch (e) { console.log('eval error:', e.message); } }

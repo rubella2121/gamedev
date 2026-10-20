@@ -40,6 +40,7 @@ export class Act2 {
   private fired = new Set<string>();
   private tmp = new THREE.Object3D();
   private tmpC = new THREE.Color();
+  private tmpV = new THREE.Vector3();
   private camPos = new THREE.Vector3(0, 0, 15.36);
   private camLook = new THREE.Vector3(0, 0, 0);
   private shake = 0;
@@ -197,15 +198,15 @@ export class Act2 {
   /* the boom                                                          */
   /* ---------------------------------------------------------------- */
 
-  begin(frame: HTMLCanvasElement) {
+  begin(frame: HTMLCanvasElement, boss = 0) {
     const a = this.arena;
     this.state = 'boom';
     this.t = 0;
     this.fired.clear();
     // if the monsters are not built yet (a slow phone), finish them now: a stall is better than a missing boss
     this.slicer.flush();
-    this.bi = 0;
-    this.boss = this.bosses[0]!;
+    this.bi = Math.min(Math.max(0, boss), this.bosses.length - 1);
+    this.boss = this.bosses[this.bi]!;
     for (const b of this.bosses) b.hide();
     this.hearts = this.maxHearts;
     this.light = 0;
@@ -421,7 +422,11 @@ export class Act2 {
     ui.light(this.light);
     ui.recenter(true, () => this.resetCamera());
     this.resetCamera();
-    if (this.bi === 0) ui.caption('Strike.', 2400);
+    if (this.bi === 0) {
+      ui.caption('Strike.', 2400);
+      window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
+      window.setTimeout(() => ui.hint(null), 9600);
+    }
     input.setAction('strike');
   }
 
@@ -669,6 +674,8 @@ export class Act2 {
         }
       }
       if (!dead && l.y < 3 && this.features.hit(l.x, l.z, 0.5, this.fenv)) dead = true;
+      // a trail of sparks behind the bolt
+      if (!dead && Math.floor(l.t * 45) !== Math.floor((l.t - dt) * 45)) a.burst3(l.x, l.y, l.z, 1, [0xfffbe0, 0xffd878], 1.2);
       if (!dead && this.boss.state === 'fight') {
         if (this.boss.onLance(l)) dead = true;
         if (!dead) {
@@ -1072,14 +1079,18 @@ export class Act2 {
 
     // camera
     if (this.state === 'fight' || this.state === 'interlude') {
-      const cine = this.state === 'fight' && !this.hud ? null : null;
-      void cine;
+      const cine = this.state === 'fight' && this.boss.state === 'dying' ? this.boss.cinematic() : null;
       const f = this.camFwd();
       const cp = Math.cos(this.camPitch);
       const pl = this.pl;
       const target = new THREE.Vector3(pl.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, pl.z - f.z * this.camDist * cp);
       // during an entrance the camera stays up and back, looking at the boss
-      if (this.state === 'fight' && !this.hud) {
+      if (cine) {
+        // a boss going down gets a wide shot from the middle of the floor
+        const k = 1 - Math.exp(-2.4 * dt);
+        this.camPos.lerp(this.tmpV.set(cine.x * 0.3, cine.y * 0.8 + 4, cine.z + cine.dist), k);
+        this.camLook.lerp(this.tmpV.set(cine.x, cine.y, cine.z), k);
+      } else if (this.state === 'fight' && !this.hud) {
         const k = 1 - Math.exp(-3 * dt);
         this.camPos.lerp(BOOM_POS, k);
         this.camLook.lerp(BOOM_LOOK, k);

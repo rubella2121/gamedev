@@ -1,0 +1,2 @@
+# git worktrees that helper agents work in; never part of the game
+.claude/worktrees/

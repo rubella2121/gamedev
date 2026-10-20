@@ -1,0 +1,8 @@
+[
+ {"wait": 1500},
+ {"click": ".btn.play"},
+ {"wait": 600},
+ {"eval": "__tt.debugFight(0, 0); 'ok'"},
+ {"until": "__tt.act2.boss.state === 'fight' && __tt.act2.control", "timeout": 60000},
+ {"eval": "(() => { const g = __tt, a = g.act2, i = g.input; a.pl.invuln = 999; const step = (n) => { for (let k = 0; k < n; k++) { a.pl.invuln = 999; i.update(1 / 60); a.update(1 / 60); } }; const out = {}; step(5); i.btnId = 7; i.latchT = 0.07; step(3); i.btnId = -1; step(3); out.tap = { strikeCd: +a.strikeCd.toFixed(2), strikeT: +a.strikeT.toFixed(2), lances: a.lances.length }; step(60); i.btnId = 7; i.latchT = 0.07; step(42); i.btnId = -1; step(2); out.hold = { lances: a.lances.length }; step(90); a.light = 3; i.btnId = 7; i.latchT = 0.07; step(90); out.during = { stage: a.chargeStage }; i.btnId = -1; step(2); out.long = { nova: !!a.nova, light: a.light }; step(60); i.btnId = 7; i.latchT = 0.07; step(3); i.btnId = -1; step(8); i.btnId = 7; i.latchT = 0.07; step(3); out.dbl = { dashT: +a.dashT.toFixed(2), dashCd: +a.dashCd.toFixed(2) }; i.btnId = -1; step(2); return JSON.stringify(out); })()"}
+]

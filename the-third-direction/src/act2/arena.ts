@@ -214,7 +214,7 @@ export class Arena {
       const h = hash2(t.x * 3 + 1, t.z * 7 + 2);
       let c = h > 0.9 ? cols[4]! : cols[Math.floor(h * 4.5) % 4]!;
       // faint stone rings and spokes, so movement reads on such a big floor
-      const ring = [5, 11.5].some((r) => Math.abs(t.d - r) < 0.55);
+      const ring = [9.5, 14.5].some((r) => Math.abs(t.d - r) < 0.55);
       const spoke = t.d > 2 && (Math.abs(t.x) < 0.5 || Math.abs(t.z) < 0.5);
       if (ring || spoke) c = 0x5a4a8a;
       const base = new THREE.Color(c).multiplyScalar(t.d > R - 1.4 ? 0.7 : 1);

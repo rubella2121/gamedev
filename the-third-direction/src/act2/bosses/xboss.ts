@@ -106,9 +106,9 @@ export class XBoss extends Boss3D {
     return KINDS[Math.min(this.phase, KINDS.length - 1)]!;
   }
 
-  /** each hit he takes makes the next round quicker */
+  /** how long his warnings and waits are: each hit he takes makes the next round quicker, an easier mode gives more time */
   private get speedK(): number {
-    return Math.pow(0.9, this.cycle) / D.tele;
+    return Math.pow(0.9, this.cycle) * D.tele;
   }
 
   show() {
@@ -714,8 +714,14 @@ export class XBoss extends Boss3D {
     return false;
   }
 
+  /** a nova tears up the maws it reaches before they close */
   onNova(n: Nova3): void {
-    void n;
+    if (this.kind !== 'jaws' || this.jawT.length === 0) return;
+    const keep = this.jawT.filter((j) => Math.hypot(j.x - n.x, j.z - n.z) > n.R + 1.2);
+    if (keep.length === this.jawT.length) return;
+    for (const j of this.jawT) if (!keep.includes(j)) this.env.arena.burst3(j.x, 0.6, j.z, 14, [0x4a3a28, 0xd8d0b8, 0xffe9a0], 7);
+    this.jawT = keep;
+    for (let i = keep.length; i < 4; i++) this.model.setJawSlot(i, false);
   }
 
   dangers(): Danger[] {

@@ -104,9 +104,11 @@ export abstract class Boss3D {
   t = 0;
   pt = 0;
   hp: number;
-  readonly maxHp: number;
+  maxHp: number;
   phase = 0;
-  readonly pips: number[];
+  /** hits per phase at the difficulty chosen when the fight begins */
+  pips: number[];
+  private readonly baseHits: number[];
   /** invulnerable for this long after a hit */
   iframes = 0;
   protected abstract readonly introLen: number;
@@ -123,7 +125,15 @@ export abstract class Boss3D {
     base: number[],
     protected onVictory: () => void,
   ) {
+    this.baseHits = base;
     this.pips = base.map((b) => bossHp(b));
+    this.maxHp = this.pips.reduce((a, b) => a + b, 0);
+    this.hp = this.maxHp;
+  }
+
+  /** Health follows the difficulty chosen on the home page, which can be after the bosses were made. */
+  protected rescale() {
+    this.pips = this.baseHits.map((b) => bossHp(b));
     this.maxHp = this.pips.reduce((a, b) => a + b, 0);
     this.hp = this.maxHp;
   }
@@ -151,12 +161,12 @@ export abstract class Boss3D {
 
   /** the fight begins: the model appears and the entrance plays */
   begin(titleDelay = 900) {
+    this.rescale();
     this.state = 'intro';
     this.st = 0;
     this.t = 0;
     this.pt = 0;
     this.phase = 0;
-    this.hp = this.maxHp;
     this.iframes = 0;
     this.bar();
     this.onBegin();

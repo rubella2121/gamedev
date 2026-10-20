@@ -89,7 +89,7 @@ export class Game {
   private showHome() {
     this.ui.showStart({
       onPlay: () => this.begin(),
-      onShowcase: () => this.showcase(),
+      onShowcase: (boss) => this.showcase(boss),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -125,10 +125,10 @@ export class Game {
     this.state = 'act1';
   }
 
-  private beginBoom() {
+  private beginBoom(boss = 0) {
     this.state = 'boom';
     track('boom');
-    this.act2.begin(this.act1.p.canvas);
+    this.act2.begin(this.act1.p.canvas, boss);
   }
 
   private onEnd() {
@@ -155,7 +155,7 @@ export class Game {
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
-  showcase() {
+  showcase(boss = 0) {
     this.audio.start();
     this.showcaseRun = true;
     track('showcase');
@@ -167,7 +167,7 @@ export class Game {
     this.act1.prepareShowcase();
     this.act1.render();
     this.ui.fade(0, 0);
-    this.beginBoom();
+    this.beginBoom(boss);
   }
 
   debugFight(phase = 0, boss = 0) {
@@ -223,7 +223,11 @@ export class Game {
       } else if (this.state === 'act1') this.act1.update(dt);
     }
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest
-    if (this.state === 'act1' || this.state === 'menu') this.act2.pump(this.state === 'menu' ? 6 : 3);
+    if (this.state === 'act1' || this.state === 'menu') {
+      // spend spare time only: a slow frame means the phone is busy, so the monsters wait
+      const spare = this.state === 'menu' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
+      if (spare > 0) this.act2.pump(spare);
+    }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.setRes(2);

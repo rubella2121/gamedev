@@ -65,8 +65,9 @@ export class Features {
 
   constructor(private arena: Arena) {
     arena.world.add(this.root);
-    // wells: two on the near half, one close to the boss (a trip with a price)
-    for (const a of [(30 * Math.PI) / 180, (150 * Math.PI) / 180, (270 * Math.PI) / 180]) this.addWell(Math.cos(a) * WELL_R, Math.sin(a) * WELL_R);
+    // wells: two on the near half, one out on the far left (a trip with a price)
+    // (the middle of the far edge is left empty: that is where the boss stands, and a column of light would hide its body)
+    for (const a of [(30 * Math.PI) / 180, (150 * Math.PI) / 180, (213 * Math.PI) / 180]) this.addWell(Math.cos(a) * WELL_R, Math.sin(a) * WELL_R);
     // pads: four on the middle ring, each throws you clockwise along it
     for (let i = 0; i < 4; i++) {
       const a = (i * Math.PI) / 2;

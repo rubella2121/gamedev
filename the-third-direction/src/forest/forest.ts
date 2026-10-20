@@ -85,6 +85,7 @@ export class Forest implements Hub {
   private slowT = 0;
   private slowScale = 1;
   private freezeT = 0;
+  private powersHinted = false;
   private ghosts: { x: number; y: number; t: number }[] = [];
   private aim = { x: 0, y: -1 };
   previewMode = false;
@@ -330,6 +331,11 @@ export class Forest implements Hub {
       this.snapCamera();
       this.ui.fade(0, 800);
       this.input.setMoveEnabled(true);
+      if (!this.powersHinted) {
+        this.powersHinted = true;
+        window.setTimeout(() => this.ui.hint('hold + let go: lance   double-tap: dash'), 5200);
+        window.setTimeout(() => this.ui.hint(null), 11000);
+      }
       tr.zone.onArrive?.();
       this.trans = null;
     } else if (tr.kind === 'out' && !tr.done && tr.t >= 1.0) {

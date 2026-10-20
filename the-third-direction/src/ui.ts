@@ -2,7 +2,8 @@ import { PRESETS, type DiffId } from './core/difficulty';
 
 export interface HomeOptions {
   onPlay: () => void;
-  onShowcase: () => void;
+  /** jump straight to a boss's fight: 0 = X, 1 = The Collector, 2 = The Mash */
+  onShowcase: (boss: number) => void;
   onSound: (on: boolean) => void;
   onDifficulty: (id: DiffId) => void;
   difficulty: DiffId;
@@ -287,10 +288,7 @@ export class UI {
     const how = mk('btn ghost', 'How to play', 'button');
     how.addEventListener('click', () => this.showHowTo());
     const show = mk('btn ghost', 'Quick showcase', 'button');
-    show.addEventListener('click', () => {
-      el.classList.add('hide');
-      o.onShowcase();
-    });
+    show.addEventListener('click', () => this.showShowcase(o));
     row.append(how, show);
 
     const foot = mk('foot');
@@ -309,6 +307,37 @@ export class UI {
     el.classList.remove('hide');
   }
 
+  /** Pick a boss to fight right now, skipping the story (these runs are never ranked). */
+  private showShowcase(o: HomeOptions) {
+    const card = document.createElement('div');
+    card.className = 'howto';
+    const h = document.createElement('div');
+    h.className = 'hh';
+    h.textContent = 'Quick showcase';
+    const t = document.createElement('div');
+    t.className = 'htip';
+    t.innerHTML = 'Skip the forest and fight a boss now.<br>The next one follows if you win.';
+    card.append(h, t);
+    const names = ['X, the Hollow', 'The Collector', 'The Mash'];
+    names.forEach((n, i) => {
+      const b = document.createElement('button');
+      b.className = 'btn play';
+      b.textContent = n;
+      b.addEventListener('click', () => {
+        this.startEl.classList.add('hide');
+        card.remove();
+        o.onShowcase(i);
+      });
+      card.append(b);
+    });
+    const close = document.createElement('button');
+    close.className = 'btn ghost';
+    close.textContent = 'Back';
+    close.addEventListener('click', () => card.remove());
+    card.append(close);
+    this.startEl.append(card);
+  }
+
   /** Controls and tips, shown over the home page. */
   private showHowTo() {
     const card = document.createElement('div');
@@ -316,9 +345,12 @@ export class UI {
     card.innerHTML = `
       <div class="hh">How to play</div>
       <div class="hrow"><b>Move</b><span>drag on the left side of the screen<br>or WASD / arrow keys</span></div>
-      <div class="hrow"><b>Act</b><span>the glowing button, or Space.<br>It only appears when it is useful.</span></div>
+      <div class="hrow"><b>Act</b><span>the glowing button, or Space.<br>Tap: pulse of light, or a strike in 3D.</span></div>
+      <div class="hrow"><b>Lance</b><span>hold it, then let go:<br>a bolt of light that flies far.</span></div>
+      <div class="hrow"><b>Nova</b><span>three orbs full? hold longer:<br>a burst of light all around you.</span></div>
+      <div class="hrow"><b>Dash</b><span>double-tap: a quick dodge<br>you cannot be hurt in.</span></div>
       <div class="hrow"><b>Camera</b><span>in 3D, drag on the right side<br>or Q / E. R recentres.</span></div>
-      <div class="htip">Stay in the light. Freeze in the reeds.<br>When X gets stuck, strike.</div>`;
+      <div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
     const close = document.createElement('button');
     close.className = 'btn ghost';
     close.textContent = 'Close';
