@@ -31,6 +31,9 @@ export class Game {
   private showcaseRun = false;
   /** (tests) run the simulation this many times per frame */
   debugSpeed = 1;
+  /** (tests) draw only every Nth frame, so a bot can run the game fast on a computer with no GPU */
+  debugRenderEvery = 1;
+  private frameN = 0;
   fps = 0;
   private fpsN = 0;
   private fpsT = 0;
@@ -167,9 +170,9 @@ export class Game {
     this.beginBoom();
   }
 
-  debugFight(phase = 0) {
+  debugFight(phase = 0, boss = 0) {
     this.debugBoom();
-    this.act2.skipToFight(phase);
+    this.act2.skipToFight(phase, boss);
     this.state = 'arena';
   }
 
@@ -219,6 +222,9 @@ export class Game {
         if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
       } else if (this.state === 'act1') this.act1.update(dt);
     }
+    // the 3D monsters are built a few milliseconds at a time while you are still in the forest
+    if (this.state === 'act1' || this.state === 'menu') this.act2.pump(this.state === 'menu' ? 6 : 3);
+    if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.setRes(2);
       this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);

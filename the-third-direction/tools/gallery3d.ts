@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { Arena, BOSS_Z } from '../src/act2/arena';
+import { Slicer } from '../src/act2/kit/sdf';
+import { XModel } from '../src/act2/models/x';
 import { makeSprite } from '../src/core/pix';
 import { hash2, rng, TAU } from '../src/core/util';
 import { card, type Shot } from './cards';
@@ -13,6 +15,19 @@ let arena: Arena | null = null;
 let renderer: THREE.WebGLRenderer | null = null;
 let glCanvas: HTMLCanvasElement | null = null;
 const extras = new THREE.Group();
+let xm: XModel | null = null;
+
+/** X is built from distance functions (a few seconds); build him before any card is drawn. */
+export async function ready3d() {
+  if (xm) return;
+  const { arena: a } = ctx3d();
+  xm = new XModel(a.world, BOSS_Z + 1.5);
+  const sl = new Slicer();
+  const p = xm.build(sl);
+  sl.flush();
+  await p;
+  xm.root.visible = false;
+}
 
 function ctx3d() {
   if (!arena) {
@@ -64,21 +79,25 @@ function clearExtras() {
 function reset(opts: { x: boolean; wall: boolean; pillars?: boolean; forest?: number }) {
   const { arena: a } = ctx3d();
   clearExtras();
-  a.boss.visible = opts.x;
+  if (xm) {
+    xm.root.visible = opts.x;
+    xm.foot.visible = false;
+    xm.setGaze(false);
+    xm.setCore(false);
+    xm.rakeArms.forEach((arm) => (arm.group.visible = false));
+    xm.setHead(0);
+    xm.setJaw(0);
+    xm.setWide(1);
+    xm.setArmor(0);
+  }
   a.player.visible = true;
-  a.foot.visible = false;
   a.hideShadow();
-  a.setGaze(false);
-  a.setCore(false);
   a.lanes.forEach((l) => (l.visible = false));
-  a.arms.forEach((m) => (m.visible = false));
   for (const p of a.pinned) p.visible = opts.wall;
   a.tint(opts.forest ?? 0);
   a.setClearing(opts.forest ? 1 : 0);
   a.restorePillars();
   a.setRise(1);
-  a.setHead(0);
-  a.setJaw(0);
   a.setRedLight(0);
   a.player.position.set(0, 0, 12);
   a.player.rotation.set(0, 0, 0);
@@ -143,6 +162,9 @@ function xScene(kind: 'hero' | 'face' | 'stomp'): HTMLCanvasElement {
   reset({ x: true, wall: true });
   a.setRise(1);
   a.update(0, 3.2);
+  const x = xm!;
+  x.lookAt(0, 3, 14);
+  x.update(0.016, 3.2);
   if (kind === 'hero') {
     // the rake: red lanes across the floor, the baby blob dodging between them
     a.player.position.set(-3.5, 0, 3);
@@ -153,25 +175,29 @@ function xScene(kind: 'hero' | 'face' | 'stomp'): HTMLCanvasElement {
       const l = a.lanes[i]!;
       l.position.set(0, 0.08, z);
       l.visible = i !== 6 && i !== 7 && i !== 8;
-      const arm = a.arms[i]!;
+      const arm = x.rakeArms[i]!.group;
       arm.visible = l.visible && i % 2 === 0;
       arm.position.set(i % 4 === 0 ? -10 : 8, 0.6, z);
       arm.rotation.y = i % 4 === 0 ? 0 : Math.PI;
     }
+    x.update(0.016, 3.3);
     a.setRedLight(70);
-    return shot({ pos: [2.5, 4.2, 13], look: [0, 13.5, -29], fov: 64 }, 432, 768);
+    return shot({ pos: [2.5, 6.5, 13], look: [0, 9.5, -29], fov: 64 }, 432, 768);
   }
   if (kind === 'face') {
     a.player.visible = false;
     a.setRedLight(120);
-    return shot({ pos: [-3, 16.5, -5], look: [0, 17, BOSS_Z], fov: 46 }, 540, 400);
+    x.setWide(1);
+    x.update(0.016, 3.4);
+    return shot({ pos: [-5, 13, -8], look: [0, 12.5, BOSS_Z], fov: 46 }, 540, 400);
   }
   // the stomp: a foot the size of a house, a shadow that closes on the player
   a.player.position.set(2, 0, 4);
   a.player.rotation.y = Math.PI;
   a.animatePlayer(0.016, 3.2, 1, 1.2, 0, false);
-  a.foot.visible = true;
-  a.foot.position.set(2, 9, 4);
+  x.foot.visible = true;
+  x.foot.position.set(2, 9, 4);
+  x.update(0.016, 3.2);
   a.setShadow(2, 4, 4.2, 0.85, true);
   a.setRedLight(20);
   return shot({ pos: [-13, 8.5, 17], look: [1, 6, 3], fov: 58 }, 540, 400);

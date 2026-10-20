@@ -4,7 +4,7 @@ import { drawGloom } from '../src/core/art2';
 import { Land } from '../src/forest/land';
 import * as boss from '../src/forest/bossart';
 import { card, portrait, sheet, hasHero } from './cards';
-import { builders3d } from './gallery3d';
+import { builders3d, ready3d } from './gallery3d';
 
 /**
  * Boss concept cards: each boss drawn by the game's own pixel painter, shown the way the game would show it
@@ -283,5 +283,8 @@ builders['sheet'] = () => {
 
 (window as unknown as { __gallery: unknown }).__gallery = {
   names: () => Object.keys(builders),
-  render: (name: string) => builders[name]!(),
+  render: async (name: string) => {
+    await ready3d();
+    return builders[name]!();
+  },
 };

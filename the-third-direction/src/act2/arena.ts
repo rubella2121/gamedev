@@ -52,37 +52,73 @@ function bigBlob(): THREE.CanvasTexture {
   return tex(p.canvas);
 }
 
+/** A pool of rings and discs for the floor: warnings, impacts, zones. Index them yourself. */
+export class Marks {
+  private items: { ring: THREE.Mesh; disc: THREE.Mesh }[] = [];
+
+  constructor(world: THREE.Group, n: number) {
+    const ringG = new THREE.RingGeometry(0.86, 1, 40);
+    const discG = new THREE.CircleGeometry(0.86, 32);
+    for (let i = 0; i < n; i++) {
+      const ring = new THREE.Mesh(ringG, new THREE.MeshBasicMaterial({ color: 0xe02b3a, side: THREE.DoubleSide, transparent: true, depthWrite: false }));
+      const disc = new THREE.Mesh(discG, new THREE.MeshBasicMaterial({ color: 0x20040a, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
+      ring.rotation.x = disc.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.09;
+      disc.position.y = 0.07;
+      ring.visible = disc.visible = false;
+      world.add(disc, ring);
+      this.items.push({ ring, disc });
+    }
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  /** Show mark i at (x, z) with radius r. `fill` is the opacity of the dark disc inside, `hot` flashes it. */
+  set(i: number, on: boolean, x = 0, z = 0, r = 1, o: { col?: number; fill?: number; hot?: boolean; alpha?: number } = {}) {
+    const m = this.items[i];
+    if (!m) return;
+    m.ring.visible = on;
+    m.disc.visible = on && (o.fill ?? 0.4) > 0.01;
+    if (!on) return;
+    m.ring.position.set(x, 0.09, z);
+    m.disc.position.set(x, 0.07, z);
+    m.ring.scale.set(r, r, 1);
+    m.disc.scale.set(r, r, 1);
+    const rm = m.ring.material as THREE.MeshBasicMaterial;
+    rm.color.setHex(o.hot ? 0xff9a9a : (o.col ?? 0xe02b3a));
+    rm.opacity = o.alpha ?? 1;
+    (m.disc.material as THREE.MeshBasicMaterial).opacity = (o.fill ?? 0.4) * (o.alpha ?? 1);
+  }
+
+  hideAll() {
+    for (const m of this.items) m.ring.visible = m.disc.visible = false;
+  }
+}
+
 export class Arena {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(64, W / H, 0.1, 320);
   readonly world = new THREE.Group();
-  readonly boss = new THREE.Group();
-  readonly head = new THREE.Group();
-  readonly foot = new THREE.Group();
-  readonly arms: THREE.Group[] = [];
-  /** shrink or restore the bony body of an arm while keeping its claw tip in place */
-  setArmLength(arm: THREE.Group, k: number) {
-    const seg = arm.userData['seg'] as THREE.Mesh;
-    seg.scale.x = k;
-    seg.position.x = 8 * k;
-  }
   readonly player = new THREE.Group();
   readonly claw = new THREE.Group();
   readonly shadow = new THREE.Group();
   readonly lanes: THREE.Mesh[] = [];
   readonly pinned: THREE.Mesh[] = [];
-  readonly armor = new THREE.Group();
-  readonly jaw: THREE.Mesh;
-  readonly eyes: THREE.Mesh[] = [];
   private tiles: { x: number; z: number; d: number }[] = [];
   private tileBase: THREE.Color[] = [];
   private tileForest: THREE.Color[] = [];
   readonly clearing = new THREE.Group();
+  readonly marks: Marks;
+  private lanceMeshes: THREE.Group[] = [];
+  private novaRing!: THREE.Mesh;
+  private novaWall!: THREE.Mesh;
   private flowers: { g: THREE.Group; delay: number }[] = [];
   private peekers: { g: THREE.Group; delay: number }[] = [];
   private platform!: THREE.InstancedMesh;
   private pillars: THREE.Group[] = [];
-  readonly pillarData: { x: number; z: number; hp: number; alive: boolean; g: THREE.Group }[] = [];
+  readonly pillarData: { x: number; z: number; r: number; hp: number; alive: boolean; g: THREE.Group }[] = [];
   private skin!: THREE.MeshLambertMaterial;
   private rig!: { model: THREE.Group; body: THREE.Group; legs: THREE.Group[]; arms: THREE.Group[]; eyes: THREE.Group[] };
   private thirdEye!: THREE.Mesh;
@@ -99,11 +135,6 @@ export class Arena {
   readonly moth = new THREE.Group();
   private mothWings: THREE.Mesh[] = [];
   private mothLight!: THREE.PointLight;
-  readonly gaze!: THREE.Mesh;
-  readonly core!: THREE.Mesh;
-  private coreLight!: THREE.PointLight;
-  readonly jawSlots: { group: THREE.Group; ring: THREE.Mesh }[] = [];
-  readonly flatBoss = new THREE.Mesh(new THREE.PlaneGeometry(9, 15), new THREE.MeshBasicMaterial({ color: 0x05030a, transparent: true, opacity: 0 }));
 
   constructor() {
     this.scene.background = new THREE.Color(BG);
@@ -128,10 +159,11 @@ export class Arena {
     this.buildRocks();
     this.buildStars();
     this.buildWall();
-    this.buildBoss();
     this.buildPlayer();
     this.buildExtras();
     this.buildClearing();
+    this.marks = new Marks(this.world, 16);
+    this.buildLight();
 
     // ground telegraphs
     this.shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x02030a, transparent: true, opacity: 0.72 }));
@@ -159,9 +191,7 @@ export class Arena {
     this.debris.count = 0;
     this.world.add(this.debris);
 
-    this.jaw = this.boss.getObjectByName('jaw') as THREE.Mesh;
     this.world.visible = true;
-    this.boss.visible = false;
     this.player.visible = false;
   }
 
@@ -214,7 +244,7 @@ export class Arena {
       }
       g.position.set(px, 0, pz);
       this.pillars.push(g);
-      this.pillarData.push({ x: px, z: pz, hp: 0.85, alive: true, g });
+      this.pillarData.push({ x: px, z: pz, r: 0.9, hp: 0.85, alive: true, g });
       this.world.add(g);
     }
   }
@@ -310,118 +340,6 @@ export class Arena {
       this.pinned.push(m);
       this.world.add(m);
     }
-  }
-
-  private buildBoss() {
-    const dark = new THREE.MeshLambertMaterial({ color: 0x2a1a44 });
-    const mid = new THREE.MeshLambertMaterial({ color: 0x3a2660 });
-    const bone = new THREE.MeshLambertMaterial({ color: 0xd8d0b8 });
-    const redGlow = new THREE.MeshBasicMaterial({ color: 0xff3040 });
-    const B = this.boss;
-    B.position.set(0, 0, BOSS_Z);
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(8, 28, 4.4), dark);
-    torso.position.y = 2;
-    B.add(torso);
-    for (let i = 0; i < 6; i++) {
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(6.4 - Math.abs(i - 2.5) * 0.5, 0.42, 0.6), bone);
-      rib.position.set(0, 4 + i * 1.5, 2.3);
-      B.add(rib);
-    }
-    for (const sx of [-1, 1]) {
-      const sh = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 3.2), mid);
-      sh.position.set(sx * 5.2, 12, 0);
-      B.add(sh);
-    }
-    // head
-    this.head.position.set(0, 17, 0.5);
-    const skull = new THREE.Mesh(new THREE.BoxGeometry(6.2, 5, 4.6), mid);
-    this.head.add(skull);
-    const rnd = rng(77);
-    for (let i = 0; i < 16; i++) {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.26 + rnd() * 0.12, 8, 6), redGlow.clone());
-      e.position.set((rnd() - 0.5) * 5.4, (rnd() - 0.45) * 3.6, 2.35);
-      this.head.add(e);
-      this.eyes.push(e);
-    }
-    for (const sx of [-1, 0, 1]) {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffeeee }));
-      e.position.set(sx * 1.9, 0.5 + (sx === 0 ? 0.6 : 0), 2.4);
-      const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.8, 0.2), new THREE.MeshBasicMaterial({ color: 0xe02b3a }));
-      pupil.position.set(0, 0, 0.58);
-      e.add(pupil);
-      this.head.add(e);
-      this.eyes.push(e);
-    }
-    // jaw and teeth
-    const jaw = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.5, 3.8), dark);
-    jaw.name = 'jaw';
-    jaw.position.set(0, -3.2, 0.5);
-    for (let i = -3; i <= 3; i++) {
-      const tooth = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.9, 0.46), bone);
-      tooth.position.set(i * 0.75, 1.1, 1.7);
-      jaw.add(tooth);
-      const tooth2 = tooth.clone();
-      tooth2.position.set(i * 0.75, 3.1, 1.7);
-      this.head.add(tooth2);
-    }
-    this.head.add(jaw);
-    B.add(this.head);
-
-    // bony arms that rake across the floor, one per lane
-    for (let i = 0; i < LANES; i++) {
-      // the group origin is the claw tip; the bony body trails behind it along local +x
-      const arm = new THREE.Group();
-      const seg = new THREE.Mesh(new THREE.BoxGeometry(16, 1.1, 1.1), bone);
-      seg.position.x = 8;
-      arm.add(seg);
-      arm.userData['seg'] = seg;
-      for (let k = -1; k <= 1; k++) {
-        const claw = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0xf4efe0 }));
-        claw.position.set(-0.9, 0, k * 0.5);
-        claw.rotation.y = k * 0.25;
-        arm.add(claw);
-      }
-      arm.visible = false;
-      this.arms.push(arm);
-      this.world.add(arm);
-    }
-
-    // the stomping foot
-    const sole = new THREE.Mesh(new THREE.BoxGeometry(6.4, 2.6, 7.6), dark);
-    this.foot.add(sole);
-    for (let i = -2; i <= 2; i++) {
-      const toe = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.2, 1.9), mid);
-      toe.position.set(i * 1.25, -0.5, 4.5);
-      this.foot.add(toe);
-      const c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.9), bone);
-      c.position.set(i * 1.25, -0.6, 5.7);
-      this.foot.add(c);
-    }
-    const seam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.12, 0.3), new THREE.MeshBasicMaterial({ color: 0xff3040 }));
-    seam.position.set(0, 1.35, -1);
-    this.foot.add(seam);
-    this.foot.position.set(0, 40, 0);
-    this.foot.visible = false;
-    this.world.add(this.foot);
-
-    // Gloomling armour: a swarm of black cubes clinging to him
-    const am = new THREE.MeshLambertMaterial({ color: 0x07040e });
-    const eyeM = new THREE.MeshBasicMaterial({ color: 0x6ff0ff });
-    for (let i = 0; i < 110; i++) {
-      const c = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 0.6), am);
-      const side = rnd() < 0.5 ? -1 : 1;
-      c.position.set(side * (4.1 + rnd() * 0.5), -6 + rnd() * 16, (rnd() - 0.5) * 4.4);
-      if (rnd() < 0.5) c.position.set((rnd() - 0.5) * 7.4, -6 + rnd() * 14, 2.4 + rnd() * 0.4);
-      c.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
-      this.armor.add(c);
-      if (rnd() < 0.14) {
-        const e = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), eyeM);
-        e.position.copy(c.position).add(new THREE.Vector3(0, 0.1, 0.34));
-        this.armor.add(e);
-      }
-    }
-    B.add(this.armor);
-    this.world.add(B);
   }
 
   /** The baby blob in 3D: a chunky voxel creature with stubby legs and arms, big eyes and a tuft. */
@@ -575,48 +493,52 @@ export class Arena {
     this.moth.add(this.mothLight);
     this.moth.visible = false;
     this.world.add(this.moth);
-
-    // the Watcher's gaze
-    const g = new THREE.Mesh(new THREE.BoxGeometry(1, 0.06, 1.5), new THREE.MeshBasicMaterial({ color: 0xff3040, transparent: true, opacity: 0.55 }));
-    g.visible = false;
-    (this as { gaze: THREE.Mesh }).gaze = g;
-    this.world.add(g);
-
-    // the Hollow Core
-    const c = new THREE.Mesh(new THREE.SphereGeometry(1.5, 14, 10), new THREE.MeshBasicMaterial({ color: 0x6a1a8a }));
-    c.visible = false;
-    (this as { core: THREE.Mesh }).core = c;
-    this.coreLight = new THREE.PointLight(0xc060ff, 0, 14, 1.4);
-    c.add(this.coreLight);
-    this.world.add(c);
-
-    // root-jaws that erupt in rings
-    const bone = new THREE.MeshLambertMaterial({ color: 0xd8d0b8 });
-    const root = new THREE.MeshLambertMaterial({ color: 0x4a3a28 });
-    for (let i = 0; i < 4; i++) {
-      const grp = new THREE.Group();
-      for (const sx of [-1, 1]) {
-        const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.6, 1.5), root);
-        jaw.position.set(sx * 0.7, 1.3, 0);
-        jaw.rotation.z = -sx * 0.25;
-        grp.add(jaw);
-        for (let k = -1; k <= 1; k++) {
-          const t = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.7, 4), bone);
-          t.position.set(sx * 0.3, 2.2 - Math.abs(k) * 0.15, k * 0.45);
-          t.rotation.z = Math.PI + sx * 0.2;
-          grp.add(t);
-        }
-      }
-      grp.visible = false;
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 32), new THREE.MeshBasicMaterial({ color: 0xe02b3a, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.07;
-      ring.visible = false;
-      this.world.add(grp, ring);
-      this.jawSlots.push({ group: grp, ring });
-    }
   }
 
+
+  /** Bolts and bursts of light: what the player throws. */
+  private buildLight() {
+    const core = new THREE.OctahedronGeometry(0.34, 0);
+    core.scale(1, 1, 3.2);
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(core, new THREE.MeshBasicMaterial({ color: 0xfffbe0, fog: false })));
+      const glow = new THREE.Mesh(core, new THREE.MeshBasicMaterial({ color: 0xffd878, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      glow.scale.set(2.2, 2.2, 1.7);
+      g.add(glow);
+      g.visible = false;
+      this.lanceMeshes.push(g);
+      this.world.add(g);
+    }
+    this.novaRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 56), new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    this.novaRing.rotation.x = -Math.PI / 2;
+    this.novaWall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 40, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd878, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    this.novaRing.visible = this.novaWall.visible = false;
+    this.world.add(this.novaRing, this.novaWall);
+  }
+
+  /** Show the bolts in flight (at most six). */
+  setLances(list: { x: number; y: number; z: number; vx: number; vy: number; vz: number }[]) {
+    this.lanceMeshes.forEach((g, i) => {
+      const l = list[i];
+      g.visible = !!l;
+      if (!l) return;
+      g.position.set(l.x, l.y, l.z);
+      g.lookAt(l.x + l.vx, l.y + l.vy, l.z + l.vz);
+    });
+  }
+
+  /** u: 0..1 through its life. */
+  setNova(on: boolean, x = 0, z = 0, R = 1, u = 0) {
+    this.novaRing.visible = this.novaWall.visible = on;
+    if (!on) return;
+    this.novaRing.position.set(x, 0.14, z);
+    this.novaRing.scale.set(R, R, 1);
+    (this.novaRing.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - u * u);
+    this.novaWall.position.set(x, 0.9, z);
+    this.novaWall.scale.set(R, 1.8 * (1 - u * 0.4), R);
+    (this.novaWall.material as THREE.MeshBasicMaterial).opacity = 0.32 * (1 - u);
+  }
 
   /** The old clearing, rebuilt in 3D after X falls: green ground, glowing flowers, the crater and curious little monsters. */
   private buildClearing() {
@@ -709,26 +631,6 @@ export class Arena {
     for (const p of this.peekers) p.g.scale.setScalar(Math.max(0.001, Math.min(1, Math.max(0, (u - p.delay * 0.6) * 3))));
   }
 
-  setHead(u: number) {
-    this.head.position.set(0, 17 + (6.8 - 17) * u, 0.5 + (10.5 - 0.5) * u);
-    this.head.rotation.x = u * 0.28;
-  }
-
-  setJaw(open: number) {
-    this.jaw.position.y = -3.2 - open * 1.5;
-    this.jaw.rotation.x = open * 0.3;
-  }
-
-  setGaze(on: boolean, gx = 0, gz = 0, theta = 0, len = 16) {
-    this.gaze.visible = on;
-    if (!on) return;
-    const dx = Math.sin(theta);
-    const dz = Math.cos(theta);
-    this.gaze.scale.x = len;
-    this.gaze.position.set(gx + dx * len * 0.5, 0.1, gz + dz * len * 0.5);
-    this.gaze.rotation.y = Math.atan2(-dz, dx);
-  }
-
   setMoth(x: number, y: number, z: number, t: number, show = true) {
     this.moth.visible = show;
     this.moth.position.set(x, y + Math.sin(t * 3) * 0.12, z);
@@ -737,27 +639,6 @@ export class Arena {
       const side = w.userData['side'] as number;
       w.rotation.z = side * (0.35 + 0.55 * f);
     });
-  }
-
-  setCore(on: boolean, x = 0, y = 1, z = 0, lit = 0) {
-    this.core.visible = on;
-    if (!on) return;
-    this.core.position.set(x, y, z);
-    const pulse = 1 + 0.08 * Math.sin(performance.now() / 120);
-    this.core.scale.setScalar(pulse);
-    (this.core.material as THREE.MeshBasicMaterial).color.setHex(lit > 0.5 ? 0xe080ff : 0x2a1040);
-    this.coreLight.intensity = 60 * lit;
-  }
-
-  setJawSlot(i: number, on: boolean, x = 0, z = 0, tele = 0, burst = 0) {
-    const s = this.jawSlots[i]!;
-    s.ring.visible = on && burst < 0.05;
-    s.ring.position.set(x, 0.07, z);
-    const r = 1.55 * Math.min(1, tele);
-    s.ring.scale.set(Math.max(0.01, r), Math.max(0.01, r), 1);
-    s.group.visible = on && burst > 0.02;
-    s.group.position.set(x, 0, z);
-    s.group.scale.set(1, Math.max(0.01, burst), 1);
   }
 
   crumblePillar(i: number) {
@@ -830,7 +711,7 @@ export class Arena {
     }
   }
 
-  update(dt: number, time: number) {
+  update(dt: number, _time: number) {
     // debris
     const m = this.tmp;
     let n = 0;
@@ -857,13 +738,6 @@ export class Arena {
     this.debris.instanceMatrix.needsUpdate = true;
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true;
 
-    // idle sway and eye pulse
-    this.boss.position.y = Math.sin(time * 0.8) * 0.25;
-    this.head.rotation.z = Math.sin(time * 0.6) * 0.03;
-    this.eyes.forEach((e, i) => {
-      const s = 1 + 0.18 * Math.sin(time * 3 + i);
-      e.scale.setScalar(s);
-    });
     // player glow follows the body
     this.glow.position.set(this.player.position.x, 2.6, this.player.position.z);
     if (this.belowMat) this.belowMat.needsUpdate = false;
