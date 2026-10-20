@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Arena, BOSS_Z } from '../src/act2/arena';
 import { Slicer } from '../src/act2/kit/sdf';
+import { labCollector } from '../src/act2/models/collector';
+import { labMash } from '../src/act2/models/mash';
 import { XModel } from '../src/act2/models/x';
 import { makeSprite } from '../src/core/pix';
 import { hash2, rng, TAU } from '../src/core/util';
@@ -8,7 +10,7 @@ import { card, type Shot } from './cards';
 
 /**
  * Concept renders for the 3D bosses, built on the game's real arena (the same platform, wall, pillars, lights and
- * player model). X is the real boss; the others are sketches built from boxes, the way X is.
+ * player model). X, The Collector and The Mash are the real models, posed; The Moon is still a sketch built from boxes.
  */
 
 let arena: Arena | null = null;
@@ -17,7 +19,7 @@ let glCanvas: HTMLCanvasElement | null = null;
 const extras = new THREE.Group();
 let xm: XModel | null = null;
 
-/** X is built from distance functions (a few seconds); build him before any card is drawn. */
+/** X, The Collector and The Mash are built from distance functions (a few seconds); build them before any card is drawn. */
 export async function ready3d() {
   if (xm) return;
   const { arena: a } = ctx3d();
@@ -27,6 +29,9 @@ export async function ready3d() {
   sl.flush();
   await p;
   xm.root.visible = false;
+  await buildLab('collector', labCollector);
+  await buildLab('mash', labMash);
+  showLab(null);
 }
 
 function ctx3d() {
@@ -90,6 +95,7 @@ function reset(opts: { x: boolean; wall: boolean; pillars?: boolean; forest?: nu
     xm.setWide(1);
     xm.setArmor(0);
   }
+  showLab(null);
   a.player.visible = true;
   a.hideShadow();
   a.lanes.forEach((l) => (l.visible = false));
@@ -380,335 +386,108 @@ function moonScene(kind: 'hero' | 'echo' | 'fall'): HTMLCanvasElement {
 }
 
 /* ------------------------------------------------------------------ */
-/* shared bits for the sketched bosses                                  */
+/* The Collector and The Mash: the real models, posed                  */
 /* ------------------------------------------------------------------ */
 
-type V3 = [number, number, number];
+type LabApi = { update?: (dt: number, t: number) => void; pose?: (name: string, v?: number) => void };
+const labs: Record<string, { api: LabApi; objs: { o: THREE.Object3D; vis: boolean }[] }> = {};
 
-/** A box stretched between two points. */
-function rod(a: V3, b: V3, th: number, m: THREE.Material, parent: THREE.Object3D = extras) {
-  const A = new THREE.Vector3(...a);
-  const B = new THREE.Vector3(...b);
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(th, th, A.distanceTo(B)), m);
-  mesh.position.copy(A).add(B).multiplyScalar(0.5);
-  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), B.clone().sub(A).normalize());
-  parent.add(mesh);
-  return mesh;
+/** Build a lab model into the arena's world and remember which objects it added and how it shows them. */
+async function buildLab(name: string, fn: (s: Slicer, w: THREE.Group) => Promise<LabApi | void>) {
+  const { arena: a } = ctx3d();
+  const before = new Set<THREE.Object3D>(a.world.children);
+  const sl = new Slicer();
+  const p = fn(sl, a.world);
+  sl.flush();
+  const api = (await p) ?? {};
+  const objs = a.world.children.filter((c) => !before.has(c)).map((o) => ({ o, vis: o.visible }));
+  objs.forEach(({ o }) => (o.visible = false));
+  labs[name] = { api, objs };
 }
 
-function cone(r: number, h: number, m: THREE.Material, x: number, y: number, z: number, rz = 0, rx = 0, parent: THREE.Object3D = extras, seg = 5) {
-  const mesh = new THREE.Mesh(new THREE.ConeGeometry(r, h, seg), m);
-  mesh.position.set(x, y, z);
-  mesh.rotation.set(rx, 0, rz);
-  parent.add(mesh);
-  return mesh;
+/** Show one lab model (or none). */
+function showLab(name: string | null) {
+  for (const [k, l] of Object.entries(labs)) for (const { o, vis } of l.objs) o.visible = k === name && vis;
 }
 
-const glass = () => new THREE.MeshLambertMaterial({ color: 0xbff4ff, emissive: 0x2a6a7a, emissiveIntensity: 0.6, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false });
-
-/* ------------------------------------------------------------------ */
-/* The Mash: every guardian at once                                      */
-/* ------------------------------------------------------------------ */
-
-function addMash() {
-  const g = new THREE.Group();
-  g.position.set(0, 0, BOSS_Z);
-  extras.add(g);
-  const dark = lam(0x2a1a48, 0x0a0618);
-  const cyan = bas(0x6ff0ff);
-  const r = rng(12);
-  // the shadow of the Gloommother: a heap of black with a hundred cyan eyes
-  box(10, 24, 6, dark, 0, 2, 0, g);
-  for (const sx of [-1, 1]) ball(3.8, dark, sx * 5.2, 12.5, 0, g, 12);
-  ball(4.4, dark, -3, -6, 0.3, g, 12);
-  ball(4.4, dark, 3.4, -5, 0.3, g, 12);
-  for (let i = 0; i < 60; i++) {
-    const front = r() < 0.7;
-    const big = r() < 0.2;
-    const x = front ? (r() - 0.5) * 9.4 : (r() < 0.5 ? -1 : 1) * 5.1;
-    const y = -6 + r() * 19;
-    const z = front ? 3.1 : (r() - 0.5) * 5.4;
-    box(big ? 0.55 : 0.34, big ? 0.55 : 0.34, 0.2, cyan, x, y, z, g);
-  }
-
-  // the Mimic Queen is his face: a flower of petals around a maw of teeth
-  const face = new THREE.Group();
-  face.position.set(0, 14.2, 3.2);
-  g.add(face);
-  for (let ring = 0; ring < 2; ring++) {
-    const n = 11 - ring * 2;
-    const len = 6.4 - ring * 1.5;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + ring * 0.3;
-      const d = len / 2 + 2.4;
-      const petal = box(1.9 - ring * 0.3, len, 0.5, lam(ring ? 0x3a92b8 : 0x2d7da0, 0x0a2a3a), Math.cos(a) * d, Math.sin(a) * d, -0.3 + ring * 0.5, face);
-      petal.rotation.z = a - Math.PI / 2;
-      const tip = box(1.5 - ring * 0.3, 1.4, 0.45, lam(0x9fe8ff, 0x3a8aa8), Math.cos(a) * (d + len / 2 - 0.3), Math.sin(a) * (d + len / 2 - 0.3), -0.3 + ring * 0.5, face);
-      tip.rotation.z = a - Math.PI / 2;
-    }
-  }
-  const maw = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.9, 24), lam(0x2a0610));
-  maw.rotation.x = Math.PI / 2;
-  maw.position.z = 0.6;
-  face.add(maw);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.5, 6, 24), lam(0x9a2a3a, 0x4a0a14));
-  rim.position.z = 1;
-  face.add(rim);
-  const throat = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 0.3, 20), lam(0xc04a5a, 0x6a1a2a));
-  throat.rotation.x = Math.PI / 2;
-  throat.position.z = 1.15;
-  face.add(throat);
-  ball(1.1, lam(0xff8aa8, 0x8a2a4a), 0.4, -0.8, 1.5, face, 8);
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * TAU;
-    const t = box(0.5, 1.3, 0.5, lam(0xf4efe0, 0x5a5a4a), Math.cos(a) * 2.85, Math.sin(a) * 2.85, 1.35, face);
-    t.rotation.z = a + Math.PI / 2;
-  }
-  // her lure, glowing pink, dangling in front of the maw
-  const pink = lam(0x2d7da0);
-  const pts: V3[] = [[1.8, 5.6, 0.6], [3.6, 8, 3], [2.4, 7.2, 6.2], [0.6, 3.6, 7]];
-  for (let i = 1; i < pts.length; i++) rod(pts[i - 1]!, pts[i]!, 0.45, pink, face);
-  ball(0.85, bas(0xffb0c8), 0.6, 3.2, 7, face, 8);
-  const lureLight = new THREE.PointLight(0xff8aa8, 60, 16, 1.6);
-  lureLight.position.set(0.6, 3.2, 8);
-  face.add(lureLight);
-
-  // the Toll Queen's bell hangs from his chest
-  const bellMat = new THREE.MeshLambertMaterial({ color: 0xd9a93a, emissive: 0x6a4a10, emissiveIntensity: 0.7, side: THREE.DoubleSide });
-  const bell = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 4.7, 7.2, 20, 1, true), bellMat);
-  bell.position.set(0, 2.6, 4.3);
-  g.add(bell);
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(4.7, 0.5, 6, 24), lam(0xf0d070, 0x8a6a20));
-  lip.rotation.x = Math.PI / 2;
-  lip.position.set(0, -1, 4.3);
-  g.add(lip);
-  for (let i = 0; i < 3; i++) box(0.5, 1.2, 0.2, lam(0x5a3e12), -2.4 + i * 2.4, 2.4, 6.3 - Math.abs(i - 1) * 0.5, g);
-  ball(1.1, lam(0xc9b6ff, 0x9a7aff), 0, -1.9, 4.3, g, 8);
-  for (let k = 0; k < 4; k++) box(0.5, 0.7, 0.3, lam(0x9a9aaa), 0, 6.6 + k * 0.9, 3.9 - k * 0.2, g);
-  // and her winged eye watches from above his head
-  const eyeG = new THREE.Group();
-  eyeG.position.set(0, 27.4, 1.5);
-  g.add(eyeG);
-  ball(2.5, bas(0xece8ff), 0, 0, 0, eyeG, 14);
-  const iris = new THREE.Mesh(new THREE.CircleGeometry(1.55, 18), bas(0x6a4ad0));
-  iris.position.z = 2.45;
-  eyeG.add(iris);
-  const gold = new THREE.Mesh(new THREE.RingGeometry(1.45, 1.75, 18), bas(0xe0b84a));
-  gold.position.z = 2.47;
-  eyeG.add(gold);
-  box(0.3, 2.3, 0.1, bas(0x05060c), 0, 0, 2.5, eyeG);
-  for (const sx of [-1, 1]) {
-    for (let i = 0; i < 7; i++) {
-      const a = 0.15 + i * 0.2;
-      const f = box(0.6, 6.2 - i * 0.2, 0.25, lam(i % 2 ? 0x8f84d8 : 0xb9b0f0, 0x4a3a98), sx * (3.2 + Math.sin(a) * 3.1), 0.5 - Math.cos(a) * 3.1 + 2.4, 0, eyeG);
-      f.rotation.z = -sx * (Math.PI / 2 - a * 0.8) + (sx < 0 ? Math.PI : 0) * 0;
-    }
-  }
-
-  // the Thornback King's shell on his left shoulder, crowned in thorns
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(5.4, 18, 10, 0, TAU, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x1a2c3c, emissive: 0x0a1a2a, emissiveIntensity: 0.6 }));
-  shell.position.set(-9.4, 9.6, 0.4);
-  shell.scale.set(1, 0.95, 1.1);
-  g.add(shell);
-  for (let i = 0; i < 7; i++) {
-    const phi = -0.95 + i * 0.32;
-    cone(0.62, 5.4, lam(0xbcd0dc, 0x4a6a7a), -9.4 + Math.sin(phi) * 5, 9.6 + Math.cos(phi) * 5, 0.4, -phi, 0, g);
-  }
-  for (const [x, y, ln] of [[-11.5, 11.2, 2.6], [-7.5, 12.8, 2.2], [-9.4, 8.2, 3]] as [number, number, number][]) {
-    const c = box(0.2, ln, 0.2, bas(0xff3040), x, y, 5.4, g);
-    c.rotation.z = (x + y) * 0.4;
-  }
-  // his horn grows from the flower's brow
-  cone(0.9, 8, lam(0x27425a, 0x0a1a2a), 3.4, 24.4, 3, -0.5, 0, g);
-
-  // the Bone Wyrm is his spine, arching over the right shoulder to a skull
-  const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(6, -4, 0.5), new THREE.Vector3(14, 5, 0), new THREE.Vector3(15.5, 17, 0.5), new THREE.Vector3(11, 26, 3), new THREE.Vector3(6.5, 27.6, 6.8)]);
-  const bone = lam(0xd8d0b8, 0x4a4638);
-  for (let i = 0; i <= 15; i++) {
-    const p = curve.getPoint(i / 15);
-    const rr = 0.9 + 0.6 * Math.sin((i / 15) * Math.PI) + (i > 12 ? 0.3 : 0);
-    ball(rr, bone, p.x, p.y, p.z, g, 8);
-    cone(0.35, 1.6, bone, p.x + 0.4, p.y + rr + 0.5, p.z, -0.4, 0, g, 4);
-  }
-  const sk = new THREE.Group();
-  sk.position.set(6.2, 27.2, 7.4);
-  sk.rotation.set(0.5, -0.4, 0);
-  g.add(sk);
-  box(3.8, 2.8, 4.4, bone, 0, 0, 0, sk);
-  const jaw = box(3.3, 0.9, 3.8, lam(0xb8ae94), 0, -2, 0.5, sk);
-  jaw.rotation.x = 0.35;
-  for (let i = -2; i <= 2; i++) {
-    box(0.4, 0.8, 0.4, lam(0xffffff, 0x888888), i * 0.7, -1.4, 2.2, sk);
-    box(0.4, 0.8, 0.4, lam(0xffffff, 0x888888), i * 0.7, -1.8, 2.3, sk).rotation.x = 0.35;
-  }
-  for (const sx of [-1, 1]) {
-    ball(0.7, bas(0xff3040), sx * 1.05, 0.5, 2.1, sk, 8);
-  }
-  const wyrmLight = new THREE.PointLight(0xff4050, 40, 14, 1.6);
-  wyrmLight.position.set(6.5, 26, 10);
-  g.add(wyrmLight);
-  return g;
+/** Let a model's animation run for `secs` (so a pose that plays over time can be caught mid-move). */
+function runLab(name: string, secs: number) {
+  const l = labs[name]!;
+  const n = Math.round(secs * 30);
+  for (let i = 0; i < n; i++) l.api.update?.(1 / 30, 3 + i / 30);
 }
 
-function mashScene(kind: 'hero' | 'face' | 'bone'): HTMLCanvasElement {
+/** the fight camera, and a closer one that frames the boss for a card */
+const HERO_CAM: Cam = { pos: [2, 7, 15], look: [0, 8, -26], fov: 60 };
+
+function mashScene(kind: 'hero' | 'face' | 'tail'): HTMLCanvasElement {
   const { arena: a } = ctx3d();
   reset({ x: false, wall: true });
-  a.setRise(1);
-  addMash();
-  a.setRedLight(35);
-  const key = new THREE.PointLight(0xfff0e0, 230, 90, 1.25);
-  key.position.set(1, 22, 12);
-  extras.add(key);
+  showLab('mash');
+  const L = labs['mash']!.api;
+  a.player.position.set(-3.5, 0, 6);
+  a.player.rotation.y = Math.PI * 0.1;
+  a.animatePlayer(0.016, 3.2, 1, 0.4, 0, false);
+  a.setRedLight(40);
   if (kind === 'hero') {
-    a.player.position.set(-4, 0, 7);
-    a.player.rotation.y = Math.PI * 0.1;
-    a.animatePlayer(0.016, 3.2, 1, 0.4, 0, false);
-    return shot({ pos: [4, 7, 17], look: [0, 13.5, -27], fov: 66 }, 432, 768);
+    L.pose?.('bloom', 0);
+    runLab('mash', 1.2);
+    return shot(HERO_CAM, 432, 768);
   }
-  a.player.visible = false;
-  if (kind === 'face') return shot({ pos: [0, 11, -3], look: [0, 10.5, -26], fov: 52 }, 540, 400);
-  return shot({ pos: [19, 21, -6], look: [7, 18.5, -27], fov: 50 }, 540, 400);
-}
-
-/* ------------------------------------------------------------------ */
-/* The Collector                                                        */
-/* ------------------------------------------------------------------ */
-
-function giantPin(x: number, z: number, h: number, tipY: number, head = 0xe02b3a) {
-  const steel = lam(0xc8d0d8, 0x3a4048);
-  rod([x, tipY, z], [x, tipY + h, z], 0.42, steel);
-  cone(0.3, 1.4, steel, x, tipY + 0.5, z, Math.PI);
-  ball(1.05, lam(head, 0x4a0a14), x, tipY + h + 0.9, z, extras, 10);
-  ball(0.4, bas(0xffffff), x - 0.3, tipY + h + 1.3, z + 0.4, extras, 6);
-}
-
-function addCollector() {
-  const g = new THREE.Group();
-  g.position.set(0, 0, BOSS_Z);
-  extras.add(g);
-  const wood = lam(0x4a2c18, 0x1a0c04);
-  const woodHi = lam(0x7a4a28, 0x2a1808);
-  const brass = lam(0xd9a93a, 0x6a4a10);
-  const brassDark = lam(0x8a6420, 0x2a1a04);
-  const r = rng(33);
-  box(10.4, 22, 5.6, wood, 0, 2, 0, g);
-  // a hundred little drawers, some pulled open, each holding something he collected
-  for (let col = 0; col < 4; col++) {
-    for (let row = 0; row < 10; row++) {
-      const x = -3.7 + col * 2.46;
-      const y = -7.6 + row * 2.05;
-      const open = (col * 7 + row * 3) % 11 === 0;
-      box(2.15, 1.8, open ? 2.2 : 0.5, woodHi, x, y, open ? 3.7 : 2.95, g);
-      ball(0.22, brass, x, y, open ? 4.9 : 3.3, g, 6);
-      if (open) {
-        const c = [0x6ff0ff, 0xff8aa8, 0xffe9a0, 0xb9b0f0][(col + row) % 4]!;
-        for (let k = 0; k < 3; k++) box(0.5, 0.5, 0.5, bas(c), x + (r() - 0.5) * 1.2, y + 1.15, 3.6 + r() * 1.2, g);
-      }
-    }
+  if (kind === 'face') {
+    a.player.visible = false;
+    L.pose?.('bloom', 1);
+    L.pose?.('maw', 1);
+    L.pose?.('inhale', 1);
+    runLab('mash', 0.8);
+    return shot({ pos: [0, 10, 11], look: [0, 10, -24], fov: 48 }, 540, 400);
   }
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(1.9, 3.4, 1.9, brassDark, sx * 3.8, -10.5, sz * 1.7, g);
-  for (const sx of [-1, 1]) box(0.5, 22.4, 0.5, brass, sx * 5.2, 2, 2.9, g);
-  box(5.4, 1.3, 0.3, bas(0xf4efe0), 0, 12.2, 3.2, g);
-  for (let i = 0; i < 3; i++) box(4.2 - i * 0.7, 0.18, 0.1, bas(0x3a2a1a), 0, 12.5 - i * 0.35, 3.4, g);
-  // the head: a bell jar with a giant red eye inside
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.6, 8, 28), brass);
-  collar.rotation.x = Math.PI / 2;
-  collar.position.set(0, 13.2, 0);
-  g.add(collar);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.9, 1.2, 24), brassDark);
-  base.position.set(0, 14, 0);
-  g.add(base);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(4.6, 24, 16, 0, TAU, 0, Math.PI / 2), glass());
-  dome.position.y = 14.6;
-  g.add(dome);
-  const knob = ball(0.7, brass, 0, 19.4, 0, g, 8);
-  void knob;
-  box(0.35, 6, 0.1, bas(0xffffff, 0.55), -2.6, 17.6, 3.4, g).rotation.z = -0.35;
-  box(0.25, 2.6, 0.1, bas(0xffffff, 0.4), -1.6, 18.8, 3.9, g).rotation.z = -0.2;
-  ball(2.4, bas(0xffeeee), 0, 17, 0.2, g, 14);
-  const iris = new THREE.Mesh(new THREE.CircleGeometry(1.35, 18), bas(0xe02b3a));
-  iris.position.set(0, 17, 2.6);
-  g.add(iris);
-  box(0.28, 2.1, 0.1, bas(0x05060c), 0, 17, 2.66, g);
-  for (let i = 0; i < 9; i++) {
-    const c = [0x6ff0ff, 0xff8aa8, 0xffe9a0][i % 3]!;
-    box(0.5, 0.5, 0.5, bas(c), (r() - 0.5) * 6.6, 15.4 + r() * 3.4, (r() - 0.5) * 4.6, g).rotation.set(r() * 3, r() * 3, 0);
-  }
-  // arms of brass pipe: one raises a giant pin, the other holds an empty jar
-  for (const sx of [-1, 1]) {
-    ball(1.3, brassDark, sx * 6.4, 11.6, 0, g, 8);
-    rod([sx * 6.4, 11.6, 0], [sx * 12, 13, 2.5], 1.2, brass, g);
-    ball(1, brassDark, sx * 12, 13, 2.5, g, 8);
-    rod([sx * 12, 13, 2.5], [sx * 14.5, 8, 7], 1.05, brass, g);
-  }
-  const jar = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 5.4, 18, 1, true), glass());
-  jar.position.set(-14.5, 5, 7);
-  g.add(jar);
-  const jarTop = new THREE.Mesh(new THREE.SphereGeometry(2.6, 18, 8, 0, TAU, 0, Math.PI / 2), glass());
-  jarTop.position.set(-14.5, 7.7, 7);
-  g.add(jarTop);
-  const jr = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.35, 6, 20), brass);
-  jr.rotation.x = Math.PI / 2;
-  jr.position.set(-14.5, 2.3, 7);
-  g.add(jr);
-  // the giant pin in the right hand
-  rod([14.5, 20, 7], [14.5, 2, 7], 0.5, lam(0xc8d0d8, 0x3a4048), g);
-  ball(1.2, lam(0xe02b3a, 0x4a0a14), 14.5, 20.8, 7, g, 10);
-  cone(0.35, 1.6, lam(0xc8d0d8), 14.5, 1.4, 7, Math.PI, 0, g);
-  return g;
+  // the scorpion tail mid-strike, with the ring that warned of it
+  L.pose?.('bloom', 0);
+  L.pose?.('maw', 0);
+  L.pose?.('inhale', 0);
+  L.pose?.('targetx', -3.5);
+  L.pose?.('targetz', 6);
+  L.pose?.('play', 1);
+  runLab('mash', 1.05);
+  ringOnFloor(-3.5, 6, 2.2);
+  return shot({ pos: [11, 9, 13], look: [-1, 6, -12], fov: 58 }, 540, 400);
 }
 
 function collectorScene(kind: 'hero' | 'head' | 'jar'): HTMLCanvasElement {
   const { arena: a } = ctx3d();
   reset({ x: false, wall: true });
-  a.setRise(1);
-  addCollector();
-  const lamp = new THREE.PointLight(0xffd98a, 260, 70, 1.4);
-  lamp.position.set(4, 16, -10);
-  extras.add(lamp);
+  showLab('collector');
+  const L = labs['collector']!.api;
+  a.player.position.set(-3, 0, 7);
+  a.player.rotation.y = Math.PI * 0.15;
+  a.animatePlayer(0.016, 3.2, 1, 0.4, 0, false);
+  a.setRedLight(30);
   if (kind === 'hero') {
-    a.player.position.set(-3, 0, 8);
-    a.player.rotation.y = Math.PI * 0.12;
-    a.animatePlayer(0.016, 3.2, 1, 0.4, 0, false);
-    // pins coming down, with their rings
-    ringOnFloor(10, -2, 2.2);
-    giantPin(10, -2, 9, 5.5);
-    ringOnFloor(-11, -8, 2.2);
-    giantPin(-11, -8, 9, 11);
-    giantPin(8, -11, 9, 0.2);
-    giantPin(-9, 2, 9, 0.2);
-    return shot({ pos: [4, 7, 17], look: [0, 11.5, -27], fov: 66 }, 432, 768);
+    L.pose?.('lid', 0);
+    L.pose?.('eye', 0);
+    L.pose?.('pins', 1);
+    L.pose?.('look', 1);
+    runLab('collector', 1.2);
+    ringOnFloor(4, 3, 1.6);
+    return shot(HERO_CAM, 432, 768);
   }
   if (kind === 'head') {
     a.player.visible = false;
-    return shot({ pos: [-4, 17, -4], look: [0, 16, -27], fov: 46 }, 540, 400);
+    L.pose?.('lid', 1);
+    L.pose?.('eye', 1);
+    L.pose?.('steam', 1);
+    L.pose?.('look', 1);
+    runLab('collector', 1.2);
+    return shot({ pos: [-5, 13, -6], look: [0, 12, -29], fov: 46 }, 540, 400);
   }
-  // the jar comes down over the baby blob and a label is pinned to it
-  a.player.position.set(2, 0, 6);
-  a.player.rotation.y = Math.PI * 0.9;
-  a.animatePlayer(0.016, 3.2, 0, 0.4, 0, false);
-  const jar = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 3.6, 20, 1, true), glass());
-  jar.position.set(2, 1.8, 6);
-  extras.add(jar);
-  const jt = new THREE.Mesh(new THREE.SphereGeometry(2.4, 20, 8, 0, TAU, 0, Math.PI / 2), glass());
-  jt.position.set(2, 3.6, 6);
-  extras.add(jt);
-  const jb = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.3, 6, 22), lam(0xd9a93a, 0x6a4a10));
-  jb.rotation.x = Math.PI / 2;
-  jb.position.set(2, 0.3, 6);
-  extras.add(jb);
-  ball(0.45, lam(0xd9a93a, 0x6a4a10), 2, 6.4, 6, extras, 6);
-  const label = box(2.2, 1.3, 0.1, bas(0xf4efe0), 2, 1.4, 8.45);
-  label.rotation.x = -0.1;
-  for (let i = 0; i < 3; i++) box(1.7 - i * 0.4, 0.14, 0.05, bas(0x3a2a1a), 2, 1.75 - i * 0.3, 8.52);
-  ringOnFloor(2, 6, 3.2, 0xffe9a0, 0.25);
-  for (const [x, z, y] of [[-6, 3, 0.2], [8, 9, 0.2], [-2, 14, 0.2]] as V3[]) giantPin(x, z, 6, y);
-  giantPin(10, 2, 8, 10);
-  ringOnFloor(10, 2, 2.2);
-  return shot({ pos: [-9, 6.5, 17], look: [2, 2, 6], fov: 54 }, 540, 400);
+  // the jar comes down over the little blob
+  L.pose?.('lid', 0);
+  L.pose?.('eye', 0);
+  L.pose?.('jar', 1);
+  runLab('collector', 0.6);
+  return shot({ pos: [-9, 6.5, 15], look: [-3, 2, 7], fov: 56 }, 540, 400);
 }
-
-/* ------------------------------------------------------------------ */
 
 function frame(scene: HTMLCanvasElement, shots: Shot[]) {
   return { scene, shots };
@@ -762,21 +541,21 @@ const moon3 = (): string => {
 
 const mash3 = (): string => {
   const f = frame(mashScene('hero'), [
-    { canvas: mashScene('face'), label: "the mimic's face, the queen's bell", k: 1 },
-    { canvas: mashScene('bone'), label: "the wyrm's spine, the thorn king's shell", k: 1 },
+    { canvas: mashScene('face'), label: "the mimic's flower, the queen's bell and eye", k: 1 },
+    { canvas: mashScene('tail'), label: "the wyrm's spine as a scorpion tail: the sting", k: 1 },
   ]);
   return card({
     name: 'The Mash',
-    tag: 'ALT FINALE',
-    hero: { canvas: f.scene, crop: [0, 90, 432, 320] },
-    zone: 'Alternate finale · the Monster Mash',
+    tag: 'FINAL BOSS · IN THE GAME NOW',
+    hero: { canvas: f.scene },
+    zone: 'The Third Direction · boss 3 · in the game now',
     accent: '#ff8aa8',
     tagline: 'Every guardian you beat, stitched back together by X into one thing that should not move.',
     lines: [
-      ['Mash', 'Each phase he borrows one guardian: the bell tolls, the spine arches, the shell charges.'],
-      ['Remix', 'Later he plays two at once: a toll ring AND a charge lane on the same floor.'],
-      ['Callback', 'Every move is one you already beat, so the forest has taught you how to read him.'],
-      ['Weak point', 'Whichever mouth is open. The flower opens last and is the only one that can be hurt.'],
+      ['Bell', 'Golden toll rings spread over the floor, each with a gap. Stand in it. When the bell cracks, strike the clapper.'],
+      ['Spine', 'A scorpion tail rears, stings where you will be, sweeps the floor and spits venom. The stuck stinger is the weak point.'],
+      ['Shell', 'The spiked shell tears loose and rolls along red lanes, crushing pillars. When it lands on its back, hit its belly.'],
+      ['Remix', 'Two attacks at once, then the flower breathes in and pulls you toward its maw. When it opens, hit the lure.'],
     ],
     ...f,
     lift: false,
@@ -790,14 +569,14 @@ const collector3 = (): string => {
   ]);
   return card({
     name: 'The Collector',
-    tag: 'ALT FINALE',
-    hero: { canvas: f.shots[0]!.canvas },
-    zone: 'Alternate finale · the one behind the wall',
+    tag: 'BOSS 2 · IN THE GAME NOW',
+    hero: { canvas: f.scene },
+    zone: 'The Third Direction · boss 2 · in the game now',
     accent: '#ffd98a',
     tagline: 'He did not want you dead. He wanted you on his wall, with a label.',
     lines: [
-      ['Pins', 'Giant pins fall over red rings and stay in the floor as obstacles. The arena fills up as you fight.'],
-      ['Jar', 'A glass jar drops over you. Hold the pulse to crack it before he screws the lid on.'],
+      ['Pins', 'Giant pins fall over red rings and stay in the floor as obstacles. Break them with a strike, a lance or a nova.'],
+      ['Jar', 'A glass jar drops over you and the lid starts to screw on. Mash the button to crack it, or burst it with a nova.'],
       ['Drawers', 'His drawers slide open and release the things he collected: little copies of the forest monsters.'],
       ['Weak point', 'The eye in the jar, when he lifts the lid to look at his catch.'],
     ],
