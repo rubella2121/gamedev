@@ -593,6 +593,15 @@ export class XModel {
   private jawOpen = 0;
   private blink = [0, 0, 0];
   private gazeTarget = new THREE.Vector3(0, 2, 12);
+  private v1 = new THREE.Vector3();
+  private v2 = new THREE.Vector3();
+  private v3 = new THREE.Vector3();
+  private v4 = new THREE.Vector3();
+  private v5 = new THREE.Vector3();
+  private v6 = new THREE.Vector3();
+  private static readonly X1 = new THREE.Vector3(1, 0, 0);
+  private static readonly Y1 = new THREE.Vector3(0, 1, 0);
+  private static readonly Z1 = new THREE.Vector3(0, 0, 1);
   private eyesWide = 0;
   private beamSlant!: THREE.Mesh;
   private beamStrip!: THREE.Mesh;
@@ -906,7 +915,7 @@ export class XModel {
     if (!on) return;
     const dx = Math.sin(theta);
     const dz = Math.cos(theta);
-    const eye = new THREE.Vector3();
+    const eye = this.v1;
     this.bigEyes[1]!.getWorldPosition(eye);
     // where the ray meets the floor: a few units in front of the head
     const fx = gx + dx * 3.2;
@@ -917,7 +926,7 @@ export class XModel {
     const sl = Math.hypot(sx, sy, sz);
     this.beamSlant.position.set(eye.x + sx / 2, eye.y + sy / 2, eye.z + sz / 2);
     this.beamSlant.scale.set(sl, 1, 1);
-    this.beamSlant.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(sx, sy, sz).normalize());
+    this.beamSlant.quaternion.setFromUnitVectors(XModel.X1, this.v2.set(sx, sy, sz).normalize());
     const sl2 = Math.max(0.01, len - 3.2);
     this.beamStrip.position.set(fx + dx * sl2 * 0.5, 0.12, fz + dz * sl2 * 0.5);
     this.beamStrip.scale.set(sl2, 1, 1);
@@ -972,11 +981,11 @@ export class XModel {
     this.head.rotation.y = Math.sin(t * 0.43 + 1) * 0.06;
     // the neck: a bezier from the shoulders to the back of the skull
     const hp = this.head.position;
-    const attach = new THREE.Vector3(0, -3.4, -1.3).applyEuler(this.head.rotation).add(hp);
-    const p0 = new THREE.Vector3(0, 14.4, 0.8);
-    const p1 = new THREE.Vector3(0, 17.2 - hv * 2, 1.0 + hv * 5.5);
-    const p2 = new THREE.Vector3(0, attach.y + 2.6 - hv * 1.2, attach.z - 2.0 - hv * 1.5);
-    const bz = new THREE.Vector3();
+    const attach = this.v1.set(0, -3.4, -1.3).applyEuler(this.head.rotation).add(hp);
+    const p0 = this.v2.set(0, 14.4, 0.8);
+    const p1 = this.v3.set(0, 17.2 - hv * 2, 1.0 + hv * 5.5);
+    const p2 = this.v4.set(0, attach.y + 2.6 - hv * 1.2, attach.z - 2.0 - hv * 1.5);
+    const bz = this.v5;
     for (let i = 0; i < this.neck.pts.length; i++) {
       const u = i / (this.neck.pts.length - 1);
       const w0 = (1 - u) ** 3;
@@ -990,11 +999,13 @@ export class XModel {
     }
     this.neck.update();
     // eyes: follow the player, blink out of step
-    const v = new THREE.Vector3();
+    const v = this.v6;
+    const dir = this.v2;
+    const fwd = this.v3;
     this.bigEyes.forEach((e, i) => {
       e.getWorldPosition(v);
-      const dir = this.gazeTarget.clone().sub(v);
-      const fwd = new THREE.Vector3(0, 0, 1).transformDirection(this.head.matrixWorld);
+      dir.copy(this.gazeTarget).sub(v);
+      fwd.copy(XModel.Z1).transformDirection(this.head.matrixWorld);
       // keep the glance within a cone around where the face points
       dir.normalize().lerp(fwd, 0.45).normalize();
       e.lookAt(v.x + dir.x, v.y + dir.y, v.z + dir.z);
@@ -1042,7 +1053,7 @@ export class XModel {
       const last = f.chain.pts[n - 1]!;
       const prev = f.chain.pts[n - 2]!;
       nail.position.copy(last);
-      nail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), last.clone().sub(prev).normalize());
+      nail.quaternion.setFromUnitVectors(XModel.Y1, this.v4.copy(last).sub(prev).normalize());
     }
     // idle arm sway
     this.armGroups.forEach((g, i) => {
