@@ -5,7 +5,7 @@ import { SinewChain } from './collector-tube';
 import { mix, rgb, scale, type RGB } from '../kit/noise';
 import type { Slicer } from '../kit/sdf';
 import { halo, skin } from '../kit/skin';
-import { buildPool, buildTorso, chestHx, drawerPos, DRAWERS, ZF } from './collector-body';
+import { buildPool, buildTorso, chestHx, drawerPos, DRAWERS } from './collector-body';
 import {
   GlowSet,
   PAL,
@@ -20,7 +20,6 @@ import {
   paintEyeGen,
   paintLabelAtlas,
   rnd,
-  slitGeometry,
 } from './collector-fx';
 import {
   Arm,
@@ -213,7 +212,6 @@ export class CollectorModel {
   private neck: SinewChain;
   private nerves: TubeChain[] = [];
   private tendrils: { chain: TubeChain; ang: number; len: number; ph: number }[] = [];
-  private cables: { chain: SinewChain; x: number; z: number; L: number; ph: number }[] = [];
   private pinMeshes: THREE.Mesh[] = [];
   private ledger: THREE.Group;
   private stamp: THREE.Group;
@@ -240,7 +238,6 @@ export class CollectorModel {
   private inkFx: SoftPoints;
   private lidMesh: THREE.Mesh;
   private flashT = 0;
-  private time = 0;
   private steamAcc = 0;
   private dummy = new THREE.Object3D();
   private ctrl = [V(), V(), V(), V(), V(), V()];
@@ -249,10 +246,9 @@ export class CollectorModel {
   private tmpB = V();
   private tmpC = V();
   private tmpQ = new THREE.Quaternion();
-  private headPosRoot = V();
-  private wobble = 0;
   private headYaw = 0;
   private tmpCol = new THREE.Color();
+  private invRoot = new THREE.Matrix4();
   private sacT = 0;
   private sacX = 0;
   private sacY = 0;
@@ -453,10 +449,13 @@ export class CollectorModel {
     const c = new THREE.Color();
     for (let i = 0; i < DRAWERS; i++) {
       this.drawerFlaps.setColorAt(i, c.setScalar(0.8 + 0.4 * rnd(i, 5)));
+      // every label is a different shade of old paper
+      this.drawerTags.setColorAt(i, c.setRGB(0.7 + 0.3 * rnd(i, 6), 0.65 + 0.3 * rnd(i, 7), 0.5 + 0.35 * rnd(i, 8)));
       const k = i % 3;
       this.drawerHue.push(k === 0 ? [0.4, 0.95, 1] : k === 1 ? [1, 0.5, 0.65] : [1, 0.9, 0.5]);
     }
     this.drawerFlaps.instanceColor!.needsUpdate = true;
+    this.drawerTags.instanceColor!.needsUpdate = true;
     // a glow behind every drawer, lit while something inside is awake, so an open drawer reads from across the arena
     this.drawerGlow = new GlowSet(Array.from({ length: DRAWERS }, (_, i) => [drawerPos(i)[0], drawerPos(i)[1], drawerPos(i)[2] + 0.35] as [number, number, number]));
     this.chest.add(this.drawerGlow.points);
@@ -517,11 +516,7 @@ export class CollectorModel {
   /** Where drawer i is, in world space. */
   drawerWorld(i: number, out: THREE.Vector3): THREE.Vector3 {
     const [x, y, z] = drawerPos(i);
-    out.set(x, y, z + 0.4).multiplyScalar(ROOT_S);
-    out.x += this.root.position.x;
-    out.y += this.root.position.y;
-    out.z += this.root.position.z;
-    return out;
+    return this.rootToWorld(out.set(x, y, z + 0.4));
   }
 
   /** brass studs down both edges of the cabinet, where it is nailed into him */
@@ -543,27 +538,6 @@ export class CollectorModel {
     }
     m.frustumCulled = false;
     this.chest.add(m);
-  }
-
-  /** sinews that hang from the top of the cabinet and swing */
-  private buildCables() {
-    const specs = [
-      { x: -1.9, z: 2.5, L: 3.6 },
-      { x: 0.2, z: 2.6, L: 4.6 },
-      { x: 1.9, z: 2.5, L: 3.2 },
-    ];
-    for (let i = 0; i < specs.length; i++) {
-      const ch = new SinewChain(
-        12,
-        6,
-        this.skinMat,
-        (u) => 0.16 * (1 - 0.5 * u) + 0.05,
-        (u, a) => mix(PAL.sinew, PAL.fleshPale, 0.5 + 0.5 * Math.sin(a * 2 + u * 6)),
-        (u, a) => 1 + 0.2 * Math.cos(3 * (a + 4 * u)),
-      );
-      this.cables.push({ chain: ch, x: specs[i]!.x, z: specs[i]!.z, L: specs[i]!.L, ph: i * 2.1 });
-      this.chest.add(ch.mesh);
-    }
   }
 
   private buildCoat(tag: THREE.Texture) {
@@ -754,16 +728,14 @@ export class CollectorModel {
     return this.rootToWorld(out.copy(this.arms[i]!.target));
   }
 
+  /** A point in his own space to a point in the arena (his sway, his lean and his scale all count). */
   rootToWorld(v: THREE.Vector3): THREE.Vector3 {
-    v.multiplyScalar(this.root.scale.x);
-    v.add(this.root.position);
-    return v;
+    return v.applyMatrix4(this.root.matrixWorld);
   }
 
   worldToRoot(v: THREE.Vector3): THREE.Vector3 {
-    v.sub(this.root.position);
-    v.multiplyScalar(1 / this.root.scale.x);
-    return v;
+    this.invRoot.copy(this.root.matrixWorld).invert();
+    return v.applyMatrix4(this.invRoot);
   }
 
   /** Take every loose bit (steam, drops, glass) out of the air. */
@@ -850,7 +822,6 @@ export class CollectorModel {
   /* ---------------------------------------------------------------- */
 
   update(dt: number, t: number) {
-    this.time = t;
     if (!this.ready) return;
     for (const m of this.labelMats) {
       m.uniforms['uTime']!.value = t;
@@ -864,6 +835,19 @@ export class CollectorModel {
     this.root.position.y = lerp(RISE_Y, ROOT_Y, rs) - sink * 17;
     this.root.position.z = this.bossZ - this.recoil * 1.4;
     this.root.scale.set(ROOT_S, ROOT_S * (1 - sink * 0.15), ROOT_S);
+    // when he throws, his whole body leans back and then whips forward with the arm
+    let lean = 0;
+    let twist = 0;
+    for (let i = 0; i < 2; i++) {
+      const tt = this.throwT[i]!;
+      if (tt < 0) continue;
+      const wind = smooth(unlerp(0, 0.22, tt)) * (1 - smooth(unlerp(0.22, 0.32, tt)));
+      const whip = smooth(unlerp(0.22, 0.34, tt)) * (1 - smooth(unlerp(0.34, 0.8, tt)));
+      lean += -0.05 * wind + 0.085 * whip;
+      twist += (i === 0 ? -1 : 1) * (0.1 * wind - 0.12 * whip);
+    }
+    this.root.rotation.x = lean;
+    this.root.rotation.y = twist;
     this.root.rotation.z = Math.sin(t * 0.5) * 0.012 + this.rattle * Math.sin(t * 61) * 0.01;
     // breathing: slow, patient
     const br = Math.sin(t * 0.8);
@@ -985,7 +969,10 @@ export class CollectorModel {
     const w = lerp(0.085, 0.4, this.pupil) * (1 - 0.6 * smooth(unlerp(0.4, 0.85, this.death)));
     this.pup.set(w + Math.sin(t * 9) * 0.004);
     const dull = 1 - smooth(unlerp(0.35, 0.85, this.death)) * 0.85;
-    this.eyeGlow.material.opacity = (0.3 + 0.12 * out + 0.1 * Math.sin(t * 3) + this.flashT * 0.3) * dull;
+    // while the eye is out it pulses: this is the thing to hit
+    const beat = out > 0.9 ? 0.5 + 0.5 * Math.sin(t * 9) : 0;
+    this.eyeGlow.material.opacity = (0.3 + 0.12 * out + 0.1 * Math.sin(t * 3) + 0.3 * beat * out + this.flashT * 0.3) * dull;
+    this.eyeGlow.scale.setScalar(3.4 + 1.8 * out + 0.5 * beat);
     this.backGlow.material.opacity = (0.26 + 0.06 * Math.sin(t * 1.7) + this.flashT * 0.3) * (1 - smooth(unlerp(0.3, 0.8, this.death)));
     this.eyeMat.color.setScalar(dull + this.flashT * 0.3);
     // the liquid drains when the jar breaks
@@ -1211,16 +1198,6 @@ export class CollectorModel {
       this.dripT = 0.7 + Math.random() * 1.6;
       this.tmpA.set((Math.random() - 0.5) * 1.6, -3.4, 2.2).applyMatrix4(this.head.matrix);
       this.inkFx.emit(this.tmpA.x, this.tmpA.y, this.tmpA.z, 0, -0.3, 0.2, 1.3, 0.3, 0.1, [1, 0.62, 0.16], 0.9, 0.1);
-    }
-    // cables swing from the cabinet's top edge
-    for (const cb of this.cables) {
-      const n = cb.chain.pts.length;
-      for (let i = 0; i < n; i++) {
-        const u = i / (n - 1);
-        const sw = Math.sin(t * 1.2 + cb.ph + u * 1.6) * 0.35 * u + this.rattle * Math.sin(t * 37 + cb.ph) * 0.2 * u;
-        cb.chain.pts[i]!.set(cb.x + sw * 0.6, 10.3 - u * cb.L, cb.z + 0.25 * u + Math.cos(t * 0.9 + cb.ph) * 0.25 * u * u);
-      }
-      cb.chain.update();
     }
     // ink tendrils crawl across the pool
     const rs = smooth(unlerp(0.3, 1, this.rise));

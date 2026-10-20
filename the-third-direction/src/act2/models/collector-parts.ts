@@ -15,7 +15,7 @@ const Y = new THREE.Vector3(0, 1, 0);
 /* ---------------------------------------------------------------- */
 
 /** The length of a pincer, in palm space. */
-export const CLAW_LEN = 2.1;
+export const CLAW_LEN = 2.5;
 const smoothstep01 = (t: number) => {
   const k = t < 0 ? 0 : t > 1 ? 1 : t;
   return k * k * (3 - 2 * k);
@@ -27,7 +27,7 @@ function clawChain(side: number, mat: THREE.Material): TubeChain {
     N,
     5,
     mat,
-    (u) => 0.17 * Math.pow(1 - u, 0.8) + 0.03,
+    (u) => 0.22 * Math.pow(1 - u, 0.8) + 0.035,
     (u, a) => {
       const k = u * u;
       return mix(mix(PAL.bone, PAL.boneShade, 0.25 + 0.2 * Math.sin(a * 2)), rgb(0x3a2412), k * 0.85);
@@ -35,7 +35,7 @@ function clawChain(side: number, mat: THREE.Material): TubeChain {
   );
   for (let i = 0; i < N; i++) {
     const u = i / (N - 1);
-    ch.pts[i]!.set(side * (0.14 + 0.44 * Math.sin(Math.PI * u) - 0.11 * u), 0, 0.05 + CLAW_LEN * u);
+    ch.pts[i]!.set(side * (0.16 + 0.52 * Math.sin(Math.PI * u) - 0.13 * u), 0, 0.05 + CLAW_LEN * u);
   }
   ch.update();
   return ch;
@@ -62,7 +62,6 @@ export class Arm {
   private pivB = new THREE.Group();
   private N = 22;
   private a = new THREE.Vector3();
-  private b = new THREE.Vector3();
   private perp = new THREE.Vector3();
   private smoothTmp: THREE.Vector3[];
 
@@ -186,18 +185,18 @@ export function pinGeometry(): THREE.BufferGeometry {
     ],
     8,
   );
-  colorize(shaft, (_x, y) => mix(rgb(0x8a8672), rgb(0x7a5c1c), Math.min(1, y / 7)));
+  colorize(shaft, (_x, y) => mix(rgb(0x5a5648), rgb(0x4a3410), Math.min(1, y / 7)));
   const collar = new THREE.TorusGeometry(0.42, 0.13, 4, 9);
   collar.rotateX(Math.PI / 2);
   collar.translate(0, 6.6, 0);
   colorize(collar, PAL.brass);
   const bead = new THREE.SphereGeometry(0.74, 10, 7);
   bead.translate(0, 7.08, 0);
-  colorize(bead, (_x, y, _z, nx, ny, nz) => {
+  colorize(bead, (_x, _y, _z, nx, ny, nz) => {
     // an amber bead like the liquid in his jar, with a wet highlight up and to the left (not red: red is what hurts)
     const hl = Math.max(0, nx * -0.45 + (ny * 0.6) + nz * 0.5);
-    let c = mix(rgb(0x8a4a0a), rgb(0xe0a030), 0.45 + 0.5 * ny);
-    c = mix(c, rgb(0xfff0c0), Math.pow(hl, 12));
+    let c = mix(rgb(0x5a2a04), rgb(0xb06a14), 0.45 + 0.5 * ny);
+    c = mix(c, rgb(0xffe8b0), Math.pow(hl, 12));
     return c;
   });
   return mergeGeos([shaft, collar, bead]);
@@ -359,7 +358,7 @@ export function jarBrassGeometry(): THREE.BufferGeometry {
     [jarRadius(B + 1.5) + 0.02, B + 1.48],
   ];
   const cup = lathe(prof, 28);
-  colorize(cup, (x, y, z, nx, ny) => {
+  colorize(cup, (x, y, z, _nx, ny) => {
     const k = 0.5 + 0.4 * ny + 0.15 * Math.sin(Math.atan2(z, x) * 8 + y * 3);
     return mix(PAL.brassDark, PAL.brassLight, Math.max(0, Math.min(1, k * 0.8)));
   });

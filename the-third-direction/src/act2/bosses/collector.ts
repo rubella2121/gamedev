@@ -4,9 +4,9 @@ import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
 import { ARENA_R, BOSS_Z } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Solid, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
-import { CollectorModel, ROOT_S } from '../models/collector';
+import { CollectorModel } from '../models/collector';
 import { DRAWERS } from '../models/collector-body';
-import { JAR_R, PIN_FALL, PIN_FLY, PIN_HOVER, type MinionKind } from '../models/collector-props';
+import { JAR_R, PIN_FALL, type MinionKind } from '../models/collector-props';
 
 /**
  * THE COLLECTOR. He cannot be hurt until he lowers his jar-head to look at his collection, and he only does that after a
@@ -108,7 +108,6 @@ export class CollectorBoss extends Boss3D {
   private cycle = 0;
   private deferred = false;
   private said = new Set<string>();
-  private shown = false;
   private wallSaved: { x: number; y: number; z: number; rz: number }[] | null = null;
   /** the arena's lights, and how bright they are when the arena is itself */
   private rig: { l: THREE.Light; base: number }[] = [];
@@ -145,8 +144,6 @@ export class CollectorBoss extends Boss3D {
 
   /* the drawers and what comes out */
   private minions: Minion[] = [];
-  private mCount = 0;
-  private drawerQueue = 0;
 
   /* looking */
   private ist: 'lower' | 'unscrew' | 'window' | 'retreat' = 'lower';
@@ -157,7 +154,6 @@ export class CollectorBoss extends Boss3D {
   private eyeHit = false;
   private recoilT = 0;
   private recoilV = 0;
-  private dieMat = 0;
   private wTmp = new THREE.Vector3();
   private v1 = new THREE.Vector3();
   private v2 = new THREE.Vector3();
@@ -203,7 +199,6 @@ export class CollectorBoss extends Boss3D {
 
   show() {
     this.model.root.visible = true;
-    this.shown = true;
   }
 
   hide() {
@@ -217,7 +212,6 @@ export class CollectorBoss extends Boss3D {
     env.trap(false);
     this.restoreWorld();
     env.arena.setRedLight(0);
-    this.shown = false;
   }
 
   /* ---------------------------------------------------------------- */
@@ -283,7 +277,6 @@ export class CollectorBoss extends Boss3D {
     this.show();
     this.hardReset();
     this.said.clear();
-    this.dieMat = 0;
     m.rise = 0;
     m.death = 0;
     m.lookAt(0, 40, BOSS_Z - 6);
@@ -492,6 +485,7 @@ export class CollectorBoss extends Boss3D {
     }
   }
 
+  /** (tests) set `window.__colTrace = []` before the fight to get a log of what he does and when */
   private trace(msg: string) {
     const w = window as unknown as { __colTrace?: string[] };
     if (w.__colTrace) w.__colTrace.push(`${this.t.toFixed(1)} p${this.phase} ${msg}`);
@@ -681,7 +675,9 @@ export class CollectorBoss extends Boss3D {
   private launch(p: Pending, pos: THREE.Vector3, dir: THREE.Vector3) {
     p.launched = true;
     this.armPin[p.arm] = null;
-    this.model.pins.launch(p.slot, p.x, p.z, pos, dir);
+    // the flight takes whatever time the ring leaves it, but never less than a blink
+    const fly = clamp(p.T - p.t - PIN_FALL - 0.06, 0.12, 0.34);
+    this.model.pins.launch(p.slot, p.x, p.z, pos, dir, fly);
     this.env.audio.whoosh();
   }
 
@@ -928,7 +924,12 @@ export class CollectorBoss extends Boss3D {
       this.jWheel = 0;
       env.trap(true);
       this.jTick = 0;
-      this.say('labelled.', 1800);
+      if (!this.said.has('mash')) {
+        // the first time, say what to do: the jar is a button-mashing moment
+        this.said.add('mash');
+        env.audio.v.collectorSpeak('labelled.');
+        env.ui.caption('Strike the glass!', 2600);
+      } else this.say(['labelled.', 'stay.', 'there.'][this.jarCount % 3]!, 1600);
     } else {
       this.jst = 'empty';
       // a clear jar standing on the floor: a wall of glass for a moment, once nobody is inside it
@@ -990,14 +991,12 @@ export class CollectorBoss extends Boss3D {
     const { env, model: m } = this;
     this.minions.length = 0;
     const picks: number[] = [];
-    const cols = [0, 1, 2];
     // drawers from all over his chest, never two next to each other
     for (let tries = 0; picks.length < Math.min(n, 6) && tries < 200; tries++) {
       const d = Math.floor(Math.random() * DRAWERS);
       if (picks.some((p) => Math.abs((p % 3) - (d % 3)) + Math.abs(Math.floor(p / 3) - Math.floor(d / 3)) < 2)) continue;
       picks.push(d);
     }
-    void cols;
     const kinds: MinionKind[] = [0, 1, 2, 1, 0, 2];
     picks.forEach((d, i) => {
       const k = kinds[i % kinds.length]!;
@@ -1022,8 +1021,6 @@ export class CollectorBoss extends Boss3D {
         weave: Math.random() * TAU,
       });
     });
-    this.mCount = picks.length;
-    this.drawerQueue = 0;
     this.stepDone = false;
     env.audio.rumble();
     env.audio.v.collectorTsk(2);
@@ -1083,6 +1080,7 @@ export class CollectorBoss extends Boss3D {
           this.pickLanding(mn);
           env.audio.creak();
           env.audio.tone(180, 0.3, 'sawtooth', 0.05, 90);
+          m.rattle = Math.max(m.rattle, 0.35);
         }
         m.minions.hide(mn.id);
       } else if (mn.st === 'open') {
@@ -1541,7 +1539,6 @@ export class CollectorBoss extends Boss3D {
     const { env, model: m } = this;
     const u = this.st / this.dyingLen;
     m.death = u;
-    this.dieMat = u;
     m.lookAt(env.p.x, 1.4, env.p.z);
     this.dim(0.15 + 0.5 * smooth(unlerp(0.2, 0.9, u)));
     this.shudderWall(0.5 * smooth(unlerp(0.55, 0.7, u)) * (1 - smooth(unlerp(0.85, 1, u))), env.time);
@@ -1573,6 +1570,3 @@ export class CollectorBoss extends Boss3D {
   }
 }
 
-void ROOT_S;
-void PIN_FLY;
-void PIN_HOVER;

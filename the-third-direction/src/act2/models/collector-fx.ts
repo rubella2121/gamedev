@@ -555,21 +555,6 @@ export function* paintEyeGen(): Generator<void, THREE.CanvasTexture, void> {
   return tex;
 }
 
-/** A vertical slit with pointed ends, unit height and unit half-width (scale x to dilate). */
-export function slitGeometry(): THREE.BufferGeometry {
-  const pts: THREE.Vector2[] = [];
-  const N = 14;
-  for (let i = 0; i <= N; i++) {
-    const t = -1 + (2 * i) / N;
-    pts.push(new THREE.Vector2(1 - t * t, t));
-  }
-  for (let i = N - 1; i > 0; i--) {
-    const t = -1 + (2 * i) / N;
-    pts.push(new THREE.Vector2(-(1 - t * t), t));
-  }
-  return new THREE.ShapeGeometry(new THREE.Shape(pts));
-}
-
 /* ---------------------------------------------------------------- */
 /* soft particles: steam, ink, drops                                 */
 /* ---------------------------------------------------------------- */

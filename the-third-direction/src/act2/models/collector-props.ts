@@ -219,11 +219,13 @@ export interface PinSlot {
   wob: number;
   /** shown only after launch */
   tag: number;
+  /** how long the flight to the hover point takes */
+  flyT: number;
 }
 
 /** Where the tip hangs while it waits over its ring. */
 export const PIN_HOVER = 5.4;
-export const PIN_FLY = 0.3;
+export const PIN_FLY = 0.34;
 export const PIN_FALL = 0.1;
 
 export class PropPins {
@@ -245,7 +247,7 @@ export class PropPins {
     private world: THREE.Group,
     tag: THREE.Texture,
   ) {
-    for (let i = 0; i < this.size; i++) this.slots.push({ state: 'free', x: 0, z: 0, t: 0, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0, wob: 0, tag: Math.floor(rnd(i, 3) * 4) });
+    for (let i = 0; i < this.size; i++) this.slots.push({ state: 'free', x: 0, z: 0, t: 0, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0, wob: 0, tag: Math.floor(rnd(i, 3) * 4), flyT: PIN_FLY });
     this.pin = new THREE.InstancedMesh(pinGeometry(), skin({ vertexColors: true, rim: 0xe8c880, rimPower: 3.4, steps: 4 }), this.size);
     this.bases = new THREE.InstancedMesh(pinBaseGeometry(), skin({ vertexColors: true, rim: 0x9a8ad0, rimPower: 3 }), this.size);
     const tg = labelGeometry(0.95, 1.5);
@@ -279,8 +281,9 @@ export class PropPins {
   }
 
   /** The pin leaves a hand at `from` heading `dir` (world) and goes to hang over (x, z). */
-  launch(i: number, x: number, z: number, from: THREE.Vector3, dir: THREE.Vector3) {
+  launch(i: number, x: number, z: number, from: THREE.Vector3, dir: THREE.Vector3, flyT = PIN_FLY) {
     const s = this.slots[i]!;
+    s.flyT = flyT;
     s.state = 'fly';
     s.t = 0;
     s.x = x;
@@ -330,7 +333,7 @@ export class PropPins {
       const s = this.slots[i]!;
       if (s.state === 'free' || s.state === 'wait') continue;
       s.t += dt;
-      if (s.state === 'fly' && s.t >= PIN_FLY) {
+      if (s.state === 'fly' && s.t >= s.flyT) {
         s.state = 'hover';
         s.t = 0;
       } else if (s.state === 'fall' && s.t >= PIN_FALL) {
@@ -359,7 +362,7 @@ export class PropPins {
       q.identity();
       let tremble = 0;
       if (s.state === 'fly') {
-        const u = clamp(s.t / PIN_FLY, 0, 1);
+        const u = clamp(s.t / s.flyT, 0, 1);
         const e = 1 - (1 - u) * (1 - u);
         px = lerp(s.fx, s.x, e);
         pz = lerp(s.fz, s.z, e);
@@ -810,16 +813,9 @@ export class PropMinions {
     );
     job(
       meshGen(flowerField(), [-1.1, -0.1, -1.1], [1.1, 1.3, 1.1], 0.09, {
-        color: (x, y, z, nx, ny, nz, ao) => {
+        color: (x, y, z, _nx, _ny, _nz, ao) => {
           const m = fbm(x * 2.5, y * 2.5, z * 2.5, 2, 11);
-          const c = mix(rgb(0x1a6a5a), rgb(0x3aa88a), m);
-          void nx;
-          void ny;
-          void nz;
-          void x;
-          void y;
-          void z;
-          return scale(c, 0.55 + 0.5 * ao);
+          return scale(mix(rgb(0x1a6a5a), rgb(0x3aa88a), m), 0.55 + 0.5 * ao);
         },
         aoAmount: 0.5,
       }),
@@ -852,8 +848,6 @@ export class PropMinions {
 
   private assemble() {
     // legs of the skitter: three pairs, each one mesh that swings as a pair
-    const bone = (): THREE.BufferGeometry[] => [];
-    void bone;
     const legGeo = (zOff: number, splay: number): THREE.BufferGeometry => {
       const parts: THREE.BufferGeometry[] = [];
       for (const sx of [-1, 1]) {
@@ -1026,10 +1020,6 @@ export class PropMinions {
   }
 }
 
-function smoothUp(t: number) {
-  const k = clamp(t, 0, 1);
-  return k * k * (3 - 2 * k);
-}
 
 export { PIN_H, smooth, unlerp };
 export type { RGB };
