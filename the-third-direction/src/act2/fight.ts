@@ -87,6 +87,10 @@ export interface Env {
   refillHearts(): void;
   /** a hit has landed on the boss: slow the world for a heartbeat */
   slowmo(scale: number, secs: number): void;
+  /** while true the player cannot walk or dash (a jar over them), but can still strike, throw and burst light */
+  trap(on: boolean): void;
+  /** push the player this frame, in units per second (a wind, a pull); walls and columns still stop them */
+  pull(vx: number, vz: number): void;
   /** the fight asks the boss to put the camera somewhere (null = the player's) */
   camLook: { x: number; y: number; z: number } | null;
 }
@@ -276,6 +280,8 @@ export abstract class Boss3D {
     return false;
   }
   onNova(_n: Nova3): void {}
+  /** the player's claw swings (called when the swing lands, from the player's feet, facing (fx, fz)) */
+  onPlayerStrike(_x: number, _z: number, _fx: number, _fz: number): void {}
   /** where the camera should look when it is not following the player (an entrance, a death) */
   cinematic(): { x: number; y: number; z: number; dist: number } | null {
     return null;

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { Arena, ARENA_R, BOSS_Z } from './arena';
+import { CollectorBoss } from './bosses/collector';
+import { MashBoss } from './bosses/mash';
 import { XBoss } from './bosses/xboss';
 import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
@@ -68,6 +70,9 @@ export class Act2 {
   private dashX = 0;
   private dashZ = 1;
   private launchT = 0;
+  private trapped = false;
+  private pullX = 0;
+  private pullZ = 0;
   private chargeStage: 0 | 1 | 2 = 0;
   private lances: Lance3[] = [];
   private nova: (Nova3 & { hit: boolean }) | null = null;
@@ -149,6 +154,11 @@ export class Act2 {
         this.slowScale = scale;
         this.slowT = secs;
       },
+      trap: (on) => (this.trapped = on),
+      pull: (vx, vz) => {
+        this.pullX += vx;
+        this.pullZ += vz;
+      },
       camLook: null,
     };
     this.fenv = {
@@ -169,7 +179,7 @@ export class Act2 {
     };
     // the bosses, in the order you meet them
     const x = new XBoss(this.env, a.world, () => this.bossDown());
-    this.bosses.push(x);
+    this.bosses.push(x, new CollectorBoss(this.env, a.world, () => this.bossDown()), new MashBoss(this.env, a.world, () => this.bossDown()));
     this.boss = x;
     for (const b of this.bosses) void b.build(this.slicer);
   }
@@ -457,6 +467,7 @@ export class Act2 {
   private die() {
     const { ui, audio } = this.ctx;
     this.pl.dead = true;
+    this.trapped = false;
     this.deadT = 1.1;
     this.ctx.stats.deaths++;
     ui.fade(1, 250);
@@ -479,6 +490,7 @@ export class Act2 {
     this.dvx = this.dvz = 0;
     this.pl.invuln = 0;
     this.pl.dead = false;
+    this.trapped = false;
     this.light = 0;
     this.dashT = this.dashCd = this.launchT = 0;
     this.resetCamera();
@@ -558,6 +570,7 @@ export class Act2 {
     const fx = Math.sin(this.lastFace);
     const fz = Math.cos(this.lastFace);
     this.features.hit(pl.x + fx * 1.2, pl.z + fz * 1.2, 1.6, this.fenv);
+    this.boss.onPlayerStrike(pl.x, pl.z, fx, fz);
     for (const w of this.boss.weak()) {
       if (Math.hypot(pl.x - w.x, pl.z - w.z) <= w.reach) {
         if (this.boss.hitBy('strike', w)) return;
@@ -714,6 +727,10 @@ export class Act2 {
     this.strikeCd = Math.max(0, this.strikeCd - dt);
     this.dashCd = Math.max(0, this.dashCd - dt);
     const dashing = this.dashT > 0;
+    if (this.trapped) {
+      pl.vx = pl.vz = 0;
+      this.dvx = this.dvz = 0;
+    }
     if (this.control) {
       const f = this.camFwd();
       const rx = -f.z;
@@ -721,11 +738,13 @@ export class Act2 {
       const mx = rx * input.moveX + f.x * -input.moveY;
       const mz = rz * input.moveX + f.z * -input.moveY;
       const k = 1 - Math.exp(-14 * dt);
-      pl.vx += (mx * PLAYER_SPEED - pl.vx) * k;
-      pl.vz += (mz * PLAYER_SPEED - pl.vz) * k;
+      if (!this.trapped) {
+        pl.vx += (mx * PLAYER_SPEED - pl.vx) * k;
+        pl.vz += (mz * PLAYER_SPEED - pl.vz) * k;
+      }
       // one button: tap strikes, double-tap dashes, hold then let go throws a lance, hold longer with a full meter bursts a nova
       if (input.actionPressed) {
-        if (input.doubleTap && this.dashCd <= 0) this.startDash();
+        if (input.doubleTap && this.dashCd <= 0 && !this.trapped) this.startDash();
         else if (this.strikeCd <= 0 && this.dashT <= 0) {
           this.strikeT = 0.3;
           this.strikeCd = 0.42;
@@ -775,6 +794,9 @@ export class Act2 {
       if (Math.floor(this.time * 40) !== Math.floor((this.time - dt) * 40)) this.arena.burst3(pl.x, 0.5, pl.z, 1, [0xf2d36b, 0xfff1a6, 0xffffff], 1.5);
       if (this.dashT <= 0) this.launchT = 0;
     }
+    ox += this.pullX * dt;
+    oz += this.pullZ * dt;
+    this.pullX = this.pullZ = 0;
     pl.x += ox;
     pl.z += oz;
     const decay = Math.exp(-12 * dt);
@@ -896,6 +918,7 @@ export class Act2 {
   private bossDown() {
     const { ui, input } = this.ctx;
     this.boss.hide();
+    this.trapped = false;
     this.arena.marks.hideAll();
     this.arena.setLances([]);
     this.lances = [];
