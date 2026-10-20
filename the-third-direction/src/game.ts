@@ -6,7 +6,7 @@ import { Sfx } from './core/audio';
 import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { onLifecycle, shareRun, submitClearTime, track } from './sdk';
+import { onLifecycle, shareRun, storageInit, submitClearTime, track } from './sdk';
 import { UI } from './ui';
 
 type State = 'menu' | 'act1' | 'boom' | 'arena' | 'ending' | 'end';
@@ -34,7 +34,6 @@ export class Game {
   private fpsT = 0;
 
   constructor(root: HTMLElement) {
-    loadDifficulty();
     this.ui = new UI(root);
     this.input = new Input(this.ui.stage);
     try {
@@ -67,6 +66,22 @@ export class Game {
     this.act1.start();
     this.act1.previewMode = true;
     this.ui.skip(false);
+    this.showHome();
+    // saved settings load in the background; the home page refreshes when they arrive
+    void storageInit().then(() => {
+      loadDifficulty();
+      if (this.state === 'menu') this.showHome();
+    });
+
+    onLifecycle(
+      () => this.setPaused(true),
+      () => this.setPaused(false),
+    );
+    document.addEventListener('visibilitychange', () => this.setPaused(document.hidden));
+    requestAnimationFrame((t) => this.frame(t));
+  }
+
+  private showHome() {
     this.ui.showStart({
       onPlay: () => this.begin(),
       onShowcase: () => this.showcase(),
@@ -78,13 +93,6 @@ export class Game {
         return b === null ? null : `${D.label.toLowerCase()} ${fmtTime(b)}`;
       },
     });
-
-    onLifecycle(
-      () => this.setPaused(true),
-      () => this.setPaused(false),
-    );
-    document.addEventListener('visibilitychange', () => this.setPaused(document.hidden));
-    requestAnimationFrame((t) => this.frame(t));
   }
 
   /** The 2D forest is drawn at 216x384; the 3D world gets twice that so the character reads well. */
@@ -171,7 +179,16 @@ export class Game {
   /** Back to the home page (used by the end card). */
   home() {
     this.ui.hideEnd();
-    location.reload();
+    this.ui.hearts(null);
+    this.ui.recenter(false);
+    this.ui.moon(false);
+    this.input.setCameraEnabled(false);
+    this.audio.silence(0.4);
+    this.state = 'menu';
+    this.act1.start();
+    this.act1.previewMode = true;
+    this.ui.skip(false);
+    this.showHome();
   }
 
   get elapsed() {

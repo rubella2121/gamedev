@@ -1,3 +1,5 @@
+import { storageGet, storageSet } from '../sdk';
+
 /** Difficulty presets. `D` is a live object: encounters read it whenever they need a number. */
 export type DiffId = 'gentle' | 'normal' | 'nightmare';
 
@@ -32,42 +34,26 @@ const BEST = 'tt.best';
 
 export function setDifficulty(id: DiffId) {
   Object.assign(D, PRESETS[id]);
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    /* storage can be blocked */
-  }
+  storageSet(KEY, id);
 }
 
 export function loadDifficulty() {
   let id: DiffId = 'normal';
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v === 'gentle' || v === 'normal' || v === 'nightmare') id = v;
-  } catch {
-    /* ignore */
-  }
+  const v = storageGet(KEY);
+  if (v === 'gentle' || v === 'normal' || v === 'nightmare') id = v;
   Object.assign(D, PRESETS[id]);
 }
 
 /** Best clear time in seconds for a difficulty, or null. */
 export function bestTime(id: DiffId): number | null {
-  try {
-    const v = localStorage.getItem(`${BEST}.${id}`);
-    return v ? Number(v) : null;
-  } catch {
-    return null;
-  }
+  const v = storageGet(`${BEST}.${id}`);
+  return v ? Number(v) : null;
 }
 
 /** Remember a clear time; returns true if it is a new best. */
 export function recordTime(id: DiffId, seconds: number): boolean {
   const prev = bestTime(id);
   if (prev !== null && prev <= seconds) return false;
-  try {
-    localStorage.setItem(`${BEST}.${id}`, String(Math.round(seconds)));
-  } catch {
-    /* ignore */
-  }
+  storageSet(`${BEST}.${id}`, String(Math.round(seconds)));
   return true;
 }

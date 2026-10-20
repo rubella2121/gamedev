@@ -10,6 +10,35 @@ export function onLifecycle(onPause: () => void, onResume: () => void) {
   }
 }
 
+/**
+ * Saved data (settings, best times, progress). RUN games run in a sandbox where localStorage is blocked,
+ * so everything goes through RUN's appStorage. After `storageInit()` reads are instant (from a cache);
+ * writes update the cache at once and are saved in the background.
+ */
+const cache = new Map<string, string>();
+
+export async function storageInit(): Promise<void> {
+  try {
+    const all = await RundotGameAPI.appStorage.getAllData();
+    for (const [k, v] of Object.entries(all ?? {})) cache.set(k, v);
+  } catch (e) {
+    console.warn('[sdk] storage unavailable, saving in memory only', e);
+  }
+}
+
+export function storageGet(key: string): string | null {
+  return cache.get(key) ?? null;
+}
+
+export function storageSet(key: string, value: string): void {
+  cache.set(key, value);
+  try {
+    void RundotGameAPI.appStorage.setItem(key, value).catch(() => {});
+  } catch {
+    /* running outside RUN */
+  }
+}
+
 export function track(name: string) {
   try {
     RundotGameAPI.analytics.recordCustomEvent(name);
