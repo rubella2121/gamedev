@@ -75,6 +75,24 @@ A boss is a class extending `Boss3D` with a model it builds in `build(slicer)`:
 * Show/hide: `show()` makes the model visible, `hide()` removes everything the boss put in the world (including floor
   marks and meshes added to `arena.world`). The director calls `hide()` when you are gone and `begin()` to start.
 
+## The three bosses at a glance
+
+| boss | files | one-line idea | pips (Normal) |
+| --- | --- | --- | --- |
+| X, the Hollow | `models/x.ts`, `bosses/xboss.ts` | a skull-faced giant; foot stomps, rake arms, a sweeping maw, tears open when you nova it | 2, 2, 2, 3 |
+| The Collector | `models/collector*.ts`, `bosses/collector.ts` | a specimen-keeper in a jar on a long neck: throws pins, drops a glass jar over you, lets drawer monsters out, opens the lid to inspect you (that is the weak point) | 2, 3, 3 |
+| The Mash | `models/mash*.ts`, `bosses/mash*.ts` | the guardians stitched together: a bell-flower with a 26-vertebra scorpion tail; four phases (Bell, Spine, Shell, Remix) | 2, 2, 2, 3 |
+
+Health follows the difficulty (Gentle one pip less per phase, Nightmare one more). Every boss can only be hurt at its weak point; the
+rest of the body only blocks and hurts.
+
+The Collector's shared-file notes (all worked around inside his files, so `act2.ts` did not need to change for him): a tap lunges you
+toward the nearest weak target in 11 units with no angle limit, so list crowds of small weak targets only when they are close; and
+`Boss3D.ready()` can lag a tick behind `slicer.flush()` when a model resolves through a promise.
+
+Tubes (`TubeChain`) must wind outwards. They did not until the Mash was built, which made horns and tendrils look flat and lit from
+inside; the kit now builds them the right way round and `outwardTube` in `mash-shapes.ts` checks first, so it is safe either way.
+
 ## Testing
 
 ```

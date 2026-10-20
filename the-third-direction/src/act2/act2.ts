@@ -656,38 +656,44 @@ export class Act2 {
     const pl = this.pl;
     for (let i = this.lances.length - 1; i >= 0; i--) {
       const l = this.lances[i]!;
-      l.t += dt;
-      l.x += l.vx * dt;
-      l.y += l.vy * dt;
-      l.z += l.vz * dt;
-      let dead = l.t >= l.life || l.y < 0.1 || l.y > 40 || Math.hypot(l.x, l.z) > ARENA_R + 16;
-      if (!dead && l.y < 4.5) {
-        for (const s of this.solids) {
-          if (!s.alive) continue;
-          if (Math.hypot(l.x - s.x, l.z - s.z) < s.r) {
-            dead = s.onLight ? s.onLight('lance') : true;
-            if (dead) {
-              a.burst3(l.x, l.y, l.z, 6, [0xfffbe0, 0xffd878], 5);
-              break;
+      // move in small steps, so a slow frame cannot carry the bolt through a thin pillar or a weak point
+      const steps = Math.max(1, Math.ceil((Math.hypot(l.vx, l.vy, l.vz) * dt) / 0.35));
+      const sdt = dt / steps;
+      let dead = false;
+      for (let k = 0; k < steps && !dead; k++) {
+        l.t += sdt;
+        l.x += l.vx * sdt;
+        l.y += l.vy * sdt;
+        l.z += l.vz * sdt;
+        dead = l.t >= l.life || l.y < 0.1 || l.y > 40 || Math.hypot(l.x, l.z) > ARENA_R + 16;
+        if (!dead && l.y < 4.5) {
+          for (const s of this.solids) {
+            if (!s.alive) continue;
+            if (Math.hypot(l.x - s.x, l.z - s.z) < s.r) {
+              dead = s.onLight ? s.onLight('lance') : true;
+              if (dead) {
+                a.burst3(l.x, l.y, l.z, 6, [0xfffbe0, 0xffd878], 5);
+                break;
+              }
+            }
+          }
+        }
+        if (!dead && l.y < 3 && this.features.hit(l.x, l.z, 0.5, this.fenv)) dead = true;
+        if (!dead && this.boss.state === 'fight') {
+          if (this.boss.onLance(l)) dead = true;
+          if (!dead) {
+            for (const w of this.boss.weak()) {
+              if (Math.hypot(l.x - w.x, l.y - w.y, l.z - w.z) < w.r) {
+                this.boss.hitBy('lance', w);
+                dead = true;
+                break;
+              }
             }
           }
         }
       }
-      if (!dead && l.y < 3 && this.features.hit(l.x, l.z, 0.5, this.fenv)) dead = true;
       // a trail of sparks behind the bolt
       if (!dead && Math.floor(l.t * 45) !== Math.floor((l.t - dt) * 45)) a.burst3(l.x, l.y, l.z, 1, [0xfffbe0, 0xffd878], 1.2);
-      if (!dead && this.boss.state === 'fight') {
-        if (this.boss.onLance(l)) dead = true;
-        if (!dead) {
-          for (const w of this.boss.weak()) {
-            if (Math.hypot(l.x - w.x, l.y - w.y, l.z - w.z) < w.r) {
-              this.boss.hitBy('lance', w);
-              dead = true;
-              break;
-            }
-          }
-        }
-      }
       if (dead) {
         a.burst3(l.x, l.y, l.z, 5, [0xfffbe0, 0xffd878], 4);
         this.lances.splice(i, 1);
