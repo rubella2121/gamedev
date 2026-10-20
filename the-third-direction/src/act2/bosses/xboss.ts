@@ -106,9 +106,9 @@ export class XBoss extends Boss3D {
     return KINDS[Math.min(this.phase, KINDS.length - 1)]!;
   }
 
-  /** each hit he takes makes the next round quicker */
+  /** how long his warnings and waits are: each hit he takes makes the next round quicker, an easier mode gives more time */
   private get speedK(): number {
-    return Math.pow(0.9, this.cycle) / D.tele;
+    return Math.pow(0.9, this.cycle) * D.tele;
   }
 
   show() {

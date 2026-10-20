@@ -40,6 +40,7 @@ export class Act2 {
   private fired = new Set<string>();
   private tmp = new THREE.Object3D();
   private tmpC = new THREE.Color();
+  private tmpV = new THREE.Vector3();
   private camPos = new THREE.Vector3(0, 0, 15.36);
   private camLook = new THREE.Vector3(0, 0, 0);
   private shake = 0;
@@ -1078,14 +1079,18 @@ export class Act2 {
 
     // camera
     if (this.state === 'fight' || this.state === 'interlude') {
-      const cine = this.state === 'fight' && !this.hud ? null : null;
-      void cine;
+      const cine = this.state === 'fight' && this.boss.state === 'dying' ? this.boss.cinematic() : null;
       const f = this.camFwd();
       const cp = Math.cos(this.camPitch);
       const pl = this.pl;
       const target = new THREE.Vector3(pl.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, pl.z - f.z * this.camDist * cp);
       // during an entrance the camera stays up and back, looking at the boss
-      if (this.state === 'fight' && !this.hud) {
+      if (cine) {
+        // a boss going down gets a wide shot from the middle of the floor
+        const k = 1 - Math.exp(-2.4 * dt);
+        this.camPos.lerp(this.tmpV.set(cine.x * 0.3, cine.y * 0.8 + 4, cine.z + cine.dist), k);
+        this.camLook.lerp(this.tmpV.set(cine.x, cine.y, cine.z), k);
+      } else if (this.state === 'fight' && !this.hud) {
         const k = 1 - Math.exp(-3 * dt);
         this.camPos.lerp(BOOM_POS, k);
         this.camLook.lerp(BOOM_LOOK, k);
