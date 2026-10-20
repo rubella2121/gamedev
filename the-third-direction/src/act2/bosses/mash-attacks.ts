@@ -77,7 +77,7 @@ function arenaClamp(x: number, z: number, r: number): [number, number] {
 export interface VolleyOpts {
   n: number;
   echo: boolean;
-  /** gap width in 3-degree steps */
+  /** gap width in ring segments (3.75 degrees each) */
   gapN: number;
   /** seconds between tolls */
   space: number;
@@ -944,7 +944,8 @@ export function planRoll(h: Hub, ball: Ball, tx: number, tz: number, mode: 'play
     const bx = BELL_C.x - sx;
     const bz = BELL_C.z - sz;
     const dist = Math.hypot(bx, bz);
-    const stop = dist - (BELL_WR + SHELL_WR * 0.92);
+    // (a shell still sewn on is already touching the bell: it still takes a step)
+    const stop = Math.max(0.8, dist - (BELL_WR + SHELL_WR * 0.92));
     const hit = stopOnPillar(sx, sz, bx / dist, bz / dist, stop);
     dx = bx / dist;
     dz = bz / dist;
@@ -1027,7 +1028,7 @@ export class RollRunner implements Runner {
   private i = 0;
   private lastLeg = -1;
   private last = false;
-  private solid: { x: number; z: number; r: number; alive: boolean } | null = null;
+  private solid: { x: number; z: number; r: number; alive: boolean; mash: boolean } | null = null;
   private stunFor: number;
   private from = new THREE.Vector3();
   private crashT = 0;
@@ -1173,7 +1174,7 @@ export class RollRunner implements Runner {
         this.t = 0;
         ball.pos.y = SHELL_WR * 0.78;
         this.windowOpen = true;
-        this.solid = { x: ball.pos.x, z: ball.pos.z, r: SHELL_WR * 0.7, alive: true };
+        this.solid = { x: ball.pos.x, z: ball.pos.z, r: SHELL_WR * 0.7, alive: true, mash: true };
         h.env.solids.push(this.solid);
         h.env.audio.slam();
         h.env.shake(0.7);

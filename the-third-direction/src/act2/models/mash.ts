@@ -348,7 +348,15 @@ export class MashModel {
   private buildLure() {
     // the lure: a thin stalk from deep in the throat, and a glowing bulb at its end
     this.lure = new TubeChain(20, 6, this.fleshMat, (u) => 0.2 - 0.09 * u, (u) => mix(PAL.fleshD, PAL.flesh, u * 0.6));
-    this.root.add(this.lure.mesh, this.lureBulb, this.lureHalo, this.lureLight);
+    this.root.add(this.lure.mesh, this.lureBulb, this.lureHalo);
+    // the light lives in the world and is never hidden (only dimmed to nothing), so the number of lights in the scene
+    // never changes when the Mash comes and goes: no shader is rebuilt at its entrance
+    this.world.add(this.lureLight);
+  }
+
+  /** the one light it owns goes out (it stays in the scene) */
+  lightsOut() {
+    this.lureLight.intensity = 0;
   }
 
   private buildNeck() {
@@ -1024,8 +1032,8 @@ export class MashModel {
     this.lureHalo.position.copy(this.lureTip);
     this.lureHalo.material.opacity = 0.2 + 0.5 * g;
     this.lureHalo.scale.setScalar((2.4 + 3.6 * g) * (1 + out * 0.5));
-    this.lureLight.position.copy(this.lureTip);
-    this.lureLight.intensity = 2 + 28 * g * (0.18 + 0.82 * out);
+    this.toWorld(this.lureTip, this.lureLight.position);
+    this.lureLight.intensity = this.root.visible && this.partScale.bloom > 0.05 ? 2 + 28 * g * (0.18 + 0.82 * out) : 0;
     this.lure.mesh.visible = this.partScale.bloom > 0.05;
     this.lureBulb.visible = this.lure.mesh.visible;
     this.lureHalo.visible = this.lure.mesh.visible;
@@ -1115,7 +1123,7 @@ export class MashModel {
 
   /** every Object3D this model put in the world */
   parts(): THREE.Object3D[] {
-    return [this.root, this.shell];
+    return [this.root, this.shell, this.lureLight];
   }
 }
 

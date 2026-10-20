@@ -176,6 +176,7 @@ export class MashBoss extends Boss3D {
     this.stopAll();
     this.model.root.visible = false;
     this.model.shell.visible = false;
+    this.model.lightsOut();
     this.fx.rings.hide();
     this.fx.fan.hide();
     this.fx.lanes.forEach((l) => l.hide());
@@ -379,6 +380,8 @@ export class MashBoss extends Boss3D {
     for (let i = env.solids.length - 1; i >= 0; i--) if ((env.solids[i] as { mash?: boolean }).mash) env.solids.splice(i, 1);
     env.trap(false);
     env.arena.restorePillars();
+    // how broken it looks follows the health it has now (a phase starts over, a debug jump)
+    m.setDamage(clamp((this.maxHp - this.hp) / this.maxHp, 0, 1));
   }
 
   protected startPhase() {
@@ -663,7 +666,7 @@ export class MashBoss extends Boss3D {
     // (the stinger in the floor is its own light: a column over it would only hide it)
     this.beacon.set(w.x, w.z, 1.0 + Math.min(w.r * 0.2, 0.6), col, env.time, w.tag !== 'stinger');
     const pulse = 0.5 + 0.5 * Math.sin(env.time * 7);
-    env.arena.marks.set(13, true, w.x, w.z, w.reach, { col, fill: 0, alpha: 0.4 + 0.35 * pulse });
+    env.arena.marks.set(13, true, w.x, w.z, w.reach, { col, fill: 0, alpha: 0.55 + 0.45 * pulse });
   }
 
   /* ---------------------------------------------------------------- */
