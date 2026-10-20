@@ -141,21 +141,23 @@ export class ScorpionTail {
   private m4 = new THREE.Matrix4();
   private o = new THREE.Object3D();
   private mats: THREE.MeshToonMaterial[] = [];
+  private baseEm = [new THREE.Color(0x3a2c18), new THREE.Color(0x140609)];
   private pillars: { x: number; z: number; r: number }[] = [];
   private shiverT = 0;
   private clock = 0;
   private wavePh = 0;
 
   constructor() {
-    const bone = skin({ vertexColors: true, rim: 0xb8a0ff, rimPower: 3.4 });
-    const sinew = skin({ vertexColors: true, rim: 0xff9ab0, rimPower: 2.6 });
+    // a little warm light of their own, so the bone stays bone-coloured under the cold lights of the arena
+    const bone = skin({ vertexColors: true, rim: 0xd8c488, rimPower: 3.4, emissive: 0x3a2c18 });
+    const sinew = skin({ vertexColors: true, rim: 0x8a2a44, rimPower: 2.6, emissive: 0x140609 });
     this.mats.push(bone, sinew);
     this.tube = new TubeChain(
       TAIL_N,
       7,
       sinew,
       (u) => 0.5 - 0.2 * u,
-      (u, a) => mix(rgb(0x3c1624), rgb(0x8c3a52), 0.5 + 0.5 * Math.sin(a * 2 + u * 14) * Math.sin(u * 30 + a)),
+      (u, a) => mix(rgb(0x1a0a10), rgb(0x582030), 0.5 + 0.5 * Math.sin(a * 2 + u * 14) * Math.sin(u * 30 + a)),
     );
     this.group.add(this.tube.mesh);
     // the vertebrae: instanced, one per joint after the root
@@ -183,12 +185,18 @@ export class ScorpionTail {
 
   /** The flash on being hit. */
   flash(v: number) {
-    for (const m of this.mats) m.emissive.setRGB(v, v * 0.9, v * 0.95);
+    this.mats.forEach((m, i) => {
+      const b = this.baseEm[i]!;
+      m.emissive.setRGB(b.r + v, b.g + v * 0.9, b.b + v * 0.95);
+    });
   }
 
   /** a glow of one colour (the death: it turns into the Bone Wyrm's bone-white) */
   tint(r: number, g: number, b: number) {
-    for (const m of this.mats) m.emissive.setRGB(r, g, b);
+    this.mats.forEach((m, i) => {
+      const e = this.baseEm[i]!;
+      m.emissive.setRGB(e.r + r, e.g + g, e.b + b);
+    });
   }
 
   /** the pillars that the tail rides over when it sweeps (root space) */
@@ -457,7 +465,7 @@ export class ScorpionTail {
     const br = 0.85 + 0.35 * c.bristle;
     for (let i = 1; i < TAIL_N; i++) {
       const u = i / (TAIL_N - 1);
-      const k = (1.4 - 0.75 * Math.pow(u, 0.8)) * (1 + 0.04 * Math.sin(time * 3 + i * 0.7));
+      const k = (1.6 - 0.85 * Math.pow(u, 0.8)) * (1 + 0.04 * Math.sin(time * 3 + i * 0.7));
       const X = this.t1.crossVectors(dor[i]!, tan[i]!);
       this.m4.makeBasis(X.multiplyScalar(k * (0.9 + 0.1 * br)), this.tmp.copy(dor[i]!).multiplyScalar(k * br), this.t2.copy(tan[i]!).multiplyScalar(k * 0.92));
       this.m4.setPosition(pts[i]!);

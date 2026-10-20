@@ -55,7 +55,7 @@ export class StitchSet {
     parent: THREE.Object3D,
     mat: THREE.Material,
     private max: number,
-    geo = new THREE.CapsuleGeometry(0.09, 0.62, 3, 6),
+    geo = new THREE.CylinderGeometry(0.1, 0.1, 1.05, 6, 1),
   ) {
     this.mesh = new THREE.InstancedMesh(geo, mat, max);
     this.mesh.frustumCulled = false;
@@ -163,10 +163,10 @@ export class MashModel {
   ready = false;
 
   // materials
-  readonly bronzeMat = skin({ vertexColors: true, rim: 0xffd28a, rimPower: 3.2 });
-  readonly fleshMat = skin({ vertexColors: true, rim: 0xff9ab8, rimPower: 2.8 });
-  readonly petalMat = skin({ vertexColors: true, rim: 0xb0fff4, rimPower: 3, side: THREE.DoubleSide });
-  readonly boneMat = skin({ vertexColors: true, rim: 0xcab8ff, rimPower: 3.2 });
+  readonly bronzeMat = skin({ vertexColors: true, rim: 0xd8a860, rimPower: 3.2 });
+  readonly fleshMat = skin({ vertexColors: true, rim: 0xc85070, rimPower: 2.8 });
+  readonly petalMat = skin({ vertexColors: true, rim: 0x58b8a0, rimPower: 3.2, side: THREE.DoubleSide });
+  readonly boneMat = skin({ vertexColors: true, rim: 0xd8c488, rimPower: 3.2 });
   readonly shellMat = skin({ vertexColors: true, rim: 0x4a68b8, rimPower: 3.6 });
   readonly darkMat = skin({ color: 0x07040b, rim: 0x2e1c64, rimPower: 3.2 });
   readonly stitchMat = new THREE.MeshBasicMaterial({ color: 0x07040a });
@@ -267,7 +267,7 @@ export class MashModel {
     this.lureHalo = halo(0xff5fb0, 5.5, 0.7);
     this.lureBulb = new THREE.Mesh(new THREE.SphereGeometry(0.62, 12, 10), glow(0xff7ac0));
     this.lureLight = new THREE.PointLight(0xff5fb0, 0, 26, 1.3);
-    this.eyeHalo = halo(0xb8a0ff, 6, 0.4);
+    this.eyeHalo = halo(0xff7a30, 5, 0.3);
     this.shellHalo = halo(0xff3a2a, 2.6, 0.7);
     this.buildSmall();
     this.root.visible = false;
@@ -371,9 +371,9 @@ export class MashModel {
     // the Toll Queen's eye: a veined ball, a violet iris with a slit, a gold ring, a crown of reeds, wings
     const ball = new THREE.SphereGeometry(1.25, 30, 22);
     paint(ball, (x, y, z) => {
-      let c = mix(rgb(0xd8caa4), rgb(0xa8665a), clamp01(0.4 - z * 0.45));
+      let c = mix(rgb(0xd0c288), rgb(0x9a5040), clamp01(0.4 - z * 0.45));
       const v = fbm(x * 3.2, y * 3.2, z * 3.2, 3, 7);
-      if (v > 0.5) c = mix(c, rgb(0x9a1226), clamp01((v - 0.5) * 6) * 0.95);
+      if (v > 0.44) c = mix(c, rgb(0xa80e1c), clamp01((v - 0.44) * 6) * 0.95);
       return c;
     });
     const sclera = new THREE.Mesh(ball, skin({ vertexColors: true, rim: 0xb0504a, rimPower: 3.4 }));
@@ -384,8 +384,9 @@ export class MashModel {
     paint(iris, (x, y, z) => {
       const ang = Math.acos(clamp01(z / 1.275));
       const r = ang / 0.68;
-      if (r > 0.88) return rgb(0xe8b040);
-      return mix(rgb(0x14052c), rgb(0x8a52e8), Math.pow(clamp01(r * 1.1), 1.5) + 0.12 * Math.sin(Math.atan2(y, x) * 9));
+      // a hot amber round the slit, going to rust and then a black ring at the edge
+      if (r > 0.86) return rgb(0x160606);
+      return mix(rgb(0xffc230), rgb(0x7a1a00), Math.pow(clamp01(r * 1.12), 1.1) + 0.12 * Math.sin(Math.atan2(y, x) * 9));
     });
     const irisM = new THREE.Mesh(iris, new THREE.MeshBasicMaterial({ vertexColors: true }));
     this.eyeBall.add(irisM);
@@ -421,12 +422,12 @@ export class MashModel {
     this.eye.add(reeds);
     // wings: two fans of feathers
     const N = 12;
-    this.feathers = new THREE.InstancedMesh(featherGeometry(), skin({ vertexColors: true, rim: 0xe0d0ff, rimPower: 3, side: THREE.DoubleSide }), N * 2);
+    this.feathers = new THREE.InstancedMesh(featherGeometry(), skin({ vertexColors: true, rim: 0x7a5ac0, rimPower: 3, side: THREE.DoubleSide }), N * 2);
     this.feathers.frustumCulled = false;
     for (const side of [-1, 1]) {
       for (let i = 0; i < N; i++) {
         const u = i / (N - 1);
-        this.featherP.push({ side, phi: -0.35 + u * 1.25, len: 3.0 + 2.6 * Math.sin(u * 2.6 + 0.3) * 0.9 - 0.4 * u, wid: 0.62 + 0.2 * Math.sin(u * 3), ph: rnd(i, side + 3) * TAU });
+        this.featherP.push({ side, phi: -0.12 + u * 1.3, len: (3.0 + 2.6 * Math.sin(u * 2.6 + 0.3) * 0.9 - 0.4 * u) * 0.8, wid: 0.62 + 0.2 * Math.sin(u * 3), ph: rnd(i, side + 3) * TAU });
       }
     }
     this.eye.add(this.feathers);
@@ -1024,7 +1025,7 @@ export class MashModel {
     this.lureHalo.material.opacity = 0.2 + 0.5 * g;
     this.lureHalo.scale.setScalar((2.4 + 3.6 * g) * (1 + out * 0.5));
     this.lureLight.position.copy(this.lureTip);
-    this.lureLight.intensity = 4 + 34 * g * (0.5 + 0.5 * out);
+    this.lureLight.intensity = 2 + 28 * g * (0.18 + 0.82 * out);
     this.lure.mesh.visible = this.partScale.bloom > 0.05;
     this.lureBulb.visible = this.lure.mesh.visible;
     this.lureHalo.visible = this.lure.mesh.visible;
@@ -1045,7 +1046,7 @@ export class MashModel {
     this.eyeLid.rotation.x = -0.45 - (1 - open) * 1.0;
     const blink = Math.sin(t * 0.7) > 0.992 || (t + 1.3) % 5.1 < 0.1;
     if (blink) this.eyeLid.rotation.x = -1.35;
-    this.eyeHalo.material.opacity = 0.2 + 0.5 * open;
+    this.eyeHalo.material.opacity = 0.1 + 0.32 * open;
     // wings fan
     const { m4, m5, m6 } = this;
     for (let i = 0; i < this.featherP.length; i++) {
@@ -1138,6 +1139,8 @@ export async function labMash(slicer: Slicer, world: THREE.Group) {
   const tgtW = new THREE.Vector3(-3, 0, 6);
   const tgt = new THREE.Vector3();
   const pivot = new THREE.Vector3();
+  const labA = P.newCtrl();
+  const labB = P.newCtrl();
   const api = {
     update: (dt: number, tt: number) => {
       at += dt;
@@ -1152,12 +1155,25 @@ export async function labMash(slicer: Slicer, world: THREE.Group) {
         else if (at < 3.7) P.retractPose((at - 2.5) / 1.2, tt, tgt, c);
         else P.idlePose(tt, c);
       } else if (anim === 2) {
-        // sweep: 1.1 s of warning (rear), then 0.8 s lash from -0.9 to +0.9 rad round the pivot
+        // sweep: 0.8 s of warning (rear), then 1.3 s lash from -0.65 to +0.65 rad round the pivot
         m.toLocal(pivot.set(0, 0, MASH_Z), pivot);
-        if (at < 0.8) P.rearPose(at / 0.8, tt, tgt, c);
-        else if (at < 1.6) P.sweepPose(-0.95 + 1.9 * ((at - 0.8) / 0.8), 26, pivot.set(0, 0, 0), c);
-        else if (at < 2.8) P.retractPose((at - 1.6) / 1.2, tt, tgt, c);
-        else P.idlePose(tt, c);
+        const rin = 11 / MASH_S;
+        const rt = 36 / MASH_S;
+        if (at < 0.8) P.rearPose(at / 0.8, tt, tgt.set(Math.sin(-0.65) * 20, 0, pivot.z + Math.cos(-0.65) * 20), c);
+        else if (at < 2.1) {
+          const th = -0.65 + 1.3 * Math.pow((at - 0.8) / 1.3, 1.15);
+          P.sweepPose(th, rin, rt, pivot, c);
+          const bl = Math.min(1, (at - 0.8) / 0.22);
+          if (bl < 1) {
+            P.rearPose(1, tt, tgt.set(Math.sin(-0.65) * 20, 0, pivot.z + Math.cos(-0.65) * 20), labA);
+            P.mixCtrl(c, labA, c, bl * bl * (3 - 2 * bl));
+          }
+        } else if (at < 3.2) {
+          P.sweepPose(0.65, rin, rt, pivot, labA);
+          P.idlePose(tt, labB);
+          const u = (at - 2.1) / 1.1;
+          P.mixCtrl(c, labA, labB, u * u * (3 - 2 * u));
+        } else P.idlePose(tt, c);
       } else if (anim === 3) {
         const kick = at > 1.2 ? Math.max(0, 1 - ((at - 1.2) % 0.5) * 4) : 0;
         P.spitPose(Math.min(1, at / 0.9), tt, tgt, kick, c);

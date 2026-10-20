@@ -26,7 +26,7 @@ import {
   type MashFx,
   type Runner,
 } from './mash-attacks';
-import { BeamFX, BlobFX, FanFX, LaneFX, PuddleFX, RingFX, ShockFX, StreamFX, WindFX, type StreamDef } from './mash-fx';
+import { BeaconFX, BeamFX, BlobFX, FanFX, LaneFX, PuddleFX, RingFX, ShockFX, StreamFX, WindFX, type StreamDef } from './mash-fx';
 
 /**
  * THE MASH. Every guardian the forest gave you, stitched into one thing. It cannot be hurt until one of its patches
@@ -60,6 +60,7 @@ export class MashBoss extends Boss3D {
   readonly model: MashModel;
   private fx: MashFx;
   private streams: StreamFX;
+  private beacon: BeaconFX;
   private hub: Hub;
   private ball = new Ball();
   private active: Runner[] = [];
@@ -91,7 +92,7 @@ export class MashBoss extends Boss3D {
     this.model = new MashModel(world);
     const lanes = [new LaneFX(world), new LaneFX(world), new LaneFX(world)];
     this.fx = {
-      rings: new RingFX(world, 10),
+      rings: new RingFX(world, 8),
       fan: new FanFX(world),
       lanes,
       puddles: new PuddleFX(world),
@@ -101,6 +102,7 @@ export class MashBoss extends Boss3D {
       wind: new WindFX(world),
     };
     this.streams = new StreamFX(world, this.streamDefs());
+    this.beacon = new BeaconFX(world);
     this.hub = { env, model: this.model, fx: this.fx, k: 1, tail: newCtrl(), tailDriven: false, say: (l, ms) => this.say(l, ms) };
     this.ball.pos.set(0, 4, MASH_Z);
     // (tests) the page can look at the fight and start any one attack
@@ -183,6 +185,7 @@ export class MashBoss extends Boss3D {
     this.fx.beam.hide();
     this.fx.wind.hide();
     this.streams.hide();
+    this.beacon.hide();
     env.arena.marks.hideAll();
     env.arena.setRedLight(0);
     env.audio.setHeart(0, 0);
@@ -433,12 +436,12 @@ export class MashBoss extends Boss3D {
     const ph = Math.min(this.phase, 3);
     const c = this.cycle;
     const space = Math.max(0.95, 1.3 * k);
-    const vol = (n: number, echo: boolean, gapN = 10) => (b: MashBoss) => [new VolleyRunner(b.hub, { n, echo, gapN: Math.max(8, gapN - (c > 0 ? 1 : 0)), space, speed: 9.5 })];
+    const vol = (n: number, echo: boolean, gapN = 8) => (b: MashBoss) => [new VolleyRunner(b.hub, { n, echo, gapN: Math.max(7, gapN - (c > 0 ? 1 : 0)), space, speed: 9.5 })];
     if (ph === 0) {
       return [
-        { make: vol(2, false, 11), hard: true, wait: 0.5 },
+        { make: vol(2, false, 9), hard: true, wait: 0.5 },
         { make: (b) => [new WatchRunner(b.hub, 2.0)], hard: true, wait: 0.3 },
-        { make: vol(3, true, 10), hard: true, wait: 0.7 },
+        { make: vol(3, true, 8), hard: true, wait: 0.7 },
         { make: (b) => [new ClapperRunner(b.hub)], hard: true, window: true, wait: 0.6 },
       ];
     }
@@ -459,15 +462,15 @@ export class MashBoss extends Boss3D {
     // the remix: two at once, and the flower
     const combos: Beat[][] = [
       [
-        { make: (b) => [...vol(2, true, 10)(b), new StingRunner(b.hub)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(2, true, 8)(b), new StingRunner(b.hub)], hard: true, wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(3, false, 10)(b), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(3, false, 8)(b), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false }), new StingRunner(b.hub)], hard: true, wait: 0.5 },
       ],
       [
-        { make: (b) => [...vol(2, true, 9)(b), new SweepRunner(b.hub)], hard: true, wait: 0.5 },
+        { make: (b) => [...vol(2, true, 7)(b), new SweepRunner(b.hub)], hard: true, wait: 0.5 },
         { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: false }), new SpitRunner(b.hub, 3)], hard: true, wait: 0.5 },
       ],
     ];
@@ -639,11 +642,28 @@ export class MashBoss extends Boss3D {
     if (this.state === 'fight') env.arena.setRedLight(55 + 25 * Math.sin(env.time * 2.5) + (this.mode === 'hurt' ? 60 * (1 - this.hurtT) : 0));
     else if (this.state === 'dying') env.arena.setRedLight(Math.max(0, 90 * (1 - this.st / 3)));
     m.update(dt, env.time);
+    this.weakGlow();
     // slow decay of the model's one-shot values
     m.toll = Math.max(0, m.toll - dt * 1.4);
     if (this.state === 'fight' && !this.active.some((r) => r instanceof ClapperRunner)) m.shake = Math.max(0, m.shake - dt * 2);
     // the eye closes again when nothing watches
     if (this.state === 'fight' && !this.active.some((r) => r instanceof WatchRunner)) m.eyeOpen += (0.38 - m.eyeOpen) * (1 - Math.exp(-3 * dt));
+  }
+
+  /** whatever can be hurt right now wears a column of light and, on the floor, the ring a strike must start inside */
+  private weakGlow() {
+    const { env } = this;
+    const w = this.weak()[0];
+    if (!w) {
+      this.beacon.hide();
+      env.arena.marks.set(13, false);
+      return;
+    }
+    const col = w.tag === 'lure' ? 0xff8ab4 : w.tag === 'belly' ? 0xffb35a : w.tag === 'stinger' ? 0xdfffa0 : 0xffe070;
+    // (the stinger in the floor is its own light: a column over it would only hide it)
+    this.beacon.set(w.x, w.z, 1.0 + Math.min(w.r * 0.2, 0.6), col, env.time, w.tag !== 'stinger');
+    const pulse = 0.5 + 0.5 * Math.sin(env.time * 7);
+    env.arena.marks.set(13, true, w.x, w.z, w.reach, { col, fill: 0, alpha: 0.4 + 0.35 * pulse });
   }
 
   /* ---------------------------------------------------------------- */

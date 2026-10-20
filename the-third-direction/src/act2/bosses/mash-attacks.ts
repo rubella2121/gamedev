@@ -136,7 +136,7 @@ export class VolleyRunner implements Runner {
     s.cx = BELL_C.x;
     s.cz = BELL_C.z;
     s.r = RING_R0;
-    s.thick = 1.9;
+    s.thick = 2.4;
     s.gapN = o.gapN;
     s.gap0 = ((Math.round(g / RING_STEP - o.gapN / 2) % RING_SEGS) + RING_SEGS) % RING_SEGS;
     s.alpha = 0.2;
@@ -488,8 +488,8 @@ export class StingRunner implements Runner {
 /* ================================================================ */
 
 const SWEEP_RIN = 11;
-const SWEEP_ROUT = 43;
-const SWEEP_TIP = 40;
+const SWEEP_ROUT = 38;
+const SWEEP_TIP = 36;
 
 export class SweepRunner implements Runner {
   readonly kind = "sweep";
@@ -534,25 +534,7 @@ export class SweepRunner implements Runner {
 
   /** the tail laid along the floor at bearing `th` (model space), its root arched over the shoulder */
   private lay(th: number, out: TailCtrl) {
-    const sx = Math.sin(th);
-    const cz = Math.cos(th);
-    const k = 1 / MASH_S;
-    const rin = SWEEP_RIN * k;
-    const rt = SWEEP_TIP * k;
-    out.via[0]!.set(3.4, 14.0, 0.0);
-    out.via[1]!.set(this.pivot.x + sx * rin * 0.65, 6.5, this.pivot.z + cz * rin * 0.65);
-    out.via[2]!.set(this.pivot.x + sx * rin * 1.05, 0.7, this.pivot.z + cz * rin * 1.05);
-    out.via[3]!.set(this.pivot.x + sx * (rin + (rt - rin) * 0.5), 0.6, this.pivot.z + cz * (rin + (rt - rin) * 0.5));
-    out.viaW = 1;
-    out.tip.set(this.pivot.x + sx * rt, 0.55, this.pivot.z + cz * rt);
-    out.tipDir.set(sx, -0.12, cz).normalize();
-    out.baseDir.set(0.25, 1, -0.4).normalize();
-    out.len = TAIL_LMAX;
-    out.wave = 0.25;
-    out.waveHz = 3;
-    out.glow = 0.7;
-    out.lag = 0.26;
-    out.bristle = 1;
+    P.sweepPose(th, SWEEP_RIN / MASH_S, SWEEP_TIP / MASH_S, this.pivot, out);
   }
 
   update(dt: number) {
@@ -1076,6 +1058,11 @@ export class RollRunner implements Runner {
     this.t = 0;
     this.T = Math.max(0.78, 0.95 * h.k) * D.tele;
     const pl = h.env.p;
+    if (ball.docked) {
+      // it starts from where it is sewn to the bell
+      h.model.toWorld(_v.copy(SHELL_DOCK), ball.pos);
+      ball.q.copy(h.model.spinner.quaternion);
+    }
     if (this.last) this.plan = planRoll(h, ball, BELL_C.x, BELL_C.z, 'bell');
     else {
       const [tx, tz] = arenaClamp(pl.x + pl.vx * 0.4, pl.z + pl.vz * 0.4, ARENA_R - 1);
@@ -1259,7 +1246,8 @@ export class RollRunner implements Runner {
       const back = new THREE.Vector3(ball.pos.x - BELL_C.x, 0, ball.pos.z - BELL_C.z).normalize();
       this.crashTo.set(ball.pos.x + (p.end === 'bell' ? back.x * 3.4 : 0), 0, ball.pos.z + (p.end === 'bell' ? back.z * 3.4 : 0));
       this.qFrom.copy(ball.q);
-      this.qTo.setFromAxisAngle(_Y, Math.atan2(back.x, back.z) + Math.PI).multiply(new THREE.Quaternion().setFromAxisAngle(_X, -2.2));
+      // upside down with the face still turned to the front: belly and face to the sky, a little towards you
+      this.qTo.setFromAxisAngle(_X, 0.4).multiply(new THREE.Quaternion().setFromAxisAngle(_Z, Math.PI));
       this.lane.hide();
     } else {
       this.st = 'rest';
@@ -1383,6 +1371,7 @@ export class RollRunner implements Runner {
 
 const _X = new THREE.Vector3(1, 0, 0);
 const _Y = new THREE.Vector3(0, 1, 0);
+const _Z = new THREE.Vector3(0, 0, 1);
 
 /* ================================================================ */
 /* the flower breathes in                                             */

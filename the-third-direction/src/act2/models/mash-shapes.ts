@@ -19,29 +19,29 @@ export const PAL = {
   verdL: rgb(0x72d6b8),
   black: rgb(0x08050c),
   crackRed: rgb(0xff5a2a),
-  flesh: rgb(0xe0a096),
-  fleshD: rgb(0x9a5a6a),
-  cream: rgb(0xf2dec0),
-  bruise: rgb(0x7e5a84),
+  flesh: rgb(0xc88a80),
+  fleshD: rgb(0x8a4458),
+  cream: rgb(0xe8d6b0),
+  bruise: rgb(0x6a4a74),
   grey: rgb(0x8e8696),
-  petalPale: rgb(0xa8e8e4),
-  petal: rgb(0x2a96b0),
-  petalDeep: rgb(0x10305a),
-  petalPink: rgb(0xc84a74),
-  lipRed: rgb(0x9a1c44),
-  lipDark: rgb(0x4a0820),
+  petalPale: rgb(0x9cc2a4),
+  petal: rgb(0x1f7a7c),
+  petalDeep: rgb(0x14082c),
+  petalPink: rgb(0xa02c58),
+  lipRed: rgb(0x80123a),
+  lipDark: rgb(0x38061a),
   throat: rgb(0x14020a),
-  stem: rgb(0x2f7e62),
-  stemL: rgb(0x8ad4a8),
-  bone: rgb(0xeadba8),
-  boneD: rgb(0x8a7446),
+  stem: rgb(0x286a54),
+  stemL: rgb(0x6aa888),
+  bone: rgb(0xe2d28c),
+  boneD: rgb(0x4e3a1c),
   shellD: rgb(0x121626),
   shellM: rgb(0x26335a),
   shellL: rgb(0x566a94),
   ember: rgb(0xe0502a),
   belly: rgb(0xb4a89a),
   bellyD: rgb(0x5a4a56),
-  violet: rgb(0xa88cff),
+  violet: rgb(0x8a64d8),
   tar: rgb(0x07050b),
 };
 
@@ -257,7 +257,7 @@ export const BELL_PATCHES: { th: number; y: number; w: number; h: number; kind: 
 ];
 
 function bellShape(): SDF {
-  const poly = [...smoothPath(BELL_OUT, 5), ...smoothPath(BELL_IN, 5)];
+  const poly: [number, number][] = [...smoothPath(BELL_OUT, 5), [0, 0]];
   const body = revolve(poly);
   const crack = crackPoints(0.08);
   let carve: SDF | null = null;
@@ -362,7 +362,7 @@ export function bellColor(x: number, y: number, z: number, nx: number, ny: numbe
 }
 
 export function* buildBell(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(bellShape(), [-6.6, -0.5, -6.6], [6.6, 6.8, 6.6], 0.19, { color: bellColor, aoAmount: 1.0 });
+  return yield* meshGen(bellShape(), [-6.6, -0.5, -6.6], [6.6, 6.8, 6.6], 0.26, { color: bellColor, aoAmount: 1.0 });
 }
 
 /* ---------------------------------------------------------------- */
@@ -391,15 +391,15 @@ export function bloomColor(x: number, y: number, z: number, nx: number, ny: numb
   const inner = rho < 2.15 && z > -3 && (radial < -0.2 || nz > 0.3);
   if (inner) {
     const depth = clamp01((0.3 - z) / 2.4);
-    let c = mix(PAL.lipRed, PAL.throat, depth);
+    let c = mix(PAL.lipRed, PAL.throat, Math.min(1, depth * 1.25));
     const vein = ridge(x * 2, y * 2, z * 2, 3, 71);
     if (vein > 0.85) c = mix(c, PAL.crackRed, (vein - 0.85) * 5);
-    if (worley(x * 3, y * 3, z * 3, 4) < 0.2) c = mix(c, PAL.flesh, 0.55);
-    return scale(c, 0.55 + 0.6 * ao);
+    if (worley(x * 3, y * 3, z * 3, 4) < 0.2) c = mix(c, PAL.fleshD, 0.6);
+    return scale(c, 0.5 + 0.55 * ao);
   }
-  // the lips: thick, salmon and red, with a pale gum line along the teeth
+  // the lips: thick, red and raw, with a pale gum line along the teeth
   if (z > -0.7 && rho < 3.35) {
-    let c = mix(PAL.lipRed, PAL.flesh, 0.25 + 0.55 * m);
+    let c = mix(PAL.lipRed, PAL.flesh, 0.08 + 0.4 * m);
     const gum = Math.exp(-(((rho - 2.05) / 0.28) ** 2));
     c = mix(c, PAL.cream, gum * 0.6);
     const vein = ridge(x * 2.2, y * 2.2, z * 2.2, 3, 73);
@@ -413,13 +413,13 @@ export function bloomColor(x: number, y: number, z: number, nx: number, ny: numb
 }
 
 export function* buildBloom(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(bloomShape(), [-3.8, -3.8, -3.6], [3.8, 3.8, 1.6], 0.14, { color: bloomColor, aoAmount: 1.0 });
+  return yield* meshGen(bloomShape(), [-3.8, -3.8, -3.6], [3.8, 3.8, 1.6], 0.21, { color: bloomColor, aoAmount: 1.0 });
 }
 
 /** One petal: a blade along +y (length 1), cupped and curled towards +z, with veins painted in. */
 export function petalGeometry(): THREE.BufferGeometry {
-  const nu = 10;
-  const nv = 7;
+  const nu = 7;
+  const nv = 4;
   const pos: number[] = [];
   const col: number[] = [];
   const idx: number[] = [];
@@ -432,13 +432,13 @@ export function petalGeometry(): THREE.BufferGeometry {
       const cup = 0.34 * v * v * w * (0.4 + u);
       const curl = 0.22 * u * u;
       pos.push(x, u - 0.05 * v * v * u, cup + curl);
-      // colour: pink at the root, teal through the middle, pale at the tip; dark veins
+      // colour: raw pink at the root, teal through the middle, a sickly grey-green at the tip; dark veins and bruised edges
       let c = mix(PAL.petalPink, PAL.petal, clamp01(u * 2.2));
-      c = mix(c, PAL.petalPale, sstep(0.55, 1, u) * 0.8);
+      c = mix(c, PAL.petalPale, sstep(0.6, 1, u) * 0.6);
       const av = Math.abs(v);
-      const vein = av < 0.12 ? 0.55 : Math.abs(av - 0.62) < 0.1 ? 0.78 : 1;
-      c = mix(c, PAL.petalDeep, (1 - vein) * 1.4 * (1 - u * 0.4));
-      if (av > 0.9) c = mix(c, PAL.petalPale, 0.5);
+      const vein = av < 0.12 ? 0.5 : Math.abs(av - 0.62) < 0.1 ? 0.72 : 1;
+      c = mix(c, PAL.petalDeep, (1 - vein) * 1.5 * (1 - u * 0.3));
+      if (av > 0.88) c = mix(c, PAL.bruise, 0.55);
       col.push(c[0], c[1], c[2]);
     }
   }
@@ -560,7 +560,7 @@ export function shellColor(x: number, y: number, z: number, nx: number, ny: numb
 }
 
 export function* buildShell(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(shellShape(), [-4.1, -4.1, -4.1], [4.1, 4.1, 5.1], 0.2, { color: shellColor, aoAmount: 1.0 });
+  return yield* meshGen(shellShape(), [-4.1, -4.1, -4.1], [4.1, 4.1, 5.1], 0.26, { color: shellColor, aoAmount: 1.0 });
 }
 
 /** A thorn: base radius 1 height 1 along +y, slightly bent, dark at the root and bone at the point. */
@@ -583,42 +583,58 @@ export function thornGeometry(): THREE.BufferGeometry {
 /** One vertebra along +z (the tail's direction), dorsal side +y: a ribbed barrel, flanges, a tall dorsal spine and two side spines. */
 export function vertebraGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
-  const bead = new THREE.SphereGeometry(1, 12, 9);
+  const bead = new THREE.SphereGeometry(1, 8, 6);
   const bp = bead.getAttribute('position');
   for (let i = 0; i < bp.count; i++) {
     const x = bp.getX(i);
     const y = bp.getY(i);
     const z = bp.getZ(i);
     // a barrel pinched at both ends, a rib around the middle
-    const w = 1 - 0.3 * Math.pow(Math.abs(z), 2.4) + 0.12 * Math.exp(-(z * z) / 0.04);
-    bp.setXYZ(i, x * 0.78 * w, y * 0.7 * w, z * 1.0);
+    const w = 1 - 0.34 * Math.pow(Math.abs(z), 2.2) + 0.1 * Math.exp(-(z * z) / 0.05);
+    bp.setXYZ(i, x * 0.74 * w, y * 0.66 * w, z * 1.06);
   }
   bead.computeVertexNormals();
-  parts.push(paint(bead, (x, y, z) => mix(PAL.boneD, PAL.bone, clamp01(0.5 + y * 0.45 - Math.abs(z) * 0.45 + x * 0.05))));
-  // flanges: thin plates at each end, like the ribbed ends of a vertebra
-  for (const zz of [-0.82, 0.82]) {
-    const d = new THREE.CylinderGeometry(0.72, 0.9, 0.12, 10, 1);
-    d.rotateX(Math.PI / 2);
-    d.translate(0, 0, zz);
-    parts.push(paint(d, (x, y) => mix(PAL.boneD, PAL.bone, clamp01(0.2 + y * 0.3 + 0 * x))));
+  // dark in the joints between the vertebrae, bone in the middle
+  parts.push(paint(bead, (x, y, z) => mix(PAL.boneD, PAL.bone, clamp01(1.15 - Math.pow(Math.abs(z), 2.4) * 1.5 + y * 0.25 + x * 0.05))));
+  // the dorsal blade: a flat triangle of bone standing up on the back and leaning away from the tail's direction
+  {
+    const bl = [
+      [0.45, 0.8],
+      [0.45, -0.8],
+      [3.0, -0.75],
+    ];
+    const pos: number[] = [];
+    const col: number[] = [];
+    const t = 0.075;
+    for (const sx of [-t, t]) for (const v of bl) pos.push(sx, v[0]!, v[1]!);
+    for (let k = 0; k < 6; k++) {
+      const y = pos[k * 3 + 1]!;
+      const c = mix(PAL.boneD, PAL.bone, clamp01(((y - 0.4) / 2.6) * 1.1 + 0.15));
+      col.push(c[0], c[1], c[2]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex([0, 1, 2, 5, 4, 3, 0, 3, 4, 0, 4, 1, 1, 4, 5, 1, 5, 2, 2, 5, 3, 2, 3, 0]);
+    g.computeVertexNormals();
+    parts.push(g);
   }
   const spine = (len: number, rad: number, ang: number, lean: number, zOff: number) => {
-    const c = new THREE.ConeGeometry(rad, len, 5, 1, false);
+    const c = new THREE.ConeGeometry(rad, len, 5, 1, true);
     c.translate(0, len / 2, 0);
     const m = new THREE.Matrix4().makeRotationX(-lean).multiply(new THREE.Matrix4().makeRotationZ(ang));
     m.premultiply(new THREE.Matrix4().makeTranslation(0, 0, zOff));
     c.applyMatrix4(m);
     c.computeVertexNormals();
     return paint(c, (x, y, z) => {
-      const h = clamp01((Math.hypot(x, y, z - zOff) - 0.5) / len);
-      return mix(PAL.boneD, PAL.bone, 0.35 + 0.65 * h);
+      const h = clamp01((Math.hypot(x, y, z - zOff) - 0.4) / len);
+      return mix(PAL.boneD, PAL.bone, 0.3 + 0.7 * h);
     });
   };
-  parts.push(spine(2.9, 0.36, 0, 0.5, 0));
-  parts.push(spine(2.1, 0.28, 1.15, 0.4, 0.1));
-  parts.push(spine(2.1, 0.28, -1.15, 0.4, 0.1));
-  parts.push(spine(1.1, 0.2, 2.2, 0.3, 0.1));
-  parts.push(spine(1.1, 0.2, -2.2, 0.3, 0.1));
+  parts.push(spine(2.3, 0.3, 1.2, 0.45, 0.15));
+  parts.push(spine(2.3, 0.3, -1.2, 0.45, 0.15));
+  parts.push(spine(1.2, 0.22, 2.4, 0.35, 0.1));
+  parts.push(spine(1.2, 0.22, -2.4, 0.35, 0.1));
   return mergeGeos(parts);
 }
 
@@ -633,7 +649,9 @@ export function featherGeometry(): THREE.BufferGeometry {
     const w = 0.5 * Math.pow(Math.sin(Math.PI * Math.min(1, 0.04 + 0.96 * Math.pow(u, 0.7))), 0.7);
     for (const v of [-1, 0, 1]) {
       pos.push(v * w, u, 0.05 * v * v * w - 0.1 * u * u);
-      let c = mix(rgb(0xcfc4e6), PAL.violet, sstep(0.4, 1, u) * 0.9);
+      // bruised: grey-lilac at the root, deep violet through the vane, ragged and black at the tip
+      let c = mix(rgb(0x9a86b4), rgb(0x5a3c94), sstep(0.15, 0.6, u));
+      c = mix(c, rgb(0x120820), sstep(0.62, 1, u) * 0.9);
       if (v === 0) c = scale(c, 0.8);
       col.push(c[0], c[1], c[2]);
     }

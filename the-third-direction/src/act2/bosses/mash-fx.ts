@@ -26,7 +26,7 @@ const additive = (o: { opacity?: number; color?: number; map?: THREE.Texture | n
 /* the bell's rings                                                   */
 /* ---------------------------------------------------------------- */
 
-export const RING_SEGS = 120;
+export const RING_SEGS = 96;
 const RING_STEP = TAU / RING_SEGS;
 const COS: number[] = [];
 const SIN: number[] = [];
@@ -137,9 +137,9 @@ export class RingFX {
       const a = s.alpha;
       const hot = s.hot;
       // floor: gold, brighter at the leading edge
-      const fr = (0.95 + 0.05 * hot) * a;
-      const fg = (0.72 + 0.2 * hot) * a;
-      const fb = (0.22 + 0.5 * hot) * a;
+      const fr = (0.8 + 0.2 * hot) * a;
+      const fg = (0.5 + 0.3 * hot) * a;
+      const fb = (0.08 + 0.45 * hot) * a;
       for (let j = 0; j < RING_SEGS; j++) {
         let k = j - s.gap0;
         k = ((k % RING_SEGS) + RING_SEGS) % RING_SEGS;
@@ -150,7 +150,25 @@ export class RingFX {
         const c1 = COS[j + 1]!;
         const s1 = SIN[j + 1]!;
         if (inGap) {
-          for (let v = 0; v < 8; v++) {
+          // the gap is a path of cool light on the floor: this way
+          pos[v0] = s.cx + s0 * rin;
+          pos[v0 + 1] = 0.1;
+          pos[v0 + 2] = s.cz + c0 * rin;
+          pos[v0 + 3] = s.cx + s0 * rout;
+          pos[v0 + 4] = 0.1;
+          pos[v0 + 5] = s.cz + c0 * rout;
+          pos[v0 + 6] = s.cx + s1 * rin;
+          pos[v0 + 7] = 0.1;
+          pos[v0 + 8] = s.cz + c1 * rin;
+          pos[v0 + 9] = s.cx + s1 * rout;
+          pos[v0 + 10] = 0.1;
+          pos[v0 + 11] = s.cz + c1 * rout;
+          for (let v = 0; v < 4; v++) {
+            col[v0 + v * 3] = 0.05 * a;
+            col[v0 + v * 3 + 1] = 0.45 * a;
+            col[v0 + v * 3 + 2] = 0.4 * a;
+          }
+          for (let v = 4; v < 8; v++) {
             pos[v0 + v * 3] = s.cx;
             pos[v0 + v * 3 + 1] = -50;
             pos[v0 + v * 3 + 2] = s.cz;
@@ -172,7 +190,7 @@ export class RingFX {
         pos[v0 + 11] = s.cz + c1 * rout;
         // the wall: from the floor up, fading out at the top
         const wr = s.r;
-        const h = 1.7;
+        const h = 2.5;
         pos[v0 + 12] = s.cx + s0 * wr;
         pos[v0 + 13] = 0.12;
         pos[v0 + 14] = s.cz + c0 * wr;
@@ -186,7 +204,7 @@ export class RingFX {
         pos[v0 + 22] = h;
         pos[v0 + 23] = s.cz + c1 * wr;
         for (let v = 0; v < 4; v++) {
-          col[v0 + v * 3] = fr * 0.8;
+          col[v0 + v * 3] = fr * 0.85;
           col[v0 + v * 3 + 1] = fg * 0.8;
           col[v0 + v * 3 + 2] = fb * 0.8;
         }
@@ -214,8 +232,8 @@ export class RingFX {
         const tx = cs;
         const tz = -sn;
         const o4 = gb + e * 12;
-        const hh = 4.2;
-        const ww = 0.45;
+        const hh = 5.2;
+        const ww = 0.3;
         pos[o4] = px - tx * ww;
         pos[o4 + 1] = 0.1;
         pos[o4 + 2] = pz - tz * ww;
@@ -230,11 +248,11 @@ export class RingFX {
         pos[o4 + 11] = pz;
         const gA = 0.95 * a;
         col[o4] = gA;
-        col[o4 + 1] = gA * 0.85;
-        col[o4 + 2] = gA * 0.5;
+        col[o4 + 1] = gA * 0.7;
+        col[o4 + 2] = gA * 0.25;
         col[o4 + 3] = gA;
-        col[o4 + 4] = gA * 0.85;
-        col[o4 + 5] = gA * 0.5;
+        col[o4 + 4] = gA * 0.7;
+        col[o4 + 5] = gA * 0.25;
         col[o4 + 6] = 0;
         col[o4 + 7] = 0;
         col[o4 + 8] = 0;
@@ -756,6 +774,61 @@ export class WindFX {
 
   hide() {
     this.points.visible = false;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* the beacon over a weak point                                       */
+/* ---------------------------------------------------------------- */
+
+/** A column of light over whatever can be hurt right now, so it is easy to find from anywhere on the floor. */
+export class BeaconFX {
+  readonly group = new THREE.Group();
+  private col: THREE.Mesh;
+  private ring: THREE.Mesh;
+  private mat: THREE.MeshBasicMaterial;
+  private ringMat: THREE.MeshBasicMaterial;
+
+  constructor(world: THREE.Group) {
+    // a thin shaft that is brightest at the floor and fades to nothing high up (additive: black is clear)
+    const H = 8;
+    const g = new THREE.CylinderGeometry(0.3, 0.5, H, 12, 1, true);
+    g.translate(0, H / 2, 0);
+    const p = g.getAttribute('position');
+    const col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      const f = Math.pow(1 - clamp01(p.getY(i) / H), 1.4);
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = f;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    this.mat = additive({ color: 0xffe9a0, opacity: 0.5, vertexColors: true });
+    this.col = new THREE.Mesh(g, this.mat);
+    const r = new THREE.RingGeometry(0.78, 1, 40);
+    r.rotateX(-Math.PI / 2);
+    this.ringMat = additive({ color: 0xffe070, opacity: 0.9 });
+    this.ring = new THREE.Mesh(r, this.ringMat);
+    this.ring.position.y = 0.16;
+    this.group.add(this.col, this.ring);
+    this.group.visible = false;
+    world.add(this.group);
+  }
+
+  /** `r` is the radius of the ring on the floor */
+  set(x: number, z: number, r: number, color: number, time: number, column = true) {
+    this.group.visible = true;
+    this.col.visible = column;
+    this.group.position.set(x, 0, z);
+    const p = 0.5 + 0.5 * Math.sin(time * 6);
+    this.ring.scale.set(r * (1 + 0.1 * p), 1, r * (1 + 0.1 * p));
+    this.col.scale.set(1 + 0.2 * p, 1, 1 + 0.2 * p);
+    this.mat.color.setHex(color);
+    this.ringMat.color.setHex(color);
+    this.mat.opacity = 0.4 + 0.25 * p;
+    this.ringMat.opacity = 0.55 + 0.4 * p;
+  }
+
+  hide() {
+    this.group.visible = false;
   }
 }
 
