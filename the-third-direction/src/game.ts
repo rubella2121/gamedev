@@ -223,7 +223,11 @@ export class Game {
       } else if (this.state === 'act1') this.act1.update(dt);
     }
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest
-    if (this.state === 'act1' || this.state === 'menu') this.act2.pump(this.state === 'menu' ? 6 : 3);
+    if (this.state === 'act1' || this.state === 'menu') {
+      // spend spare time only: a slow frame means the phone is busy, so the monsters wait
+      const spare = this.state === 'menu' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
+      if (spare > 0) this.act2.pump(spare);
+    }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.setRes(2);

@@ -395,7 +395,7 @@ export class RakeArm {
       (u) => 0.26 + 0.12 * (1 - u) + 0.36 * Math.pow(Math.abs(Math.sin(u * Math.PI * 5.5)), 7),
       (u, a) => {
         const k = Math.pow(Math.abs(Math.sin(u * Math.PI * 5.5)), 7);
-        return mix(mix(rgb(0xeadcb0), rgb(0x9a8a68), 0.45 + 0.3 * Math.sin(a * 2 + u * 20) * 0.5 + 0.25 * u), rgb(0x4a3a2a), k * 0.5);
+        return mix(mix(rgb(0xf4e6a8), rgb(0xa8935c), 0.45 + 0.3 * Math.sin(a * 2 + u * 20) * 0.5 + 0.25 * u), rgb(0x4a3418), k * 0.5);
       },
     );
     this.group.add(this.chain.mesh);
@@ -801,7 +801,7 @@ export class XModel {
     this.root.add(this.armor);
     // the raking arms (in the world, not in his body)
     const darkClaw = skin({ color: 0x15101c, rim: 0xb090ff, rimPower: 2 });
-    const boneVC = skin({ vertexColors: true, rim: 0x5a4a88, rimPower: 2.4 });
+    const boneVC = skin({ vertexColors: true, rim: 0x3a2a60, rimPower: 2.8 });
     for (let i = 0; i < 9; i++) {
       const arm = new RakeArm(i, boneVC, darkClaw);
       arm.group.visible = false;

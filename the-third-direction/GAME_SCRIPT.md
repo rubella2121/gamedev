@@ -3,6 +3,13 @@
 > **v4 note:** Act I is no longer a straight corridor. It is an open forest with five zones you can do in any order, a light-pulse attack,
 > hearts, more monsters and puzzles, and a bigger 3D arena with a free camera. The story beats below still hold. The new structure is
 > described in [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
+>
+> **v5 note:** Every zone now ends in a **guardian fight** (Gloommother, Thornback King, Toll Queen, Bone Wyrm, Mimic Queen), and the
+> 3D arena holds **three bosses in a row**: X, then **The Collector** (the one behind the wall, who wanted you pinned with a label),
+> then **The Mash** (every guardian you beat, stitched together by X, with a scorpion tail). The player gains a **Light Lance**
+> (hold, let go), a **Nova** (hold longer with three full light orbs) and a **dash** (double-tap), all on the one button. The 3D arena
+> gives you healing wells, surge pads and light crystals. The "four phases" fight described below is X's part of it; the other two
+> bosses are described in [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md) and the concept art in `concept-art/`.
 
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension. The monster that hunts it, **X, "The Hollow"**, is stitched together from the creatures you meet.
 
