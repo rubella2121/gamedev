@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TubeChain } from '../kit/chain';
 import { fbm, mix, ridge, rgb, scale, worley, type RGB } from '../kit/noise';
 import { capsule, ellipsoid, inter, lazy, meshGen, mirrorX, smin, sphere, ssub, torus, union, type SDF, type Slicer, type V3 } from '../kit/sdf';
@@ -124,11 +125,11 @@ export function headColor(x: number, y: number, z: number, nx: number, ny: numbe
 }
 
 export function* buildSkull(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(skullShape(), [-4.6, -5.0, -4.6], [4.6, 6.6, 4.6], 0.16, { color: headColor, aoAmount: 0.95 });
+  return yield* meshGen(skullShape(), [-4.6, -5.0, -4.6], [4.6, 6.6, 4.6], 0.18, { color: headColor, aoAmount: 0.95 });
 }
 
 export function* buildJaw(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(jawShape(), [-3.4, -5.4, -1.0], [3.4, -0.6, 5.6], 0.14, { color: (x, y, z, nx, ny, nz, ao) => headColor(x, y, z, nx, ny, nz, ao), aoAmount: 0.9 });
+  return yield* meshGen(jawShape(), [-3.4, -5.4, -1.0], [3.4, -0.6, 5.6], 0.17, { color: (x, y, z, nx, ny, nz, ao) => headColor(x, y, z, nx, ny, nz, ao), aoAmount: 0.9 });
 }
 
 /** A needle tooth pointing along +y from its base. */
@@ -139,9 +140,38 @@ function toothGeometry(): THREE.BufferGeometry {
 }
 
 /** The eye: a bloodshot ball, a glowing iris, a slit, and a heavy lid pulled down over the top. */
+let eyeTex: THREE.CanvasTexture | null = null;
+
+/** Bloodshot white with thin dark veins, drawn once. */
+function eyeTexture(): THREE.CanvasTexture {
+  if (!eyeTex) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#8f3038';
+    g.fillRect(0, 0, 128, 64);
+    for (let i = 0; i < 70; i++) {
+      const x = ((i * 53) % 128) + 0.5;
+      const y = ((i * 29) % 64) + 0.5;
+      g.strokeStyle = `rgba(${40 + (i % 5) * 8},4,12,${0.5 + (i % 4) * 0.12})`;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + ((i * 7) % 17) - 8, y + ((i * 11) % 13) - 6);
+      g.stroke();
+    }
+    eyeTex = new THREE.CanvasTexture(c);
+    eyeTex.magFilter = eyeTex.minFilter = THREE.NearestFilter;
+    eyeTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return eyeTex;
+}
+
+/** The eye: a bloodshot ball, a glowing iris, a slit, and a heavy lid pulled down over the top. */
 export function makeBigEye(): THREE.Group {
   const g = new THREE.Group();
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.82, 14, 10), new THREE.MeshBasicMaterial({ color: 0x8a2a34 }));
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.82, 14, 10), new THREE.MeshBasicMaterial({ map: eyeTexture() }));
   g.add(ball);
   const iris = new THREE.Mesh(new THREE.CircleGeometry(0.52, 14), new THREE.MeshBasicMaterial({ color: 0xff3a1e }));
   iris.position.z = 0.79;
@@ -149,16 +179,6 @@ export function makeBigEye(): THREE.Group {
   const slit = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.8), new THREE.MeshBasicMaterial({ color: 0x120006 }));
   slit.position.z = 0.8;
   g.add(slit);
-  const vm = new THREE.MeshBasicMaterial({ color: 0x3a0610 });
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + 0.3;
-    const v = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.45), vm);
-    v.position.set(Math.cos(a) * 0.64, Math.sin(a) * 0.64, 0.5);
-    v.rotation.z = a - Math.PI / 2;
-    v.rotation.y = Math.cos(a) * 0.7;
-    v.rotation.x = -Math.sin(a) * 0.7;
-    g.add(v);
-  }
   const h = halo(0xff3a2a, 3.2, 0.55);
   h.position.z = 0.9;
   g.add(h);
@@ -262,7 +282,7 @@ function torsoColor(x: number, y: number, z: number, nx: number, ny: number, nz:
 }
 
 export function* buildTorso(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(torsoShape(), [-9.4, -17, -5.4], [9.4, 17.4, 7.4], 0.22, { color: torsoColor, aoAmount: 0.95 });
+  return yield* meshGen(torsoShape(), [-9.4, -17, -5.4], [9.4, 17.4, 7.4], 0.29, { color: torsoColor, aoAmount: 0.95 });
 }
 
 /* ---------------------------------------------------------------- */
@@ -283,7 +303,7 @@ function armShape(): SDF {
 }
 
 export function* buildArm(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(armShape(), [-2.4, -16.4, -2.6], [5.4, 3.8, 8.2], 0.2, {
+  return yield* meshGen(armShape(), [-2.4, -16.4, -2.6], [5.4, 3.8, 8.2], 0.25, {
     color: (x, y, z, nx, ny, nz, ao) => {
       let c = skinColor(x, y, z);
       if (y < -12.5) c = mix(c, SKIN_B, 0.35);
@@ -325,7 +345,7 @@ function footShape(): SDF {
 }
 
 export function* buildFoot(): Generator<void, THREE.BufferGeometry, void> {
-  return yield* meshGen(footShape(), [-4.8, -0.2, -5.6], [4.8, 12.4, 7.8], 0.2, {
+  return yield* meshGen(footShape(), [-4.8, -0.2, -5.6], [4.8, 12.4, 7.8], 0.25, {
     color: (x, y, z, nx, ny, nz, ao) => {
       let c = mix(rgb(0x6e6478), rgb(0xa89fb0), fbm(x * 0.7, y * 0.7, z * 0.7, 3, 19));
       const v = ridge(x * 1.4, y * 1.4, z * 1.4, 3, 29);
@@ -420,13 +440,81 @@ export class RakeArm {
   }
 }
 
+function paint(g: THREE.BufferGeometry, c: RGB): THREE.BufferGeometry {
+  const n = g.getAttribute('position').count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set(c, i * 3);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+let coreTex: THREE.CanvasTexture | null = null;
+
+/** A beating organ: dark flesh with bright branching veins. */
+function coreTexture(): THREE.CanvasTexture {
+  if (!coreTex) {
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#7a2a9a';
+    g.fillRect(0, 0, 128, 64);
+    for (let i = 0; i < 90; i++) {
+      const x = (i * 37) % 128;
+      const y = (i * 23) % 64;
+      g.fillStyle = `rgba(${200 + (i % 4) * 14},${120 + (i % 5) * 18},255,${0.25 + (i % 3) * 0.2})`;
+      g.fillRect(x, y, 2 + (i % 3), 2);
+    }
+    g.strokeStyle = '#fff0ff';
+    g.lineWidth = 1.5;
+    for (let i = 0; i < 16; i++) {
+      g.beginPath();
+      let x = (i * 61) % 128;
+      let y = (i * 17) % 64;
+      g.moveTo(x, y);
+      for (let k = 0; k < 6; k++) {
+        x += ((i * 13 + k * 29) % 21) - 10;
+        y += ((i * 7 + k * 31) % 15) - 6;
+        g.lineTo(x, y);
+      }
+      g.stroke();
+    }
+    coreTex = new THREE.CanvasTexture(c);
+    coreTex.magFilter = coreTex.minFilter = THREE.NearestFilter;
+    coreTex.wrapS = THREE.RepeatWrapping;
+    coreTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  return coreTex;
+}
+
+let petalGeo: THREE.BufferGeometry | null = null;
+
+/** One fang-petal with its three needles, as a single piece (dark flesh, bone-white teeth). */
+function petalGeometry(): THREE.BufferGeometry {
+  if (!petalGeo) {
+    const p = new THREE.ConeGeometry(0.62, 3.0, 5);
+    p.translate(0, 1.5, 0);
+    p.scale(1, 1, 0.4);
+    const parts: THREE.BufferGeometry[] = [paint(p, rgb(0x2a1c36))];
+    for (let k = 0; k < 3; k++) {
+      const t = new THREE.ConeGeometry(0.12, 0.9, 5);
+      t.translate(0, 0.45, 0);
+      t.rotateX(-Math.PI / 2.2);
+      t.translate(0, 0.8 + k * 0.7, -0.14);
+      parts.push(paint(t, rgb(0xe8e0c8)));
+    }
+    petalGeo = mergeGeometries(parts.map((g) => g.toNonIndexed()))!;
+  }
+  return petalGeo;
+}
+
 /** The maw that bursts out of the floor: a root, and petals of fangs that fold open. */
 export class MawJaw {
   readonly group = new THREE.Group();
   private petals: THREE.Group[] = [];
   private root: THREE.Mesh;
 
-  constructor(dark: THREE.Material, bone: THREE.Material, raw: THREE.Material) {
+  constructor(dark: THREE.Material, _bone: THREE.Material, raw: THREE.Material) {
     this.root = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.35, 3.2, 10, 1, true), dark);
     this.root.position.y = 1.4;
     this.group.add(this.root);
@@ -434,43 +522,28 @@ export class MawJaw {
     inner.rotation.x = -Math.PI / 2;
     inner.position.y = 2.9;
     this.group.add(inner);
-    const petalGeo = new THREE.ConeGeometry(0.62, 3.0, 5);
-    petalGeo.translate(0, 1.5, 0);
-    petalGeo.scale(1, 1, 0.4);
-    const toothGeo = new THREE.ConeGeometry(0.12, 0.9, 5);
-    toothGeo.translate(0, 0.45, 0);
+    const geo = petalGeometry();
+    const mat = skin({ vertexColors: true, rim: 0x8a5ad0, rimPower: 2 });
     const N = 7;
     for (let i = 0; i < N; i++) {
       const a = (i / N) * Math.PI * 2;
       const pivot = new THREE.Group();
       pivot.position.set(Math.cos(a) * 0.9, 2.9, Math.sin(a) * 0.9);
       pivot.rotation.y = -a + Math.PI / 2;
-      const petal = new THREE.Mesh(petalGeo, dark);
-      pivot.add(petal);
-      for (let k = 0; k < 3; k++) {
-        const t = new THREE.Mesh(toothGeo, bone);
-        t.position.set(0, 0.8 + k * 0.7, -0.14);
-        t.rotation.x = -Math.PI / 2.2;
-        pivot.add(t);
-      }
+      pivot.add(new THREE.Mesh(geo, mat));
       this.petals.push(pivot);
       this.group.add(pivot);
     }
     this.open(0);
   }
 
-  /** 0 = closed fist of fangs, 1 = wide open */
+  /** 0 = closed bud of fangs, 1 = wide open */
   open(u: number) {
     for (let i = 0; i < this.petals.length; i++) {
-      const p = this.petals[i]!;
-      // each petal tilts outward from the ring, away from the centre
-      p.rotation.x = 0;
-      p.rotation.z = 0;
       const a = (i / this.petals.length) * Math.PI * 2;
-      // tilt about the tangent so the tip moves from "closed over the opening" to "flung outward"
-      const tilt = -0.15 + u * 1.25;
-      p.rotation.set(0, 0, 0);
-      p.quaternion.setFromAxisAngle(new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)), tilt - 1.1 + 1.1 * 0);
+      const p = this.petals[i]!;
+      p.rotation.order = 'YXZ';
+      p.rotation.set(-0.5 + u * 1.75, Math.PI / 2 - a, 0);
     }
   }
 }
@@ -502,7 +575,7 @@ export class XModel {
   private neck!: TubeChain;
   private tendrils: { chain: TubeChain; base: THREE.Vector3; dir: THREE.Vector3; ph: number }[] = [];
   private bigEyes: THREE.Group[] = [];
-  private smallEyes: THREE.Mesh[] = [];
+  private smallEyes!: THREE.InstancedMesh;
   private fingers: { chain: TubeChain; ph: number; side: number }[] = [];
   private armGroups: THREE.Group[] = [];
   private torsoMesh!: THREE.Mesh;
@@ -512,7 +585,10 @@ export class XModel {
   private hollowGlow: THREE.Sprite;
   private coreMesh!: THREE.Mesh;
   private coreHalo: THREE.Sprite;
-  private armorBits: { m: THREE.Mesh; v: number; y0: number }[] = [];
+  private armorBits: { x: number; y: number; z: number; sx: number; sy: number; sz: number; eye: boolean }[] = [];
+  private armorMesh!: THREE.InstancedMesh;
+  private armorEyes!: THREE.InstancedMesh;
+  private armorU = -1;
   private headU = 0;
   private jawOpen = 0;
   private blink = [0, 0, 0];
@@ -526,6 +602,8 @@ export class XModel {
   private footMesh!: THREE.Mesh;
   private toes: THREE.Mesh[] = [];
   private flashT = 0;
+  private tmpC = new THREE.Color();
+  private tmpO = new THREE.Object3D();
   private mats: THREE.MeshToonMaterial[] = [];
 
   constructor(world: THREE.Group, bossZ: number) {
@@ -676,13 +754,17 @@ export class XModel {
       this.head.add(e);
       this.bigEyes.push(e);
     }
-    const sm = new THREE.MeshBasicMaterial({ color: 0xff3040 });
-    for (const [x, y, z] of SMALL_EYES) {
-      const e = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), sm.clone());
-      e.position.set(x, y, z + 0.05);
-      this.head.add(e);
-      this.smallEyes.push(e);
-    }
+    // sixteen pinpricks, one draw call
+    this.smallEyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }), SMALL_EYES.length);
+    SMALL_EYES.forEach(([x, y, z], i) => {
+      o.position.set(x, y, z + 0.05);
+      o.rotation.set(0, 0, 0);
+      o.scale.setScalar(1);
+      o.updateMatrix();
+      this.smallEyes.setMatrixAt(i, o.matrix);
+      this.smallEyes.setColorAt(i, new THREE.Color(1, 0.2, 0.25));
+    });
+    this.head.add(this.smallEyes);
     // the neck
     this.neck = new TubeChain(14, 9, this.skinMat, (u) => 1.25 - 0.3 * Math.sin(u * Math.PI) + 0.1, (u, a) => mix(SKIN_A, SKIN_B, 0.4 + 0.3 * Math.sin(a * 2 + u * 9)));
     this.root.add(this.neck.mesh);
@@ -695,27 +777,27 @@ export class XModel {
       this.tendrils.push({ chain: ch, base, dir, ph: i * 0.9 });
       this.head.add(ch.mesh);
     }
-    // the tar that clings to him, falling away after the first phase
-    const blobGeo = new THREE.IcosahedronGeometry(0.55, 1);
-    const blobMat = skin({ color: 0x07040e, rim: 0x1f5a68, rimPower: 3 });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x6ff0ff });
-    for (let i = 0; i < 80; i++) {
+    // the tar that clings to him, falling away after the first phase (all of it one draw call)
+    const NA = 80;
+    this.armorMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.55, 1), skin({ color: 0x07040e, rim: 0x1f5a68, rimPower: 3 }), NA);
+    this.armorEyes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 6, 4), new THREE.MeshBasicMaterial({ color: 0x6ff0ff }), NA);
+    this.armorEyes.count = 0;
+    for (let i = 0; i < NA; i++) {
       const y = -7 + rnd(i, 21) * 21;
       const ch = chestAt(Math.max(1, y));
       const ang = (rnd(i, 22) - 0.5) * 3.2;
-      const m = new THREE.Mesh(blobGeo, blobMat);
       const fat = 0.5 + rnd(i, 23) * 1.0;
-      m.position.set(Math.sin(ang) * (ch.a + 0.15 || 2.8), y, Math.cos(ang) * (ch.b + 0.15 || 2.2));
-      if (y < 3) m.position.set(Math.sin(ang) * 3.5, y, Math.cos(ang) * 2.6);
-      m.scale.set(fat * 1.2, fat * (0.6 + rnd(i, 24) * 0.7), fat);
-      this.armor.add(m);
-      this.armorBits.push({ m, v: 4 + (i % 5), y0: m.position.y });
-      if (rnd(i, 25) < 0.22) {
-        const e = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), eyeMat);
-        e.position.set(0, 0.1, 0.5);
-        m.add(e);
+      let px = Math.sin(ang) * (ch.a + 0.15 || 2.8);
+      let pz = Math.cos(ang) * (ch.b + 0.15 || 2.2);
+      if (y < 3) {
+        px = Math.sin(ang) * 3.5;
+        pz = Math.cos(ang) * 2.6;
       }
+      this.armorBits.push({ x: px, y, z: pz, sx: fat * 1.2, sy: fat * (0.6 + rnd(i, 24) * 0.7), sz: fat, eye: rnd(i, 25) < 0.22 });
     }
+    this.armorU = -1;
+    this.setArmor(0);
+    this.armor.add(this.armorMesh, this.armorEyes);
     this.root.add(this.armor);
     // the raking arms (in the world, not in his body)
     const darkClaw = skin({ color: 0x15101c, rim: 0xb090ff, rimPower: 2 });
@@ -735,7 +817,7 @@ export class XModel {
     this.gaze.add(this.beamSlant, this.beamStrip, this.beamCore, this.beamFlare);
     this.gaze.visible = false;
     // the core, and the vein that ties it to the hollow in his chest
-    const cm = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 2), new THREE.MeshBasicMaterial({ color: 0x6a1a8a }));
+    const cm = new THREE.Mesh(new THREE.SphereGeometry(1.5, 18, 12), new THREE.MeshBasicMaterial({ map: coreTexture(), color: 0x2a1040 }));
     this.coreMesh = cm;
     this.core.add(cm, this.coreHalo);
     const light = new THREE.PointLight(0xc060ff, 0, 14, 1.4);
@@ -789,11 +871,29 @@ export class XModel {
 
   /** The tar falls away: u 0..1 */
   setArmor(u: number) {
+    if (u === this.armorU) return;
+    this.armorU = u;
     this.armor.visible = u < 1;
+    if (u >= 1) return;
+    const o = this.tmpO;
+    let ne = 0;
     this.armorBits.forEach((b, i) => {
-      b.m.position.y = b.y0 - u * u * (10 + (i % 5) * 3);
-      b.m.scale.setScalar(Math.max(0.001, (0.5 + rnd(i, 23)) * (1 - u)));
+      const k = Math.max(0.001, 1 - u);
+      o.position.set(b.x, b.y - u * u * (10 + (i % 5) * 3), b.z);
+      o.rotation.set(0, 0, 0);
+      o.scale.set(b.sx * k, b.sy * k, b.sz * k);
+      o.updateMatrix();
+      this.armorMesh.setMatrixAt(i, o.matrix);
+      if (b.eye) {
+        o.position.set(b.x, b.y - u * u * (10 + (i % 5) * 3) + 0.1 * b.sy, b.z + 0.5 * b.sz * k);
+        o.scale.setScalar(k);
+        o.updateMatrix();
+        this.armorEyes.setMatrixAt(ne++, o.matrix);
+      }
     });
+    this.armorEyes.count = ne;
+    this.armorMesh.instanceMatrix.needsUpdate = true;
+    this.armorEyes.instanceMatrix.needsUpdate = true;
   }
 
   flash(v: number) {
@@ -837,7 +937,8 @@ export class XModel {
     this.core.position.set(x, y, z);
     const pulse = 1 + 0.08 * Math.sin(this.time * 8) + 0.06 * Math.sin(this.time * 13);
     this.coreMesh.scale.setScalar(pulse);
-    (this.coreMesh.material as THREE.MeshBasicMaterial).color.setHex(lit > 0.5 ? 0xe080ff : 0x2a1040);
+    (this.coreMesh.material as THREE.MeshBasicMaterial).color.setHex(lit > 0.5 ? 0xffffff : 0x4a2a60);
+    this.coreMesh.rotation.y = this.time * 0.6;
     (this.core.userData['light'] as THREE.PointLight).intensity = 60 * lit;
     this.coreHalo.material.opacity = 0.25 + 0.65 * lit;
   }
@@ -904,10 +1005,11 @@ export class XModel {
       lid.rotation.x = -0.35 - (1 - this.eyesWide) * 0.35 - this.blink[i]! * 0.95;
       (e.userData['halo'] as THREE.Sprite).material.opacity = 0.35 + 0.3 * this.eyesWide + 0.12 * Math.sin(t * 3 + i);
     });
-    this.smallEyes.forEach((e, i) => {
+    for (let i = 0; i < SMALL_EYES.length; i++) {
       const k = 0.55 + 0.45 * Math.sin(t * (2 + (i % 5) * 0.7) + i * 1.9);
-      (e.material as THREE.MeshBasicMaterial).color.setRGB(1, 0.12 + 0.1 * k, 0.16 + 0.1 * k).multiplyScalar(0.45 + 0.75 * k);
-    });
+      this.smallEyes.setColorAt(i, this.tmpC.setRGB(1, 0.12 + 0.1 * k, 0.16 + 0.1 * k).multiplyScalar(0.45 + 0.75 * k));
+    }
+    if (this.smallEyes.instanceColor) this.smallEyes.instanceColor.needsUpdate = true;
     // tendrils drift
     for (const td of this.tendrils) {
       const n = td.chain.pts.length;

@@ -95,18 +95,23 @@ const lab = {
     renderer.render(scene, camera);
     return canvas.toDataURL('image/png');
   },
-  stats(): { tris: number; meshes: number } {
+  stats(): { tris: number; meshes: number; big: string[] } {
     let tris = 0;
     let meshes = 0;
+    const big: { n: number; name: string }[] = [];
     world.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh) {
+      if (m.isMesh && m.visible !== false) {
         meshes++;
         const g = m.geometry;
-        tris += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+        const n = (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+        const inst = (m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1;
+        tris += n * inst;
+        if (n * inst > 3000) big.push({ n: Math.round(n * inst), name: `${g.type}${(m as THREE.InstancedMesh).isInstancedMesh ? ' x' + inst : ''}` });
       }
     });
-    return { tris: Math.round(tris), meshes };
+    big.sort((a, b) => b.n - a.n);
+    return { tris: Math.round(tris), meshes, big: big.slice(0, 12).map((b) => `${b.name}:${b.n}`) };
   },
 };
 

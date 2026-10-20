@@ -421,7 +421,11 @@ export class Act2 {
     ui.light(this.light);
     ui.recenter(true, () => this.resetCamera());
     this.resetCamera();
-    if (this.bi === 0) ui.caption('Strike.', 2400);
+    if (this.bi === 0) {
+      ui.caption('Strike.', 2400);
+      window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
+      window.setTimeout(() => ui.hint(null), 9600);
+    }
     input.setAction('strike');
   }
 
@@ -669,6 +673,8 @@ export class Act2 {
         }
       }
       if (!dead && l.y < 3 && this.features.hit(l.x, l.z, 0.5, this.fenv)) dead = true;
+      // a trail of sparks behind the bolt
+      if (!dead && Math.floor(l.t * 45) !== Math.floor((l.t - dt) * 45)) a.burst3(l.x, l.y, l.z, 1, [0xfffbe0, 0xffd878], 1.2);
       if (!dead && this.boss.state === 'fight') {
         if (this.boss.onLance(l)) dead = true;
         if (!dead) {
