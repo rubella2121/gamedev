@@ -25,6 +25,12 @@ export class UI {
   private startEl: HTMLElement;
   private endEl: HTMLElement;
   private moonEl: HTMLElement;
+  private bossEl: HTMLElement;
+  private lightEl: HTMLElement;
+  private speechEl: HTMLElement;
+  private bossTitleEl: HTMLElement;
+  private speechTimer = 0;
+  private bossHpMax = 0;
   private capTimer = 0;
   private heartMax = 3;
   private recenterEl: HTMLButtonElement;
@@ -54,6 +60,10 @@ export class UI {
     this.phaseEl = mk('phase');
     this.heartsEl = mk('hearts');
     this.buildHearts(3);
+    this.bossEl = mk('bossbar');
+    this.lightEl = mk('lightmeter');
+    this.speechEl = mk('speech');
+    this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
     this.skipEl = mk('skip', 'button') as HTMLButtonElement;
@@ -138,6 +148,63 @@ export class UI {
     if (max !== undefined && max !== this.heartMax) this.buildHearts(max);
     this.heartsEl.classList.add('show');
     Array.from(this.heartsEl.children).forEach((h, i) => h.classList.toggle('lost', i >= n));
+  }
+
+  /** The boss's name and health pips at the top of the screen (null hides it). */
+  bossBar(name: string | null, hp = 0, max = 0, colour = '#ff6a6a') {
+    if (name === null) {
+      this.bossEl.classList.remove('show');
+      this.bossHpMax = 0;
+      return;
+    }
+    if (max !== this.bossHpMax || this.bossEl.dataset['name'] !== name) {
+      this.bossHpMax = max;
+      this.bossEl.dataset['name'] = name;
+      this.bossEl.style.setProperty('--bc', colour);
+      this.bossEl.innerHTML = `<div class="bn">${name}</div><div class="bp">${'<i></i>'.repeat(max)}</div>`;
+    }
+    Array.from(this.bossEl.querySelectorAll('.bp i')).forEach((e, i) => e.classList.toggle('off', i >= hp));
+    this.bossEl.classList.add('show');
+  }
+
+  /** Light meter: three orbs that fill as you hurt things. Full means a Nova is ready. */
+  light(v: number | null) {
+    if (v === null) {
+      this.lightEl.classList.remove('show');
+      return;
+    }
+    if (!this.lightEl.firstChild) this.lightEl.innerHTML = '<i></i><i></i><i></i>';
+    this.lightEl.classList.add('show');
+    Array.from(this.lightEl.children).forEach((e, i) => {
+      const f = Math.max(0, Math.min(1, v - i));
+      (e as HTMLElement).style.setProperty('--f', String(f));
+      e.classList.toggle('full', f >= 1);
+    });
+    this.lightEl.classList.toggle('ready', v >= 3);
+  }
+
+  /** A line a monster says: shown big, in the monster's colour. */
+  speech(text: string | null, holdMs = 2600, tone = '#ff6a6a') {
+    window.clearTimeout(this.speechTimer);
+    if (text === null) {
+      this.speechEl.classList.remove('show');
+      return;
+    }
+    this.speechEl.textContent = text;
+    this.speechEl.style.setProperty('--sc', tone);
+    this.speechEl.classList.remove('show');
+    void this.speechEl.offsetWidth;
+    this.speechEl.classList.add('show');
+    if (holdMs > 0) this.speechTimer = window.setTimeout(() => this.speechEl.classList.remove('show'), holdMs);
+  }
+
+  /** The name card that slams in when a boss wakes up. */
+  bossTitle(name: string, sub: string, colour = '#ff6a6a') {
+    this.bossTitleEl.innerHTML = `<div class="bt">${name}</div><div class="bs">${sub}</div>`;
+    this.bossTitleEl.style.setProperty('--tc', colour);
+    this.bossTitleEl.classList.remove('show');
+    void this.bossTitleEl.offsetWidth;
+    this.bossTitleEl.classList.add('show');
   }
 
   phase(text: string | null) {

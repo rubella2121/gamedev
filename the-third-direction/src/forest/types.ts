@@ -3,7 +3,7 @@ import type { Particle } from '../core/art';
 import type { Sfx } from '../core/audio';
 import type { Input } from '../core/input';
 import type { UI } from '../ui';
-import type { Land, ZoneId } from './land';
+import type { ArenaDef, Land, ZoneId } from './land';
 
 export interface Player {
   x: number;
@@ -23,6 +23,31 @@ export interface Player {
   pulseCd: number;
   /** seconds since the last time something hurt you (used by healing) */
   calm: number;
+  /** the light meter, 0..3: it fills when you hurt a guardian, and a full one pays for a Nova */
+  light: number;
+  /** a dash in progress (seconds left), its direction, and its cooldown */
+  dashT: number;
+  dashX: number;
+  dashY: number;
+  dashCd: number;
+}
+
+/** A bolt of light from a held button: it flies straight, and a guardian can be hurt from afar. */
+export interface Lance {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  t: number;
+  life: number;
+}
+
+/** A ring of light that bursts out of you when the meter is full. */
+export interface Nova {
+  x: number;
+  y: number;
+  t: number;
+  R: number;
 }
 
 export interface Features {
@@ -98,6 +123,24 @@ export interface Hub {
   secret(x: number, y: number): void;
   /** a light pulse was cast */
   pulses: { x: number; y: number; t: number }[];
+  /** the arena of the guardian fight that is on, or null. While it is on, the button also charges a Lance and a Nova. */
+  arena: ArenaDef | null;
+  lances: Lance[];
+  novas: Nova[];
+  /** fade out, move the player into the zone's arena, fade in; the zone hears `onArrive` when the arena is ready */
+  enterArena(z: Zone): void;
+  /** the fight is over: back to the glade, then X's shadow falls on the zone (when won) */
+  leaveArena(z: Zone, won: boolean): void;
+  /** fill the light meter (1 = one orb) */
+  addLight(n: number): void;
+  /** slow the world down for a moment (the hit that kills a boss) */
+  slowmo(scale: number, secs: number): void;
+  /** give back hearts */
+  heal(n?: number): void;
+  /** hold the player still for a moment (a guardian's entrance) */
+  holdPlayer(secs: number): void;
+  /** the point the arena camera should keep in view along with the player */
+  camFocus: { x: number; y: number } | null;
 }
 
 export interface Zone {
@@ -110,6 +153,13 @@ export interface Zone {
   complete(): void;
   update(dt: number): void;
   onPulse?(x: number, y: number, R: number): void;
+  /** the player is in this zone's arena now (a guardian fight starts) */
+  onArrive?(): void;
+  /** a Lance is in flight: return true if it hit something and is spent */
+  onLance?(l: Lance): boolean;
+  /** where a Lance would like to go (the guardian's weak point), for the aim assist */
+  lanceTarget?(): { x: number; y: number } | null;
+  onNova?(n: Nova): void;
   onImpact?(s: Slam): void;
   colliders?(): Rect[];
   /** drawn under everything else (shadows, cones, marks) */

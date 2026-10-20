@@ -1,4 +1,5 @@
-import { Pix, makeSprite } from '../core/pix';
+import { Pix } from '../core/pix';
+import { arc, buf, rimPass, tendril } from './guardians/draw';
 import { C } from '../core/palette';
 import { drawGloom } from '../core/art2';
 import { clamp, hash2, lerp, rng, TAU } from '../core/util';
@@ -8,79 +9,6 @@ import { clamp, hash2, lerp, rng, TAU } from '../core/util';
  * (the moon is up and to the right, like everywhere else in the forest), then is stamped onto the scene.
  * (x, y) is always the ground point under the middle of the boss.
  */
-
-const bufs = new Map<string, Pix>();
-function buf(key: string, w: number, h: number): Pix {
-  let b = bufs.get(key);
-  if (!b || b.w !== w || b.h !== h) {
-    b = makeSprite(w, h);
-    bufs.set(key, b);
-  }
-  b.ctx.clearRect(0, 0, w, h);
-  b.ctx.globalAlpha = 1;
-  return b;
-}
-
-function rgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-/** Light from the upper right: a thin bright edge on every pixel whose right or upper neighbour is empty. */
-export function rimPass(s: Pix, rim: string, chance: number, seed: number, top?: string) {
-  const w = s.w;
-  const h = s.h;
-  const img = s.ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  const r = rng(seed);
-  const [R, G, B] = rgb(rim);
-  const [TR, TG, TB] = top ? rgb(top) : [R, G, B];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w - 1; x++) {
-      const i = (y * w + x) * 4;
-      if (d[i + 3] === 0) continue;
-      const rightEmpty = d[i + 4 + 3] === 0;
-      const topEmpty = y > 0 && d[((y - 1) * w + x) * 4 + 3] === 0;
-      if ((rightEmpty || topEmpty) && r() < chance) {
-        const useTop = topEmpty && !rightEmpty;
-        d[i] = useTop ? TR : R;
-        d[i + 1] = useTop ? TG : G;
-        d[i + 2] = useTop ? TB : B;
-      }
-    }
-  }
-  s.ctx.putImageData(img, 0, 0);
-}
-
-/** A curved stroke made of short segments. */
-function arc(s: Pix, cx: number, cy: number, rx: number, ry: number, a0: number, a1: number, col: string, th = 1) {
-  const n = Math.max(6, Math.ceil(Math.abs(a1 - a0) * Math.max(rx, ry) * 0.6));
-  let px = cx + Math.cos(a0) * rx;
-  let py = cy + Math.sin(a0) * ry;
-  for (let i = 1; i <= n; i++) {
-    const a = lerp(a0, a1, i / n);
-    const x = cx + Math.cos(a) * rx;
-    const y = cy + Math.sin(a) * ry;
-    s.line(px, py, x, y, col, th);
-    px = x;
-    py = y;
-  }
-}
-
-/** A tapering tendril along a list of offsets from (x, y). */
-function tendril(s: Pix, x: number, y: number, pts: [number, number][], th0: number, col: string, sway: number) {
-  let px = x;
-  let py = y;
-  pts.forEach((q, i) => {
-    const nx = x + q[0] + Math.sin(sway + i * 1.3) * (1 + i * 0.5);
-    const ny = y + q[1];
-    const th = Math.max(2, Math.round(th0 * (1 - i / (pts.length + 0.5))));
-    s.line(px, py, nx, ny, col, th);
-    px = nx;
-    py = ny;
-  });
-  return { x: px, y: py };
-}
 
 /* ------------------------------------------------------------------ */
 /* Gloommother (Gloom Hollow)                                          */
@@ -786,4 +714,4 @@ export function drawMimicQueen(p: Pix, x: number, y: number, t: number, o: Mimic
   void o.flash;
 }
 
-export { clamp, hash2 };
+export { clamp, hash2, rimPass };

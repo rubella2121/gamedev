@@ -5,9 +5,9 @@ import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../c
 import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
-import { CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, type ZoneId } from './land';
+import { arenaDef, CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, type ArenaDef, type ZoneId } from './land';
 import { drawBeacon } from './art3';
-import type { Drawable, Features, Hub, Patch, Player, Rect, Slam, Zone } from './types';
+import type { Drawable, Features, Hub, Lance, Nova, Patch, Player, Rect, Slam, Zone } from './types';
 import { makeZones } from './zones';
 
 type Mode = 'opening' | 'play' | 'consume' | 'edge' | 'crack' | 'done';
@@ -20,6 +20,13 @@ const OX = START.x - 108;
 const OY = START.y;
 const LOCAL_CAM = -190;
 const PULSE_R = 36;
+/** hold the button this long for a Lance, and this long (with a full meter) for a Nova */
+const LANCE_T = 0.5;
+const NOVA_T = 1.3;
+const LANCE_SPEED = 300;
+const NOVA_R = 84;
+const DASH_T = 0.17;
+const DASH_SPEED = 235;
 const ENTRIES = [...ZONES.map((z) => z.entry), { x: 418, y: 812 }, { x: 858, y: 812 }, { x: 1034, y: 1500 }, { x: HUB.x, y: HUB.y }];
 const ZONE_COLOR: Record<ZoneId, string> = { gloom: C.cyanEye, thicket: '#e0a060', marsh: '#c9b6ff', bones: C.bone, meadow: C.flowerLight };
 const FEATURE: Record<ZoneId, keyof Features | null> = { gloom: 'cyan', thicket: 'teeth', marsh: 'eyes', bones: 'limbs', meadow: null };
@@ -61,11 +68,25 @@ export class Forest implements Hub {
   private pulseHinted = false;
   private tmp: HTMLCanvasElement;
   private holdReq: string | null = null;
+  private chargeStage: 0 | 1 | 2 = 0;
   private healT = 0;
   private secrets = 0;
   private consumeT = 0;
   private consuming: Zone | null = null;
   private sealOpen = false;
+  arena: ArenaDef | null = null;
+  lances: Lance[] = [];
+  novas: Nova[] = [];
+  /** where the guardian's body is, so the camera can keep it and the player both in view */
+  camFocus: { x: number; y: number } | null = null;
+  private fightZone: Zone | null = null;
+  private trans: { kind: 'in' | 'out'; t: number; zone: Zone; won: boolean; done: boolean } | null = null;
+  private returnPos = { x: 0, y: 0 };
+  private slowT = 0;
+  private slowScale = 1;
+  private freezeT = 0;
+  private ghosts: { x: number; y: number; t: number }[] = [];
+  private aim = { x: 0, y: -1 };
   previewMode = false;
   onBoom: (() => void) | null = null;
   onSection: ((name: string) => void) | null = null;
@@ -91,7 +112,7 @@ export class Forest implements Hub {
   }
 
   private newPlayer(): Player {
-    return { x: 66 + OX, y: 74 + OY, vx: 0, vy: 0, lookX: 0, lookY: 0, squash: 1, dead: 0, blink: 0, hide: false, speedMul: 1, hearts: 3, maxHearts: 3, invuln: 0, pulseCd: 0, calm: 0 };
+    return { x: 66 + OX, y: 74 + OY, vx: 0, vy: 0, lookX: 0, lookY: 0, squash: 1, dead: 0, blink: 0, hide: false, speedMul: 1, hearts: 3, maxHearts: 3, invuln: 0, pulseCd: 0, calm: 0, light: 0, dashT: 0, dashX: 0, dashY: 0, dashCd: 0 };
   }
 
   private buildDark() {
@@ -230,6 +251,116 @@ export class Forest implements Hub {
     this.audio.rumble();
   }
 
+  addLight(n: number) {
+    const pl = this.player;
+    const before = pl.light;
+    pl.light = clamp(pl.light + n, 0, 3);
+    this.ui.light(pl.light);
+    if (before < 3 && pl.light >= 3) this.audio.chime();
+  }
+
+  heal(n = 1) {
+    const pl = this.player;
+    pl.hearts = Math.min(pl.maxHearts, pl.hearts + n);
+    this.ui.hearts(pl.hearts, pl.maxHearts);
+    this.audio.warm();
+    burst(this.parts, pl.x, pl.y - 10, 12, [C.mossGlow, C.blobLight], 30, 1, -10);
+  }
+
+  slowmo(scale: number, secs: number) {
+    this.slowScale = scale;
+    this.slowT = secs;
+  }
+
+  /** Lock the player in place for a moment (a guardian's entrance). */
+  holdPlayer(secs: number) {
+    this.freezeT = Math.max(this.freezeT, secs);
+  }
+
+  /** A guardian's heart was touched: fade to black and wake it in its own clearing. */
+  enterArena(z: Zone) {
+    if (this.trans || this.arena || this.mode !== 'play') return;
+    this.trans = { kind: 'in', t: 0, zone: z, won: false, done: false };
+    const pl = this.player;
+    this.returnPos = { x: pl.x, y: pl.y };
+    this.input.setMoveEnabled(false);
+    this.input.setAction(null);
+    this.ui.hint(null);
+    this.ui.fade(1, 700);
+    this.audio.rumble();
+    this.audio.sting();
+    this.shake(8);
+  }
+
+  leaveArena(z: Zone, won: boolean) {
+    if (!this.arena || this.trans) return;
+    this.trans = { kind: 'out', t: 0, zone: z, won, done: false };
+    this.input.setMoveEnabled(false);
+    this.input.setAction(null);
+    this.input.setCharge(0, 0);
+    this.ui.fade(1, 900);
+  }
+
+  private updateTrans(dt: number) {
+    const tr = this.trans!;
+    tr.t += dt;
+    const pl = this.player;
+    pl.vx *= 0.8;
+    pl.vy *= 0.8;
+    if (tr.kind === 'in' && !tr.done && tr.t >= 0.85) {
+      tr.done = true;
+      const a = arenaDef(tr.zone.id);
+      this.arena = a;
+      this.fightZone = tr.zone;
+      pl.x = a.entry.x;
+      pl.y = a.entry.y;
+      pl.vx = pl.vy = 0;
+      pl.hearts = pl.maxHearts;
+      pl.light = 0;
+      pl.invuln = 0;
+      pl.dashT = pl.dashCd = 0;
+      this.aim = { x: 0, y: -1 };
+      this.slams = [];
+      this.lances = [];
+      this.novas = [];
+      this.parts = [];
+      this.cp = { x: a.entry.x, y: a.entry.y };
+      this.ui.hearts(pl.hearts, pl.maxHearts);
+      this.ui.light(0);
+      this.snapCamera();
+      this.ui.fade(0, 800);
+      tr.zone.onArrive?.();
+      this.trans = null;
+    } else if (tr.kind === 'out' && !tr.done && tr.t >= 1.0) {
+      tr.done = true;
+      this.arena = null;
+      this.fightZone = null;
+      this.camFocus = null;
+      this.lances = [];
+      this.novas = [];
+      this.ghosts = [];
+      this.parts = [];
+      pl.x = this.returnPos.x;
+      pl.y = this.returnPos.y;
+      pl.vx = pl.vy = 0;
+      pl.dead = 0;
+      pl.hide = false;
+      pl.invuln = 0;
+      pl.hearts = pl.maxHearts;
+      this.cp = { x: pl.x, y: pl.y };
+      this.ui.bossBar(null);
+      this.ui.light(null);
+      this.ui.speech(null);
+      this.ui.hearts(pl.hearts, pl.maxHearts);
+      this.input.setCharge(0, 0);
+      this.input.setMoveEnabled(true);
+      this.snapCamera();
+      this.ui.fade(0, 700);
+      this.trans = null;
+      if (tr.won) this.reachHeart(tr.zone);
+    }
+  }
+
   /* ---------------------------------------------------------------- */
   /* lifecycle                                                         */
   /* ---------------------------------------------------------------- */
@@ -250,6 +381,17 @@ export class Forest implements Hub {
     this.secrets = 0;
     this.ctx.stats.bonus = 0;
     this.sealOpen = false;
+    this.arena = null;
+    this.fightZone = null;
+    this.trans = null;
+    this.camFocus = null;
+    this.lances = [];
+    this.novas = [];
+    this.ghosts = [];
+    this.slowT = 0;
+    this.freezeT = 0;
+    this.ui.bossBar(null);
+    this.ui.light(null);
     this.land.decals.length = 0;
     this.features = { teeth: false, eyes: false, limbs: false, cyan: false };
     this.moth = { has: false, x: 0, y: 0 };
@@ -303,6 +445,13 @@ export class Forest implements Hub {
     pl.hearts = pl.maxHearts;
     this.ui.hearts(pl.hearts, pl.maxHearts);
     this.onSection?.('run');
+  }
+
+  /** Debug: go straight into a guardian's arena. */
+  debugArena(id: ZoneId) {
+    if (this.mode === 'opening') this.skipOpening();
+    const z = this.zones.find((q) => q.id === id)!;
+    this.enterArena(z);
   }
 
   /** Jump to a place (debug / showcase). Zones before it count as done. */
@@ -372,6 +521,10 @@ export class Forest implements Hub {
   /* ---------------------------------------------------------------- */
 
   update(dt: number) {
+    if (this.slowT > 0) {
+      this.slowT -= dt;
+      dt *= this.slowScale;
+    }
     this.time += dt;
     this.shakeV = Math.max(0, this.shakeV - dt * 22);
     updateParticles(this.parts, dt);
@@ -456,6 +609,10 @@ export class Forest implements Hub {
     pl.invuln = 1.2;
     pl.calm = 0;
     this.slams = [];
+    pl.dashT = 0;
+    pl.dashCd = 0;
+    this.lances = [];
+    this.novas = [];
     this.ui.hearts(pl.hearts, pl.maxHearts);
     this.zones.forEach((z) => z.onRespawn());
     this.snapCamera();
@@ -515,6 +672,124 @@ export class Forest implements Hub {
     for (const z of this.zones) z.onPulse?.(pl.x, pl.y, PULSE_R);
   }
 
+  private castLance() {
+    const pl = this.player;
+    let ax = this.aim.x;
+    let ay = this.aim.y;
+    // aim assist: if the guardian is within about 40 degrees of where you face, the lance goes for it
+    const tg = this.fightZone?.lanceTarget?.();
+    if (tg) {
+      const dx = tg.x - pl.x;
+      const dy = tg.y - (pl.y - 8);
+      const d = Math.hypot(dx, dy) || 1;
+      if ((dx / d) * ax + (dy / d) * ay > 0.76) {
+        ax = dx / d;
+        ay = dy / d;
+      }
+    }
+    this.lances.push({ x: pl.x + ax * 6, y: pl.y - 8 + ay * 4, vx: ax * LANCE_SPEED, vy: ay * LANCE_SPEED, t: 0, life: 0.85 });
+    pl.pulseCd = Math.max(pl.pulseCd, 0.3);
+    this.audio.lance();
+    burst(this.parts, pl.x + ax * 6, pl.y - 8, 8, [C.moonCore, C.blobLight, '#ffe9a0'], 40, 0, 0);
+  }
+
+  private castNova() {
+    const pl = this.player;
+    pl.light = 0;
+    this.ui.light(0);
+    const n: Nova = { x: pl.x, y: pl.y - 4, t: 0, R: NOVA_R };
+    this.novas.push(n);
+    pl.pulseCd = 0.6;
+    pl.invuln = Math.max(pl.invuln, 0.3);
+    this.audio.nova();
+    this.ui.flash(0.5, 380);
+    this.shake(7);
+    burst(this.parts, pl.x, pl.y - 6, 30, [C.moonCore, C.blobLight, '#ff9ad0', '#ffe9a0'], 90, 0, 0);
+    this.fightZone?.onNova?.(n);
+  }
+
+  private dash() {
+    const pl = this.player;
+    const { input } = this;
+    let dx = input.moveX;
+    let dy = input.moveY;
+    const l = Math.hypot(dx, dy);
+    if (l < 0.2) {
+      dx = this.aim.x;
+      dy = this.aim.y;
+    } else {
+      dx /= l;
+      dy /= l;
+    }
+    pl.dashT = DASH_T;
+    pl.dashX = dx;
+    pl.dashY = dy;
+    pl.dashCd = 0.8;
+    pl.invuln = Math.max(pl.invuln, DASH_T + 0.12);
+    this.audio.dash();
+  }
+
+  /** In a guardian's arena the one button does four things: tap pulses, double-tap dashes, hold-and-release throws a Lance, hold longer with a full meter bursts a Nova. */
+  private updateAttacks(dt: number) {
+    const { input } = this;
+    const pl = this.player;
+    if (this.freezeT > 0) {
+      input.setAction(null);
+      input.setCharge(0, 0);
+      return;
+    }
+    input.setAction('light');
+    if (input.actionPressed) {
+      if (input.doubleTap && pl.dashCd <= 0) this.dash();
+      if (pl.pulseCd <= 0 && pl.dashT <= 0) this.castPulse();
+    }
+    const h = input.actionDown ? input.actionHold : 0;
+    const full = pl.light >= 3;
+    let stage: 0 | 1 | 2 = 0;
+    let u = 0;
+    if (h > 0.18) {
+      if (full && h >= NOVA_T) stage = 2;
+      else if (h >= LANCE_T) stage = 1;
+      u = h < LANCE_T ? (h - 0.18) / (LANCE_T - 0.18) : full ? clamp((h - LANCE_T) / (NOVA_T - LANCE_T), 0, 1) : 1;
+    }
+    if (stage !== this.chargeStage) {
+      if (stage === 1) this.audio.charge1();
+      if (stage === 2) this.audio.charge2();
+      this.chargeStage = stage;
+    }
+    input.setCharge(u, stage);
+    if (input.actionReleased) {
+      const r = input.releasedAfter;
+      if (full && r >= NOVA_T) this.castNova();
+      else if (r >= LANCE_T) this.castLance();
+      this.chargeStage = 0;
+      input.setCharge(0, 0);
+    }
+  }
+
+  private updateFightFx(dt: number) {
+    for (let i = this.lances.length - 1; i >= 0; i--) {
+      const l = this.lances[i]!;
+      l.t += dt;
+      l.x += l.vx * dt;
+      l.y += l.vy * dt;
+      let dead = l.t >= l.life || !this.land.isWalk(l.x, l.y);
+      if (!dead && this.fightZone?.onLance?.(l)) dead = true;
+      if (dead) {
+        burst(this.parts, l.x, l.y, 6, [C.moonCore, '#ffe9a0'], 30, 0, 0);
+        this.lances.splice(i, 1);
+      }
+    }
+    for (let i = this.novas.length - 1; i >= 0; i--) {
+      this.novas[i]!.t += dt;
+      if (this.novas[i]!.t > 0.5) this.novas.splice(i, 1);
+    }
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      this.ghosts[i]!.t += dt;
+      if (this.ghosts[i]!.t > 0.3) this.ghosts.splice(i, 1);
+    }
+  }
+
   private updatePlay(dt: number) {
     const { input } = this;
     const pl = this.player;
@@ -524,15 +799,33 @@ export class Forest implements Hub {
       this.updateSlams(dt);
       return;
     }
+    if (this.trans) {
+      this.updateTrans(dt);
+      this.updateSlams(dt);
+      return;
+    }
     pl.invuln = Math.max(0, pl.invuln - dt);
     pl.pulseCd = Math.max(0, pl.pulseCd - dt);
+    pl.dashCd = Math.max(0, pl.dashCd - dt);
     pl.calm += dt;
+    this.freezeT = Math.max(0, this.freezeT - dt);
+    const fighting = this.arena !== null;
+    const frozen = this.freezeT > 0;
+    const mvx = frozen ? 0 : input.moveX;
+    const mvy = frozen ? 0 : input.moveY;
 
     // --- movement (free in every direction, stopped by trees, gates and blocks)
     const sp0 = SPEED * pl.speedMul;
     const k = 1 - Math.exp(-16 * dt);
-    pl.vx += (input.moveX * sp0 - pl.vx) * k;
-    pl.vy += (input.moveY * sp0 - pl.vy) * k;
+    if (pl.dashT > 0) {
+      pl.dashT -= dt;
+      pl.vx = pl.dashX * DASH_SPEED;
+      pl.vy = pl.dashY * DASH_SPEED;
+      this.ghosts.push({ x: pl.x, y: pl.y, t: 0 });
+    } else {
+      pl.vx += (mvx * sp0 - pl.vx) * k;
+      pl.vy += (mvy * sp0 - pl.vy) * k;
+    }
     const nx = pl.x + pl.vx * dt;
     if (this.canStand(nx, pl.y)) pl.x = nx;
     else pl.vx = 0;
@@ -543,6 +836,7 @@ export class Forest implements Hub {
     if (sp > 8) {
       pl.lookX = pl.vx / SPEED;
       pl.lookY = pl.vy / SPEED;
+      this.aim = { x: pl.vx / sp, y: pl.vy / sp };
     } else {
       pl.lookX *= 0.9;
       pl.lookY *= 0.9;
@@ -566,21 +860,30 @@ export class Forest implements Hub {
     // --- zones
     this.holdReq = null;
     for (const z of this.zones) {
-      if (z.always || this.near(z)) z.update(dt);
-      if (pl.dead > 0 || this.mode !== 'play') break;
+      if (z.always || z === this.fightZone || (!this.arena && this.near(z))) z.update(dt);
+      if (pl.dead > 0 || this.mode !== 'play' || this.trans) break;
     }
     this.updateSlams(dt);
 
     // --- the action button: pulse, unless a zone wants "hold"
     if (this.holdReq) input.setAction(this.holdReq);
+    else if (fighting) this.updateAttacks(dt);
     else {
       input.setAction('pulse');
       if (input.actionPressed && pl.pulseCd <= 0 && pl.dead <= 0) this.castPulse();
     }
+    if (fighting) this.updateFightFx(dt);
 
     // --- camera
-    const tx = clamp(pl.x - W / 2 + pl.lookX * 24, 0, WORLD_W - W);
-    const ty = clamp(pl.y - 0.58 * H + pl.lookY * 30, 0, WORLD_H - H);
+    let tx = clamp(pl.x - W / 2 + pl.lookX * 24, 0, WORLD_W - W);
+    let ty = clamp(pl.y - 0.58 * H + pl.lookY * 30, 0, WORLD_H - H);
+    if (this.arena) {
+      // in an arena the camera holds the whole clearing, leaning toward the player and the guardian
+      const a = this.arena;
+      const f = this.camFocus ?? { x: a.x, y: a.boss.y };
+      tx = clamp((pl.x * 0.4 + f.x * 0.6) - W / 2, a.x - a.rx - 6, a.x + a.rx + 6 - W);
+      ty = clamp((pl.y * 0.55 + f.y * 0.45) - 0.55 * H, a.y - a.ry + 38, a.y + a.ry + 10 - H);
+    }
     const kc = 1 - Math.exp(-5 * dt);
     this.camX += (tx - this.camX) * kc;
     this.camY += (ty - this.camY) * kc;
@@ -598,13 +901,13 @@ export class Forest implements Hub {
     }
 
     // --- checkpoints where the roads meet the zones
-    for (const e of ENTRIES) if (Math.abs(pl.x - e.x) < 34 && Math.abs(pl.y - e.y) < 34) this.checkpoint(e.x, e.y);
+    if (!this.arena) for (const e of ENTRIES) if (Math.abs(pl.x - e.x) < 34 && Math.abs(pl.y - e.y) < 34) this.checkpoint(e.x, e.y);
 
     // --- the seal on the road to the Edge opens when every zone is done
     if (!this.sealOpen && this.zones.every((z) => z.cleared)) this.openSeal();
 
     // --- the edge
-    if (pl.y <= CLIFF_Y + 70 && this.mode === 'play') this.beginEdge();
+    if (pl.y <= CLIFF_Y + 70 && this.mode === 'play' && !this.arena) this.beginEdge();
   }
 
   private near(z: Zone): boolean {
@@ -876,6 +1179,44 @@ export class Forest implements Hub {
     }
   }
 
+  /** Lances in flight, novas, the afterimages of a dash. */
+  private drawFightFx() {
+    if (!this.arena) return;
+    const p = this.p;
+    const t = this.time;
+    for (const g of this.ghosts) {
+      const u = g.t / 0.3;
+      p.alpha(0.5 * (1 - u));
+      drawBlob(p, g.x - this.camX, g.y - this.camY, { squash: 0.8, lookX: this.aim.x, lookY: this.aim.y, shadow: false });
+    }
+    p.alpha(1);
+    for (const l of this.lances) {
+      const sx = l.x - this.camX;
+      const sy = l.y - this.camY;
+      const len = Math.hypot(l.vx, l.vy);
+      const ux = l.vx / len;
+      const uy = l.vy / len;
+      p.alpha(0.35);
+      p.line(sx - ux * 22, sy - uy * 22, sx, sy, C.blobLight, 3);
+      p.alpha(1);
+      p.line(sx - ux * 14, sy - uy * 14, sx + ux * 5, sy + uy * 5, '#ffe9a0', 2);
+      p.line(sx - ux * 8, sy - uy * 8, sx + ux * 6, sy + uy * 6, C.white, 1);
+      p.dither(sx, sy, 6, 5, C.moonCore, 0.35 + 0.15 * Math.sin(t * 40));
+    }
+    for (const n of this.novas) {
+      const u = n.t / 0.5;
+      const r = n.R * easeOutCubic(clamp(u * 1.6, 0, 1));
+      const sx = n.x - this.camX;
+      const sy = n.y - this.camY;
+      p.alpha(1 - u * 0.9);
+      p.ring(sx, sy, r, r * 0.72, 4, u < 0.3 ? C.white : '#ff9ad0');
+      p.ring(sx, sy, r * 0.8, r * 0.58, 2, '#ffe9a0');
+      p.alpha((1 - u) * 0.45);
+      p.dither(sx, sy, r, r * 0.72, '#ffe9a0', 0.4);
+      p.alpha(1);
+    }
+  }
+
   private drawPulses() {
     const p = this.p;
     for (const q of this.pulses) {
@@ -978,6 +1319,7 @@ export class Forest implements Hub {
     for (const d of list) d.fn();
     for (const z of this.zones) z.overlay?.();
     this.drawPulses();
+    this.drawFightFx();
     this.drawSeal();
 
     if (opening) this.drawLurkersAndEyes();
@@ -1000,7 +1342,7 @@ export class Forest implements Hub {
       if (u > 0.6) this.drawDark((u - 0.6) * 0.5);
     }
     if (opening && ot < 1.6) this.drawDark(1 - ot / 1.6);
-    if (this.mode === 'play' || this.mode === 'consume') {
+    if ((this.mode === 'play' || this.mode === 'consume') && !this.arena) {
       this.drawHud();
       if (this.mode === 'play') this.drawCompass();
     }

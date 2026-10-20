@@ -17,14 +17,16 @@ export interface Diff {
   vision: number;
   /** multiplier on how long X stays stuck after an attack */
   window: number;
+  /** multiplier on every boss's health */
+  boss: number;
   /** only Normal and Nightmare times go on the leaderboard */
   ranked: boolean;
 }
 
 export const PRESETS: Record<DiffId, Diff> = {
-  gentle: { id: 'gentle', label: 'Gentle', blurb: 'More time, more hearts. For the story.', hearts: 5, tele: 1.4, speed: 0.85, vision: 0.8, window: 1.35, ranked: false },
-  normal: { id: 'normal', label: 'Normal', blurb: 'The game as designed.', hearts: 3, tele: 1, speed: 1, vision: 1, window: 1, ranked: true },
-  nightmare: { id: 'nightmare', label: 'Nightmare', blurb: 'Fast, watchful, 2 hearts. No mercy.', hearts: 2, tele: 0.78, speed: 1.18, vision: 1.2, window: 0.78, ranked: true },
+  gentle: { id: 'gentle', label: 'Gentle', blurb: 'More time, more hearts. For the story.', hearts: 5, tele: 1.4, speed: 0.85, vision: 0.8, window: 1.35, boss: 0.7, ranked: false },
+  normal: { id: 'normal', label: 'Normal', blurb: 'The game as designed.', hearts: 3, tele: 1, speed: 1, vision: 1, window: 1, boss: 1, ranked: true },
+  nightmare: { id: 'nightmare', label: 'Nightmare', blurb: 'Fast, watchful, 2 hearts. No mercy.', hearts: 2, tele: 0.78, speed: 1.18, vision: 1.2, window: 0.78, boss: 1.3, ranked: true },
 };
 
 export const D: Diff = { ...PRESETS.normal };
@@ -56,4 +58,9 @@ export function recordTime(id: DiffId, seconds: number): boolean {
   if (prev !== null && prev <= seconds) return false;
   storageSet(`${BEST}.${id}`, String(Math.round(seconds)));
   return true;
+}
+
+/** A boss's health in pips for the current difficulty. */
+export function bossHp(base: number): number {
+  return Math.max(2, Math.round(base * D.boss));
 }

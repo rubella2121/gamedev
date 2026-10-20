@@ -5,7 +5,7 @@ import { makeBush, makeFlower, makeFrame, makeGroundTile, makePathTile, makeRock
 
 /** The whole forest is one scrolling map. x goes right, y goes down. */
 export const WORLD_W = 1280;
-export const WORLD_H = 1960;
+export const WORLD_H = 2600;
 export const CELL = 4;
 const GW = WORLD_W / CELL;
 const GH = WORLD_H / CELL;
@@ -42,6 +42,50 @@ export const ZONES: ZoneDef[] = [
 
 export function zoneDef(id: ZoneId): ZoneDef {
   return ZONES.find((z) => z.id === id)!;
+}
+
+/**
+ * Each guardian fights in a sealed clearing of its own, in a strip of the world below the start glade that no road leads to.
+ * It is a rounded rectangle, a little bigger than the screen, so the whole fight is nearly always in view.
+ */
+export interface ArenaDef {
+  id: ZoneId;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  biome: GroundKind;
+  /** where the player arrives (bottom middle) */
+  entry: { x: number; y: number };
+  /** where the guardian stands (top middle) */
+  boss: { x: number; y: number };
+}
+
+const ARENA_Y = 2300;
+const ARENA_RX = 118;
+const ARENA_RY = 212;
+export const ARENAS: ArenaDef[] = ZONES.map((z, i) => ({
+  id: z.id,
+  x: 128 + i * 256,
+  y: ARENA_Y,
+  rx: ARENA_RX,
+  ry: ARENA_RY,
+  biome: z.biome,
+  entry: { x: 128 + i * 256, y: ARENA_Y + ARENA_RY - 46 },
+  boss: { x: 128 + i * 256, y: ARENA_Y - ARENA_RY + 160 },
+}));
+
+export function arenaDef(id: ZoneId): ArenaDef {
+  return ARENAS.find((a) => a.id === id)!;
+}
+
+/** < 1 inside an arena (a squircle with a slightly ragged edge). */
+function arenaShape(a: ArenaDef, x: number, y: number): number {
+  const dx = Math.abs(x - a.x) / a.rx;
+  const dy = Math.abs(y - a.y) / a.ry;
+  const th = Math.atan2(y - a.y, x - a.x);
+  const lim = 1 + 0.035 * Math.sin(5 * th + a.x * 0.01) + 0.025 * Math.sin(9 * th);
+  return Math.pow(Math.pow(dx, 3.6) + Math.pow(dy, 3.6), 1 / 3.6) / lim;
 }
 
 /** Roads: polylines with a half-width. */
@@ -177,6 +221,14 @@ export class Land {
             break;
           }
         }
+        let arenaBiome = -1;
+        for (const a of ARENAS) {
+          if (arenaShape(a, x, y) <= 1) {
+            inside = true;
+            arenaBiome = BIOMES.indexOf(a.biome);
+            break;
+          }
+        }
         if (!inside) {
           for (const rd of ROADS) {
             for (let i = 0; i + 1 < rd.pts.length; i++) {
@@ -204,7 +256,7 @@ export class Land {
             b = BIOMES.indexOf(z.biome);
           }
         }
-        this.bio[i] = b;
+        this.bio[i] = arenaBiome >= 0 ? arenaBiome : b;
       }
     }
     // chamfer distance transform: for walkable cells the distance to a wall, for walls the distance to ground

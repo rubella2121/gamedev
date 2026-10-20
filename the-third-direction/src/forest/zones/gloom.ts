@@ -4,7 +4,9 @@ import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { dist, hash2 } from '../../core/util';
 import { drawBlossom, drawGloomHeart, drawLamp, drawNest, drawPips, drawThornGate } from '../art3';
-import type { Drawable, Hub, Patch, Rect, Zone } from '../types';
+import { arenaDef } from '../land';
+import { Gloommother, MOTHER_PATCHES } from '../guardians/gloommother';
+import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
 import { Gate, LightPuzzle, onScreen } from './parts';
 
 interface Gl {
@@ -66,9 +68,41 @@ export class GloomZone implements Zone {
   private heart = { ...HEART, flash: 0, dead: false };
   private ringDone = false;
   private t = 0;
+  private guardian: Gloommother | null = null;
 
   constructor(private hub: Hub) {
     for (const pt of PATCHES) hub.land.addPatchFlowers(pt.x, pt.y, pt.rx, pt.ry, Math.floor(pt.x));
+    for (const pt of MOTHER_PATCHES) hub.land.addPatchFlowers(pt.x, pt.y, pt.rx, pt.ry, Math.floor(pt.x) + 7);
+  }
+
+  /** the guardian fight keeps this zone updating even while the player is in its arena, far away */
+  get always() {
+    return this.guardian !== null;
+  }
+
+  /** The player is in the arena: the Gloommother wakes. */
+  onArrive() {
+    this.guardian = new Gloommother(this.hub, arenaDef('gloom'), () => {
+      this.heart.dead = true;
+      this.hub.leaveArena(this, true);
+    });
+    this.guardian.begin();
+  }
+
+  onLance(l: Lance): boolean {
+    return this.guardian?.onLance(l) ?? false;
+  }
+
+  onNova(n: Nova) {
+    this.guardian?.onNova(n);
+  }
+
+  lanceTarget() {
+    return this.guardian?.lanceTarget() ?? null;
+  }
+
+  overlay() {
+    this.guardian?.overlay();
   }
 
   reset() {
@@ -81,10 +115,15 @@ export class GloomZone implements Zone {
     this.gate.open = 0;
     this.gate.opening = false;
     this.heart = { ...HEART, flash: 0, dead: false };
-    this.hub.patches.push(...PATCHES);
+    this.guardian = null;
+    this.hub.patches.push(...PATCHES, ...MOTHER_PATCHES);
   }
 
   onRespawn() {
+    if (this.guardian) {
+      this.guardian.onPlayerDied();
+      return;
+    }
     this.gl = [];
     this.lamps.reset(this.lamps.solved);
     this.ring.reset(this.ringDone);
@@ -92,6 +131,7 @@ export class GloomZone implements Zone {
   }
 
   complete() {
+    this.guardian = null;
     this.cleared = true;
     this.gl = [];
     this.nests = [];
@@ -102,6 +142,7 @@ export class GloomZone implements Zone {
   }
 
   colliders(): Rect[] {
+    if (this.guardian) return this.guardian.colliders();
     return this.gate.solid() ? [this.gate.rect] : [];
   }
 
@@ -115,6 +156,10 @@ export class GloomZone implements Zone {
 
   onPulse(px: number, py: number, R: number) {
     const hub = this.hub;
+    if (this.guardian) {
+      this.guardian.onPulse(px, py, R);
+      return;
+    }
     // Gloomlings: one pulse destroys them
     for (const g of this.gl) {
       if (!g.dying && dist(px, py, g.x, g.y) <= R + 3) {
@@ -135,18 +180,12 @@ export class GloomZone implements Zone {
     if (this.lamps.onPulse(px, py, R)) hub.audio.click();
     if (this.ring.onPulse(px, py, R)) hub.audio.click();
     const h = this.heart;
+    // touching the Gloom Heart wakes the Gloommother that sleeps in it
     if (!h.dead && this.gate.open >= 0.85 && dist(px, py, h.x, h.y - 8) <= R + 14) {
-      h.hp--;
       h.flash = 0.25;
       hub.audio.pop();
-      hub.shake(3);
       burst(hub.parts, h.x, h.y - 10, 14, [C.cyanEye, '#05070f', C.white], 50, 1);
-      for (let i = 0; i < 3; i++) this.spawn(h.x + 20 + i * 6, h.y + (i - 1) * 8);
-      if (h.hp <= 0) {
-        h.dead = true;
-        hub.audio.kill();
-        hub.reachHeart(this);
-      }
+      hub.enterArena(this);
     }
   }
 
@@ -154,6 +193,13 @@ export class GloomZone implements Zone {
     const hub = this.hub;
     const pl = hub.player;
     this.t += dt;
+    if (this.guardian) {
+      if (!hub.arena && this.guardian.state === 'gone') this.guardian = null;
+      else {
+        this.guardian.update(dt);
+        return;
+      }
+    }
     this.gate.update(dt);
     for (const n of this.nests) n.flash = Math.max(0, n.flash - dt);
     this.heart.flash = Math.max(0, this.heart.flash - dt);
@@ -232,7 +278,7 @@ export class GloomZone implements Zone {
   }
 
   ground() {
-    // a faint cyan fog where the Hollow is darkest
+    this.guardian?.ground();
   }
 
   push(list: Drawable[]) {
@@ -241,6 +287,10 @@ export class GloomZone implements Zone {
     const t = hub.time;
     const cx = hub.camX;
     const cy = hub.camY;
+    if (this.guardian) {
+      this.guardian.push(list);
+      return;
+    }
     for (const n of this.nests) {
       if (!onScreen(hub, n.x, n.y)) continue;
       list.push({
@@ -264,8 +314,7 @@ export class GloomZone implements Zone {
       list.push({
         y: h.y,
         fn: () => {
-          drawGloomHeart(p, h.x - cx, h.y - cy, t, h.hp / HEART.hp, h.flash);
-          drawPips(p, h.x - cx, h.y - cy - 36, h.hp, HEART.hp);
+          drawGloomHeart(p, h.x - cx, h.y - cy, t, 1, h.flash);
         },
       });
     }

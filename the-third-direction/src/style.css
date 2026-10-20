@@ -145,3 +145,42 @@ body {
 
 .endcard .rank { min-height: calc(var(--u) * 5); font-size: calc(var(--u) * 3.6); color: rgba(232, 255, 251, 0.75); }
 .endcard .rank b { color: #9ff4ee; }
+
+/* ---------- boss fights ---------- */
+.abtn { --ch: 0; }
+.abtn::before {
+  content: ''; position: absolute; inset: calc(var(--u) * -1.8); border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 120ms;
+  background: conic-gradient(#9ff4ee calc(var(--ch) * 360deg), rgba(159, 244, 238, 0.12) 0);
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - var(--u) * 1.5), #000 calc(50% - var(--u) * 1.4)); mask: radial-gradient(circle, transparent calc(50% - var(--u) * 1.5), #000 calc(50% - var(--u) * 1.4));
+}
+.abtn.charging::before { opacity: 1; }
+.abtn.ch1::before { background: conic-gradient(#ffe9a0 calc(var(--ch) * 360deg), rgba(255, 233, 160, 0.14) 0); }
+.abtn.ch2::before { background: conic-gradient(#ff9ad0 360deg, #ff9ad0 0); animation: pulse 0.35s ease-in-out infinite; }
+.abtn.ch1 { box-shadow: 0 0 calc(var(--u) * 7) rgba(255, 233, 160, 0.8); }
+.abtn.ch2 { box-shadow: 0 0 calc(var(--u) * 9) rgba(255, 154, 208, 0.9); background: rgba(255, 220, 240, 0.95); }
+
+.bossbar {
+  position: absolute; left: 50%; top: calc(var(--u) * 3.4 + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 10; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1); opacity: 0; transition: opacity 400ms; --bc: #ff6a6a;
+}
+.bossbar.show { opacity: 1; }
+.bossbar .bn { font-size: calc(var(--u) * 2.6); letter-spacing: 0.34em; text-transform: uppercase; color: var(--bc); text-shadow: 0 0 calc(var(--u) * 2) var(--bc), 0 2px 0 #000; white-space: nowrap; padding-left: 0.34em; }
+.bossbar .bp { display: flex; gap: calc(var(--u) * 0.9); }
+.bossbar .bp i { display: block; width: calc(var(--u) * 4.4); height: calc(var(--u) * 1.8); background: var(--bc); box-shadow: 0 0 calc(var(--u) * 1.4) var(--bc); transition: opacity 250ms, transform 250ms, background 250ms; transform: skewX(-18deg); }
+.bossbar .bp i.off { opacity: 0.16; background: #1a1020; box-shadow: none; transform: skewX(-18deg) scaleY(0.7); }
+.lightmeter { position: absolute; left: calc(var(--u) * 4); top: calc(var(--u) * 12.6 + env(safe-area-inset-top, 0px)); z-index: 10; display: flex; gap: calc(var(--u) * 1.3); pointer-events: none; opacity: 0; transition: opacity 300ms; }
+.lightmeter.show { opacity: 1; }
+.lightmeter i { --f: 0; display: block; width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); border-radius: 50%; border: 1.5px solid rgba(255, 233, 160, 0.55); background: radial-gradient(circle, rgba(255, 241, 166, calc(var(--f) * 0.95)) 0 calc(var(--f) * 62%), transparent calc(var(--f) * 62% + 2%)); transition: box-shadow 200ms; }
+.lightmeter i.full { box-shadow: 0 0 calc(var(--u) * 2) rgba(255, 233, 160, 0.9); border-color: #ffe9a0; }
+.lightmeter.ready i { animation: pulse 0.5s ease-in-out infinite; border-color: #ff9ad0; box-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 154, 208, 0.95); }
+.speech {
+  position: absolute; left: 6%; right: 6%; top: 25%; text-align: center; z-index: 10; pointer-events: none; opacity: 0; --sc: #ff6a6a;
+  font-size: calc(var(--u) * 5.4); letter-spacing: 0.1em; font-style: italic; text-transform: lowercase; line-height: 1.25;
+  color: #fff4f4; text-shadow: 0 0 calc(var(--u) * 3) var(--sc), 0 0 calc(var(--u) * 8) var(--sc), 0 2px 0 #000;
+}
+.speech.show { animation: speak 2.6s ease-out forwards; }
+@keyframes speak { 0% { opacity: 0; letter-spacing: 0.4em; transform: scale(1.12); } 12% { opacity: 1; letter-spacing: 0.1em; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+.bosstitle { position: absolute; inset: 0; z-index: 14; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0; --tc: #ff6a6a; gap: calc(var(--u) * 2); }
+.bosstitle .bt { font-size: calc(var(--u) * 9); font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; color: #fff0f0; text-shadow: 0 0 calc(var(--u) * 6) var(--tc), 0 0 calc(var(--u) * 16) var(--tc), 0 calc(var(--u) * 0.8) 0 #000; padding-left: 0.16em; line-height: 1.1; }
+.bosstitle .bs { font-size: calc(var(--u) * 3.2); letter-spacing: 0.34em; text-transform: uppercase; color: var(--tc); text-shadow: 0 2px 0 #000; padding-left: 0.34em; }
+.bosstitle.show { animation: slam 3.1s ease-out forwards; }

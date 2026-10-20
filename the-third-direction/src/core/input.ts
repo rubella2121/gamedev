@@ -10,6 +10,12 @@ export class Input {
   actionDown = false;
   actionPressed = false;
   actionHold = 0;
+  /** true on the frame the button comes up */
+  actionReleased = false;
+  /** how long it had been held when it came up (0 on every other frame) */
+  releasedAfter = 0;
+  /** true on the press that is the second tap of a quick double tap */
+  doubleTap = false;
   usingTouch = false;
   moveEnabled = true;
   /** 3D camera: drag on the right side (any drag with a mouse), or Q / E. */
@@ -30,6 +36,9 @@ export class Input {
   private joyY = 0;
   private btnId = -1;
   private prevDown = false;
+  private lastHold = 0;
+  private lastTapShort = false;
+  private sinceTap = 9;
   private latchT = 0;
   private actionEnabled = false;
   private layer: HTMLElement;
@@ -186,6 +195,14 @@ export class Input {
     }
   }
 
+  /** The ring around the action button while a charged attack builds: u in 0..1, stage 0 = nothing yet, 1 = lance ready, 2 = nova ready. */
+  setCharge(u: number, stage: 0 | 1 | 2) {
+    this.btn.style.setProperty('--ch', String(Math.max(0, Math.min(1, u))));
+    this.btn.classList.toggle('ch1', stage === 1);
+    this.btn.classList.toggle('ch2', stage === 2);
+    this.btn.classList.toggle('charging', u > 0.02);
+  }
+
   /** Drag distance (in CSS pixels) since the last call, then reset. */
   takeCam(): { dx: number; dy: number } {
     const r = { dx: this.camDX, dy: this.camDY };
@@ -235,7 +252,20 @@ export class Input {
     this.latchT = Math.max(0, this.latchT - dt);
     this.actionDown = (keyAction || this.btnId >= 0 || this.latchT > 0) && this.actionEnabled;
     this.actionPressed = this.actionDown && !this.prevDown;
-    this.actionHold = this.actionDown ? this.actionHold + dt : 0;
+    this.actionReleased = !this.actionDown && this.prevDown;
+    this.sinceTap += dt;
+    this.doubleTap = false;
+    if (this.actionPressed) {
+      if (this.sinceTap < 0.34 && this.lastTapShort) this.doubleTap = true;
+      this.sinceTap = 0;
+    }
+    if (this.actionDown) this.actionHold += dt;
+    else {
+      if (this.prevDown) this.lastHold = this.actionHold;
+      this.actionHold = 0;
+    }
+    this.releasedAfter = this.actionReleased ? this.lastHold : 0;
+    if (this.actionReleased) this.lastTapShort = this.lastHold < 0.2;
     this.prevDown = this.actionDown;
   }
 }

@@ -324,6 +324,62 @@ export class Sfx {
     this.tone(784, 0.8, 'sine', 0.05, undefined, 0.26);
     this.burst(0.5, 0.15, 'lowpass', 1200, 200);
   }
+  /** The light meter is full. */
+  chime() {
+    this.tone(880, 0.3, 'sine', 0.07);
+    this.tone(1318, 0.5, 'sine', 0.06, undefined, 0.08);
+    this.tone(1760, 0.6, 'sine', 0.04, undefined, 0.16);
+  }
+  /** A Light Lance leaves the hand. */
+  lance() {
+    this.tone(520, 0.24, 'sawtooth', 0.07, 1800);
+    this.tone(1900, 0.14, 'sine', 0.05, undefined, 0.04);
+    this.burst(0.22, 0.2, 'bandpass', 2600, 5400);
+  }
+  /** The Nova: everything at once. */
+  nova() {
+    this.tone(96, 1.0, 'sine', 0.55, 30);
+    this.burst(0.7, 0.5, 'lowpass', 3200, 160);
+    this.tone(660, 1.0, 'sine', 0.1, 1320);
+    this.tone(1320, 1.3, 'triangle', 0.06);
+    this.burst(0.3, 0.3, 'highpass', 3000, 6000);
+  }
+  dash() {
+    this.burst(0.2, 0.3, 'bandpass', 500, 3400);
+    this.tone(300, 0.12, 'sine', 0.05, 900);
+  }
+  /** The charge ring reaches the Lance. */
+  charge1() {
+    this.tone(988, 0.12, 'sine', 0.06);
+    this.tone(1318, 0.16, 'sine', 0.05, undefined, 0.07);
+  }
+  /** The charge ring reaches the Nova. */
+  charge2() {
+    this.tone(1318, 0.2, 'sine', 0.07);
+    this.tone(1760, 0.3, 'sine', 0.06, undefined, 0.08);
+    this.tone(2217, 0.4, 'sine', 0.05, undefined, 0.16);
+  }
+  /** A guardian takes a real hit. */
+  bossHit() {
+    this.hit();
+    this.tone(300, 0.35, 'sawtooth', 0.12, 110);
+    this.burst(0.3, 0.3, 'bandpass', 1400, 300);
+  }
+  /** A guardian falls apart. */
+  bossDie() {
+    this.boom();
+    this.tone(220, 2.4, 'sawtooth', 0.12, 40);
+    this.burst(2.0, 0.4, 'lowpass', 2400, 80);
+  }
+  /** Something heavy lands. */
+  stomp() {
+    this.tone(70, 0.35, 'sine', 0.6, 28);
+    this.burst(0.25, 0.5, 'lowpass', 1100, 90);
+  }
+  /** A bell-like warning ping. */
+  warnPing() {
+    this.tone(1480, 0.08, 'square', 0.035);
+  }
   clamp01(v: number) {
     return clamp(v, 0, 1);
   }
