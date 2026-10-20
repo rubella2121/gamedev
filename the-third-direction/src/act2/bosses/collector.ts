@@ -530,7 +530,7 @@ export class CollectorBoss extends Boss3D {
       this.planOn = false;
       if (this.pattern !== 'lead') this.planVolley();
     } else if (step.k === 'jar') this.enterJar();
-    else if (step.k === 'drawers') this.enterDrawers(step.n ?? 5);
+    else if (step.k === 'drawers') this.enterDrawers((step.n ?? 5) - (this.cycle < 1 ? 1 : 0));
     else if (step.k === 'inspect') this.enterInspect();
   }
 
