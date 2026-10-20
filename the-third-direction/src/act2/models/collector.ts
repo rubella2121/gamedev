@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
 import { TubeChain } from '../kit/chain';
+import { SinewChain } from './collector-tube';
 import { mix, rgb, scale, type RGB } from '../kit/noise';
 import type { Slicer } from '../kit/sdf';
 import { halo, skin } from '../kit/skin';
-import { buildPool, buildTorso, drawerPos, DRAWERS, ZF } from './collector-body';
+import { buildPool, buildTorso, chestHx, drawerPos, DRAWERS, ZF } from './collector-body';
 import {
+  GlowSet,
   PAL,
   SoftPoints,
   colorize,
@@ -51,7 +53,7 @@ export const ROOT_Y = -5.5;
 const RISE_Y = -26;
 /** The head, in his own space: hanging up on his shoulders, or lowered to the far edge of the floor to look. */
 const HEAD_UP = new THREE.Vector3(0, 14.2, 0.8);
-export const HEAD_LOW = new THREE.Vector3(0, 9.6, 10.9);
+export const HEAD_LOW = new THREE.Vector3(0, 8.4, 11.2);
 const SHOULDERS = [new THREE.Vector3(-3.9, 10.5, -0.2), new THREE.Vector3(3.9, 10.0, -0.2), new THREE.Vector3(-2.9, 7.4, 1.0), new THREE.Vector3(2.9, 7.4, 1.0)];
 const IDLE = [new THREE.Vector3(-11.0, 12.6, 3.0), new THREE.Vector3(11.0, 12.0, 3.0), new THREE.Vector3(-8.8, 5.0, 4.4), new THREE.Vector3(9.2, 5.4, 4.2)];
 const POLES = [new THREE.Vector3(-0.6, 1.0, -0.5), new THREE.Vector3(0.6, 1.0, -0.5), new THREE.Vector3(-1, -0.8, -0.2), new THREE.Vector3(1, -0.8, -0.2)];
@@ -66,6 +68,8 @@ const COAT_SKIRT = 30;
 const COAT_CAPE = 44;
 const JARS = 8;
 const BUBBLES = 26;
+/** drawers that idle ajar */
+const AJAR = [1, 8, 13];
 
 const V = () => new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -193,7 +197,9 @@ export class CollectorModel {
   private skinMat: THREE.MeshToonMaterial;
   private limbMat: THREE.MeshToonMaterial;
   private inkMat: THREE.MeshToonMaterial;
+  private inkThinMat: THREE.MeshToonMaterial;
   private brassMat: THREE.MeshToonMaterial;
+  private shoeMat!: THREE.MeshToonMaterial;
   private mats: THREE.MeshToonMaterial[] = [];
   private torso!: THREE.Mesh;
   private pool!: THREE.Mesh;
@@ -204,9 +210,10 @@ export class CollectorModel {
   private pup: Pupil;
   private eyeGlow: THREE.Sprite;
   private backGlow: THREE.Sprite;
-  private neck: TubeChain;
+  private neck: SinewChain;
   private nerves: TubeChain[] = [];
   private tendrils: { chain: TubeChain; ang: number; len: number; ph: number }[] = [];
+  private cables: { chain: SinewChain; x: number; z: number; L: number; ph: number }[] = [];
   private pinMeshes: THREE.Mesh[] = [];
   private ledger: THREE.Group;
   private stamp: THREE.Group;
@@ -216,10 +223,14 @@ export class CollectorModel {
   private drawerPulls!: THREE.InstancedMesh;
   private drawerTags!: THREE.InstancedMesh;
   private drawerEyes!: THREE.InstancedMesh;
+  private drawerGlow!: GlowSet;
   private drawerOpen = new Float32Array(DRAWERS);
   private drawerEye = new Float32Array(DRAWERS);
   private drawerHue: RGB[] = [];
   private drawerDirty = true;
+  /** drawers the fight is steering (the others idle: a few hang ajar with something watching from inside) */
+  private drawerCtl = new Uint8Array(DRAWERS);
+  private drawerColored = false;
   private bubbles: THREE.InstancedMesh;
   private jarsGlass!: THREE.InstancedMesh;
   private jarsLid!: THREE.InstancedMesh;
@@ -240,6 +251,14 @@ export class CollectorModel {
   private tmpQ = new THREE.Quaternion();
   private headPosRoot = V();
   private wobble = 0;
+  private headYaw = 0;
+  private tmpCol = new THREE.Color();
+  private sacT = 0;
+  private sacX = 0;
+  private sacY = 0;
+  private sacTx = 0;
+  private sacTy = 0;
+  private dripT = 1;
 
   constructor(
     private world: THREE.Group,
@@ -247,11 +266,12 @@ export class CollectorModel {
   ) {
     this.root.position.set(0, ROOT_Y, bossZ);
     this.root.scale.setScalar(ROOT_S);
-    this.skinMat = skin({ vertexColors: true, rim: 0xc88848, rimPower: 3.0, steps: 4 });
+    this.skinMat = skin({ vertexColors: true, rim: 0xa87038, rimPower: 3.4, steps: 4 });
     this.limbMat = skin({ vertexColors: true, rim: 0x7a5a30, rimPower: 4.2, steps: 4 });
     this.inkMat = skin({ vertexColors: true, rim: 0x9a7a3a, rimPower: 2.4, steps: 3 });
+    this.inkThinMat = skin({ vertexColors: true, rim: 0x5a4a30, rimPower: 5, steps: 3 });
     this.brassMat = skin({ vertexColors: true, rim: 0xffe4a0, rimPower: 2.4, steps: 4 });
-    this.mats.push(this.skinMat, this.limbMat, this.inkMat, this.brassMat);
+    this.mats.push(this.skinMat, this.limbMat, this.inkMat, this.inkThinMat, this.brassMat);
 
     const tag = paintLabelAtlas();
     const plaque = paintPlaque();
@@ -263,7 +283,7 @@ export class CollectorModel {
     this.backGlow.position.set(0, 0.6, -2.4);
     this.backGlow.renderOrder = 4;
     this.head.add(this.backGlow);
-    this.glassMat = glassMaterial({ tint: 0x1a3a40, rim: 0xa8f0ff, alpha: 0.06 });
+    this.glassMat = glassMaterial({ tint: 0x1a3a40, rim: 0xa8f0ff, alpha: 0.06, dirt: 1 });
     const glass = new THREE.Mesh(lathe(JAR_PROFILE, 44), this.glassMat);
     glass.renderOrder = 12;
     this.head.add(glass);
@@ -271,7 +291,9 @@ export class CollectorModel {
     const liquid = new THREE.Mesh(lathe(liquidProfile(), 36), this.liqMat);
     liquid.renderOrder = 10;
     this.head.add(liquid);
-    this.head.add(new THREE.Mesh(jarBrassGeometry(), this.brassMat));
+    this.shoeMat = skin({ vertexColors: true, rim: 0xffe4a0, rimPower: 2.4, steps: 4, side: THREE.DoubleSide });
+    this.mats.push(this.shoeMat);
+    this.head.add(new THREE.Mesh(jarBrassGeometry(), this.shoeMat));
     this.lidMesh = new THREE.Mesh(lidGeometry(), this.brassMat);
     this.lidG.add(this.lidMesh);
     this.lidG.position.set(0, JAR_MOUTH_Y - 0.12, 0);
@@ -283,7 +305,7 @@ export class CollectorModel {
     this.head.add(pl);
     // the eye
     this.eyeMat = new THREE.MeshBasicMaterial({ color: 0xd8c090 });
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), this.eyeMat);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(1, 36, 24), this.eyeMat);
     this.eye.add(ball);
     this.pup = new Pupil(new THREE.MeshBasicMaterial({ color: 0x08030a }));
     this.eye.add(this.pup.mesh);
@@ -299,24 +321,27 @@ export class CollectorModel {
     this.eye.position.set(0, 0.4, 0.1);
     this.head.add(this.eye);
     // bubbles
-    this.bubbles = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xffe8b0, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), BUBBLES);
+    this.bubbles = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffe8b0, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), BUBBLES);
     this.bubbles.frustumCulled = false;
     this.bubbles.renderOrder = 11;
     this.head.add(this.bubbles);
 
     /* ---------------- the neck, and the nerves that run from the eye down through it ---------------- */
-    this.neck = new TubeChain(
+    this.neck = new SinewChain(
       18,
-      8,
+      10,
       this.skinMat,
       (u) => 0.78 - 0.18 * Math.sin(u * Math.PI),
       (u, a) => {
         const band = Math.abs(((u * 7) % 1) - 0.5) > 0.42;
         if (band) return mix(PAL.brassDark, PAL.brass, 0.5 + 0.4 * Math.sin(a));
-        let c = mix(PAL.sinew, PAL.flesh, 0.5 + 0.4 * Math.sin(a * 2 + u * 8));
-        if (Math.abs(a - Math.PI / 2) < 0.1) c = mix(c, rgb(0x1a0e0a), 0.8);
-        return c;
+        const r = Math.cos(4 * (a + 3 * u));
+        let c = mix(PAL.leatherDark, PAL.leather, 0.3 + 0.5 * (0.5 + 0.5 * r));
+        if (r > 0.6) c = mix(c, PAL.sinew, 0.4);
+        if (r < -0.7) c = mix(c, PAL.vein, 0.7);
+        return scale(c, 0.6);
       },
+      (u, a) => 1 + 0.16 * Math.cos(4 * (a + 3 * u)),
     );
     this.root.add(this.neck.mesh);
     const nerveMat = skin({ vertexColors: true, rim: 0xff8a8a, rimPower: 2 });
@@ -359,13 +384,14 @@ export class CollectorModel {
     this.arms[3]!.hand.add(this.stamp);
     // brass cuffs on every arm (one draw call)
     for (let i = 0; i < 4; i++) for (const u of [0.06, 0.48, 0.55, 0.92]) this.cuffSpec.push({ arm: i, u });
-    this.cuffs = new THREE.InstancedMesh(colorize(new THREE.TorusGeometry(0.46, 0.13, 6, 12), PAL.brass), this.brassMat, this.cuffSpec.length);
+    this.cuffs = new THREE.InstancedMesh(colorize(new THREE.TorusGeometry(0.46, 0.13, 5, 9), PAL.brass), this.brassMat, this.cuffSpec.length);
     this.cuffs.frustumCulled = false;
     this.root.add(this.cuffs);
 
     /* ---------------- the cabinet of drawers ---------------- */
     this.root.add(this.chest);
     this.buildDrawers();
+    this.buildRivets();
 
     /* ---------------- the coat of labels ---------------- */
     this.buildCoat(tag);
@@ -375,7 +401,7 @@ export class CollectorModel {
 
     /* ---------------- ink tendrils crawling out of the pool ---------------- */
     for (let i = 0; i < TENDRILS; i++) {
-      const ch = new TubeChain(14, 6, this.inkMat, (u) => 0.9 * Math.pow(1 - u, 0.7) + 0.06, (u, a) => mix(PAL.ink, PAL.inkSheen, 0.3 + 0.4 * Math.sin(a * 2 + u * 6)));
+      const ch = new TubeChain(14, 6, this.inkThinMat, (u) => 0.9 * Math.pow(1 - u, 0.7) + 0.06, (u, a) => mix(PAL.ink, PAL.inkSheen, 0.3 + 0.4 * Math.sin(a * 2 + u * 6)));
       const ang = ((i - (TENDRILS - 1) / 2) / ((TENDRILS - 1) / 2)) * 1.25;
       this.tendrils.push({ chain: ch, ang, len: 5 + rnd(i, 3) * 4, ph: i * 1.3 });
       this.root.add(ch.mesh);
@@ -412,13 +438,13 @@ export class CollectorModel {
     panel.translate(0, Hh / 2, 0.04);
     const flapGeo = mergeGeos([face, panel]);
     this.drawerFlaps = new THREE.InstancedMesh(flapGeo, this.limbMat, DRAWERS);
-    const pull = colorize(new THREE.TorusGeometry(0.12, 0.04, 5, 10), PAL.brassLight);
+    const pull = colorize(new THREE.TorusGeometry(0.12, 0.04, 4, 8), PAL.brassLight);
     pull.translate(0, Hh * 0.38, 0.12);
     this.drawerPulls = new THREE.InstancedMesh(pull, this.brassMat, DRAWERS);
     const tag = new THREE.PlaneGeometry(0.62, 0.22);
     tag.translate(0, Hh * 0.66, 0.095);
     this.drawerTags = new THREE.InstancedMesh(tag, new THREE.MeshBasicMaterial({ map: paintPlaque(), color: 0xc8bfa8 }), DRAWERS);
-    const eg = new THREE.SphereGeometry(0.11, 7, 5);
+    const eg = new THREE.SphereGeometry(0.11, 5, 4);
     this.drawerEyes = new THREE.InstancedMesh(eg, new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }), DRAWERS * 2);
     for (const m of [this.drawerFlaps, this.drawerPulls, this.drawerTags, this.drawerEyes]) {
       m.frustumCulled = false;
@@ -431,12 +457,15 @@ export class CollectorModel {
       this.drawerHue.push(k === 0 ? [0.4, 0.95, 1] : k === 1 ? [1, 0.5, 0.65] : [1, 0.9, 0.5]);
     }
     this.drawerFlaps.instanceColor!.needsUpdate = true;
+    // a glow behind every drawer, lit while something inside is awake, so an open drawer reads from across the arena
+    this.drawerGlow = new GlowSet(Array.from({ length: DRAWERS }, (_, i) => [drawerPos(i)[0], drawerPos(i)[1], drawerPos(i)[2] + 0.35] as [number, number, number]));
+    this.chest.add(this.drawerGlow.points);
     this.layoutDrawers();
   }
 
   private layoutDrawers() {
     const d = this.dummy;
-    const col = new THREE.Color();
+    const col = this.tmpCol;
     for (let i = 0; i < DRAWERS; i++) {
       const [x, y, z] = drawerPos(i);
       const open = this.drawerOpen[i]!;
@@ -455,10 +484,19 @@ export class CollectorModel {
         d.scale.setScalar(Math.max(0.001, e));
         d.updateMatrix();
         this.drawerEyes.setMatrixAt(i * 2 + k, d.matrix);
-        const h = this.drawerHue[i]!;
-        this.drawerEyes.setColorAt(i * 2 + k, col.setRGB(h[0], h[1], h[2]));
+        if (!this.drawerColored) {
+          const h = this.drawerHue[i]!;
+          this.drawerEyes.setColorAt(i * 2 + k, col.setRGB(h[0], h[1], h[2]));
+        }
       }
     }
+    this.drawerColored = true;
+    for (let i = 0; i < DRAWERS; i++) {
+      const e = this.drawerEye[i]!;
+      const h = this.drawerHue[i]!;
+      this.drawerGlow.set(i, 2.2 + 1.6 * e, 0.7 * e, h);
+    }
+    this.drawerGlow.commit();
     this.drawerFlaps.instanceMatrix.needsUpdate = true;
     this.drawerPulls.instanceMatrix.needsUpdate = true;
     this.drawerTags.instanceMatrix.needsUpdate = true;
@@ -469,6 +507,7 @@ export class CollectorModel {
 
   /** Open drawer i (0..1) and light the eyes of whatever is inside (0..1). */
   setDrawer(i: number, open: number, eyes = open) {
+    this.drawerCtl[i] = open > 0 || eyes > 0 ? 1 : 0;
     if (this.drawerOpen[i] === open && this.drawerEye[i] === eyes) return;
     this.drawerOpen[i] = open;
     this.drawerEye[i] = eyes;
@@ -483,6 +522,48 @@ export class CollectorModel {
     out.y += this.root.position.y;
     out.z += this.root.position.z;
     return out;
+  }
+
+  /** brass studs down both edges of the cabinet, where it is nailed into him */
+  private buildRivets() {
+    const ys: number[] = [];
+    for (let y = 3.9; y < 10.2; y += 0.62) ys.push(y);
+    const geo = colorize(new THREE.SphereGeometry(0.13, 6, 5), PAL.brassLight);
+    const m = new THREE.InstancedMesh(geo, this.brassMat, ys.length * 2);
+    const d = this.dummy;
+    let k = 0;
+    for (const y of ys) {
+      for (const sx of [-1, 1]) {
+        d.position.set(sx * (chestHx(y) - 0.02), y, 1.5);
+        d.rotation.set(0, 0, 0);
+        d.scale.setScalar(1);
+        d.updateMatrix();
+        m.setMatrixAt(k++, d.matrix);
+      }
+    }
+    m.frustumCulled = false;
+    this.chest.add(m);
+  }
+
+  /** sinews that hang from the top of the cabinet and swing */
+  private buildCables() {
+    const specs = [
+      { x: -1.9, z: 2.5, L: 3.6 },
+      { x: 0.2, z: 2.6, L: 4.6 },
+      { x: 1.9, z: 2.5, L: 3.2 },
+    ];
+    for (let i = 0; i < specs.length; i++) {
+      const ch = new SinewChain(
+        12,
+        6,
+        this.skinMat,
+        (u) => 0.16 * (1 - 0.5 * u) + 0.05,
+        (u, a) => mix(PAL.sinew, PAL.fleshPale, 0.5 + 0.5 * Math.sin(a * 2 + u * 6)),
+        (u, a) => 1 + 0.2 * Math.cos(3 * (a + 4 * u)),
+      );
+      this.cables.push({ chain: ch, x: specs[i]!.x, z: specs[i]!.z, L: specs[i]!.L, ph: i * 2.1 });
+      this.chest.add(ch.mesh);
+    }
   }
 
   private buildCoat(tag: THREE.Texture) {
@@ -685,6 +766,32 @@ export class CollectorModel {
     return v;
   }
 
+  /** Take every loose bit (steam, drops, glass) out of the air. */
+  clearFx() {
+    this.steamFx.clear();
+    this.inkFx.clear();
+    this.shards.clear();
+    this.jar.clearFx();
+  }
+
+  /** For a moment, show everything the fight will need later at a size too small to see, so no shader compiles mid-fight. */
+  warm(on: boolean) {
+    const j = this.jar;
+    if (on) {
+      j.show(true);
+      j.group.scale.setScalar(0.001);
+      j.setPos(0, 4, this.bossZ + 6);
+      j.setCracks(1);
+      j.setIris(0.5);
+    } else {
+      j.show(false);
+      j.group.scale.setScalar(1);
+      j.setCracks(0);
+      j.setIris(0);
+    }
+    this.minions.warm(on);
+  }
+
   /** The glass of the head goes everywhere (death). */
   shatterHead() {
     if (this.shattered) return;
@@ -761,12 +868,24 @@ export class CollectorModel {
     // breathing: slow, patient
     const br = Math.sin(t * 0.8);
     this.chest.scale.set(1 + br * 0.01, 1 + br * 0.008, 1 + br * 0.012);
-    this.layoutHead(t);
+    this.layoutHead(t, dt);
     this.root.updateMatrixWorld(true);
     this.layoutEye(t, dt);
     this.layoutArms(t, dt);
     this.layoutNeck(t);
     this.layoutExtras(t, dt);
+    // a few drawers hang a little open, and something in the dark blinks
+    for (let k = 0; k < AJAR.length; k++) {
+      const i = AJAR[k]!;
+      if (this.drawerCtl[i]) continue;
+      const on = this.death < 0.1 && this.rise > 0.9;
+      const open = on ? 0.13 + 0.03 * Math.sin(t * 0.8 + k * 2) : 0;
+      const blink = (t * 0.41 + k * 1.37) % 3.3 < 0.14 ? 0 : 1;
+      const eyes = on ? (0.55 + 0.25 * Math.sin(t * 2.3 + k)) * blink : 0;
+      this.drawerOpen[i] = open;
+      this.drawerEye[i] = eyes;
+      this.drawerDirty = true;
+    }
     if (this.drawerDirty) this.layoutDrawers();
     // steam
     if (this.steam > 0) {
@@ -794,12 +913,17 @@ export class CollectorModel {
     if (pl) pl.scale.set(1 + sink * 0.25, 1, 1 + sink * 0.25);
   }
 
-  private layoutHead(t: number) {
+  private layoutHead(t: number, dt: number) {
     const h = this.head;
     const u = this.headU;
+    // the whole jar turns a little toward whatever the eye is looking at
+    const gx = this.gaze.x - this.root.position.x;
+    const gz = this.gaze.z - this.root.position.z;
+    const yawT = this.gaze.y > 20 ? 0 : clamp(Math.atan2(gx, Math.max(4, gz)) * 0.55, -0.4, 0.4) * (1 - u);
+    this.headYaw += (yawT - this.headYaw) * (1 - Math.exp(-2.4 * dt));
     const arc = Math.sin(Math.PI * u) * 1.4;
     h.position.set(lerp(HEAD_UP.x, HEAD_LOW.x, u), lerp(HEAD_UP.y, HEAD_LOW.y, u) + arc + Math.sin(t * 0.9) * 0.07 * (1 - u), lerp(HEAD_UP.z, HEAD_LOW.z, u));
-    h.rotation.set(lerp(0.1, 1.28, u) + Math.sin(t * 0.7) * 0.025, Math.sin(t * 0.43 + 1) * 0.06 * (1 - u * 0.5), Math.sin(t * 0.6) * 0.035 * (1 - u));
+    h.rotation.set(lerp(0.1, 1.28, u) + Math.sin(t * 0.7) * 0.025, Math.sin(t * 0.43 + 1) * 0.06 * (1 - u * 0.5) + this.headYaw, Math.sin(t * 0.6) * 0.035 * (1 - u));
     // a hit makes the jar ring in its cradle
     if (this.rattle > 0) {
       h.position.x += Math.sin(t * 73) * 0.12 * this.rattle;
@@ -821,6 +945,15 @@ export class CollectorModel {
     const lidY = JAR_MOUTH_Y - 0.12;
     this.lidG.position.set(lerp(0, LID_CARRY.x, carry), lerp(lidY + 1.45 * unscrew, LID_CARRY.y, carry), lerp(0, LID_CARRY.z, carry));
     this.lidG.rotation.set(0.3 * carry, unscrew * TAU * 3 + carry * 1.2, -0.9 * carry);
+    if (this.death > 0.38) {
+      // with the jar gone the lid drops, spins and rolls away
+      const f = unlerp(0.38, 0.66, this.death);
+      this.lidG.position.y -= f * f * 16;
+      this.lidG.position.x += f * 3.2;
+      this.lidG.rotation.z += f * 5;
+      this.lidG.rotation.x += f * 3;
+      this.lidG.visible = f < 0.98;
+    } else this.lidG.visible = true;
   }
 
   private layoutEye(t: number, dt: number) {
@@ -831,6 +964,18 @@ export class CollectorModel {
     e.position.set(Math.sin(t * 0.7) * 0.18 * (1 - out) + out * this.eyeSway, lerp(0.4, 5.6, out) + bob * (1 - out * 0.5) - dead * 2.4, lerp(0.1, 0.35, out) + Math.cos(t * 0.6) * 0.1 * (1 - out));
     // it looks at the world point, but never turns its back on the front of the jar
     e.lookAt(this.gaze);
+    // the eye never rests: small darting looks, a larger one every few seconds
+    this.sacT -= dt;
+    if (this.sacT <= 0) {
+      this.sacT = 0.6 + Math.random() * 2.2;
+      this.sacTx = (Math.random() - 0.5) * (Math.random() < 0.25 ? 0.4 : 0.14);
+      this.sacTy = (Math.random() - 0.5) * 0.12;
+    }
+    const sk = 1 - Math.exp(-16 * dt);
+    this.sacX += (this.sacTx - this.sacX) * sk;
+    this.sacY += (this.sacTy - this.sacY) * sk;
+    e.rotateY(this.sacX);
+    e.rotateX(this.sacY);
     if (this.death > 0.3) {
       // it rolls up and goes dull
       const k = smooth(unlerp(0.3, 0.8, this.death));
@@ -912,12 +1057,12 @@ export class CollectorModel {
           grip = lerp(0.1, 0.85, k);
         }
       }
-      // carrying the lid: the right upper hand follows it
-      if (i === 1 && this.lidU > 0.02) {
-        const w = smooth(this.lidU / 0.25);
-        this.tmpA.copy(this.lidG.position).add(this.tmpB.set(0, -0.5, 0)).applyMatrix4(this.head.matrix);
+      // carrying the lid: the fourth hand takes it by the knob, unscrews it and holds it out to the side
+      if (i === 3 && this.lidU > 0.02) {
+        const w = smooth(this.lidU / 0.15);
+        this.tmpA.set(0, 1.9, 0).applyEuler(this.lidG.rotation).add(this.lidG.position).applyMatrix4(this.head.matrix);
         idle.lerp(this.tmpA, w);
-        grip = lerp(grip, 0.5, w);
+        grip = lerp(grip, 0.9, w);
       }
       // steered by hand
       const w = this.armW[i]!;
@@ -944,7 +1089,7 @@ export class CollectorModel {
       a.target.lerp(idle, 1 - Math.exp(-(w > 0 ? 9 : 14) * dt));
       a.stretch = stretch;
       a.pole.lerp(this.armPoleOn[i] ? this.armPole[i]! : POLES[i]!, 1 - Math.exp(-6 * dt));
-      a.grip += (grip - a.grip) * (1 - Math.exp(-16 * dt));
+      a.grip += (grip + 0.07 * Math.sin(t * 1.9 + ph * 1.3) - a.grip) * (1 - Math.exp(-16 * dt));
       a.roll = !Number.isNaN(this.armRoll[i]!) && w > 0 ? this.armRoll[i]! : i < 2 ? 0 : Math.sin(t * 0.9 + ph) * 0.2;
       a.update(t);
     }
@@ -973,7 +1118,7 @@ export class CollectorModel {
     this.ledger.position.copy(lh.target).add(this.tmpB.set(0.2, 1.4, 0.7));
     this.ledger.rotation.set(-0.15 + Math.sin(t * 1.3) * 0.03, 0.12, Math.sin(t * 0.8) * 0.03);
     this.ledger.visible = dying < 0.6;
-    const sk = (1 - smooth(this.armW[3]!)) / 1.3;
+    const sk = (1 - smooth(Math.max(this.armW[3]!, this.lidU * 6))) / 1.3;
     this.stamp.visible = dying < 0.6 && sk > 0.02;
     this.stamp.scale.setScalar(Math.max(0.001, sk));
     // brass cuffs follow the arms
@@ -1046,8 +1191,6 @@ export class CollectorModel {
     }
     this.bubbles.instanceMatrix.needsUpdate = true;
     // jars on his belt swing a little
-    const c = new THREE.Color();
-    void c;
     for (let i = 0; i < JARS; i++) {
       const s = this.jarSpec[i]!;
       const sw = Math.sin(t * 1.4 + s.ph) * 0.07 + this.rattle * Math.sin(t * 50 + s.ph) * 0.1;
@@ -1062,6 +1205,23 @@ export class CollectorModel {
     this.jarsGlass.instanceMatrix.needsUpdate = true;
     this.jarsLid.instanceMatrix.needsUpdate = true;
     this.jarsPet.instanceMatrix.needsUpdate = true;
+    // the jar leaks: now and then a drop of amber runs off the brass shoe and falls down his chest
+    this.dripT -= dt;
+    if (this.dripT <= 0 && this.death < 0.2 && this.rise > 0.9) {
+      this.dripT = 0.7 + Math.random() * 1.6;
+      this.tmpA.set((Math.random() - 0.5) * 1.6, -3.4, 2.2).applyMatrix4(this.head.matrix);
+      this.inkFx.emit(this.tmpA.x, this.tmpA.y, this.tmpA.z, 0, -0.3, 0.2, 1.3, 0.3, 0.1, [1, 0.62, 0.16], 0.9, 0.1);
+    }
+    // cables swing from the cabinet's top edge
+    for (const cb of this.cables) {
+      const n = cb.chain.pts.length;
+      for (let i = 0; i < n; i++) {
+        const u = i / (n - 1);
+        const sw = Math.sin(t * 1.2 + cb.ph + u * 1.6) * 0.35 * u + this.rattle * Math.sin(t * 37 + cb.ph) * 0.2 * u;
+        cb.chain.pts[i]!.set(cb.x + sw * 0.6, 10.3 - u * cb.L, cb.z + 0.25 * u + Math.cos(t * 0.9 + cb.ph) * 0.25 * u * u);
+      }
+      cb.chain.update();
+    }
     // ink tendrils crawl across the pool
     const rs = smooth(unlerp(0.3, 1, this.rise));
     for (const td of this.tendrils) {
@@ -1114,16 +1274,7 @@ export async function labCollector(slicer: Slicer, world: THREE.Group) {
         for (let i = 0; i < DRAWERS; i++) if (i % 5 === 1 || i === 14) m.setDrawer(i, v, v);
       } else if (name === 'look') m.lookAt(0, 3, 14);
       else if (name === 'throw') m.throwPin(v > 0 ? 1 : 0);
-      else if (name === 'swatch') {
-        // (temporary) a chart of candidate colours under the arena's lights
-        const cols = [0x2a1c0c, 0x4e3a1e, 0x5c4a30, 0x6a5238, 0x4a3a2a, 0x3c2c20, 0x6a4a3a, 0x70583c, 0x5a4a3a, 0x8a7a5a, 0x9a8a6a, 0x7a6a50, 0xb8a880, 0xd8c8a0, 0x4a4030, 0x3a3a28, 0x5a5a40, 0x6a6a4a, 0x2a2a1a, 0x4a3820, 0x7a4a2a, 0x8a5a30, 0x9a6a38, 0xaa7a40];
-        cols.forEach((c, i) => {
-          const sp = new THREE.Mesh(new THREE.SphereGeometry(0.7, 20, 14), skin({ color: c, rim: 0x7a5a30, rimPower: 4 }));
-          sp.position.set(-4 + (i % 6) * 1.6, 3 + Math.floor(i / 6) * 1.6, -10);
-          world.add(sp);
-          m.root.visible = false;
-        });
-      } else if (name === 'pins') m.pins.demo(v);
+      else if (name === 'pins') m.pins.demo(v);
       else if (name === 'jar') m.jar.demo(v);
       else if (name === 'minions') m.minions.demo(v);
       void rise;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { TubeChain } from '../kit/chain';
+import { SinewChain } from './collector-tube';
 import { mix, rgb, scale, type RGB } from '../kit/noise';
 import { skin } from '../kit/skin';
 import { PAL, colorize, lathe, mergeGeos, paintLedger } from './collector-fx';
@@ -29,7 +30,7 @@ function clawChain(side: number, mat: THREE.Material): TubeChain {
     (u) => 0.17 * Math.pow(1 - u, 0.8) + 0.03,
     (u, a) => {
       const k = u * u;
-      return mix(mix(PAL.bone, PAL.boneShade, 0.25 + 0.2 * Math.sin(a * 2)), rgb(0x2a1a12), k * 0.8);
+      return mix(mix(PAL.bone, PAL.boneShade, 0.25 + 0.2 * Math.sin(a * 2)), rgb(0x3a2412), k * 0.85);
     },
   );
   for (let i = 0; i < N; i++) {
@@ -42,7 +43,7 @@ function clawChain(side: number, mat: THREE.Material): TubeChain {
 
 /** One of his four long arms: shoulder, elbow, wrist, and a pincer. The elbow is solved from where the wrist should be. */
 export class Arm {
-  readonly chain: TubeChain;
+  readonly chain: SinewChain;
   readonly hand = new THREE.Group();
   readonly shoulder = new THREE.Vector3();
   readonly elbow = new THREE.Vector3();
@@ -72,24 +73,33 @@ export class Arm {
     private ph: number,
   ) {
     const N = this.N;
-    this.chain = new TubeChain(
+    const rg = (u: number, a: number) => Math.cos(3 * (a + 2.2 * Math.PI * u));
+    this.chain = new SinewChain(
       N,
-      8,
+      12,
       mat,
-      (u) => 0.48 + 0.3 * Math.exp(-Math.pow(u / 0.1, 2)) + 0.22 * Math.exp(-Math.pow((u - 0.5) / 0.07, 2)) - 0.22 * u,
+      (u) =>
+        0.3 -
+        0.1 * u +
+        0.34 * Math.exp(-Math.pow(u / 0.09, 2)) +
+        0.24 * Math.exp(-Math.pow((u - 0.5) / 0.055, 2)) +
+        0.1 * Math.exp(-Math.pow((u - 0.93) / 0.05, 2)) +
+        0.07 * Math.exp(-Math.pow((u - 0.28) / 0.1, 2)),
       (u, a) => {
-        let c = mix(PAL.flesh, PAL.fleshPale, 0.3 + 0.3 * Math.sin(a * 2 + u * 7 + ph));
-        c = mix(c, PAL.leather, 0.3 + 0.25 * Math.sin(u * 11 + ph * 2));
-        // the forearms are all bone and sinew
-        c = mix(c, mix(PAL.boneShade, PAL.bone, 0.3 + 0.3 * Math.sin(a + u * 5)), smoothstep01((u - 0.45) / 0.25) * 0.5);
+        const r = rg(u, a);
+        // the upper arm: dark worn leather with reddish sinew along the crests
+        let c = mix(PAL.leatherDark, PAL.leather, 0.35 + 0.5 * (0.5 + 0.5 * r));
+        c = mix(c, PAL.sinew, 0.3 * (0.5 + 0.5 * r) * (1 - smoothstep01(u / 0.5)));
+        // the forearm: old yellow bone, dark in the grooves
+        const bone = smoothstep01((u - 0.47) / 0.1);
+        c = mix(c, mix(PAL.boneShade, PAL.bone, 0.45 + 0.5 * (0.5 + 0.5 * r)), bone * 0.9);
+        if (r < -0.55) c = mix(c, PAL.vein, 0.55);
         // a stitched seam down one side
-        if (Math.abs(a - Math.PI / 2) < 0.1) c = mix(c, rgb(0x1a0e0a), 0.9);
-        // veins on the other
-        if (Math.abs(a - (3 * Math.PI) / 2) < 0.1) c = mix(c, PAL.vein, 0.7);
-        return scale(c, 0.62 + 0.18 * Math.sin(a));
+        if (Math.abs(a - Math.PI / 2) < 0.22) c = mix(c, rgb(0x120a06), 0.85);
+        return scale(c, 0.8 + 0.2 * (0.5 + 0.5 * r));
       },
-    );
-    this.smoothTmp = Array.from({ length: N }, () => new THREE.Vector3());
+      (u, a) => 1 + (0.14 + 0.16 * smoothstep01((u - 0.45) / 0.25)) * rg(u, a),
+    );    this.smoothTmp = Array.from({ length: N }, () => new THREE.Vector3());
     // the hand: a palm, a brass ring at the wrist and two curved pincers
     const palm = colorize(new THREE.SphereGeometry(0.36, 10, 8), mix(PAL.flesh, PAL.fleshPale, 0.4));
     const ring = new THREE.TorusGeometry(0.3, 0.09, 6, 14);
@@ -176,18 +186,18 @@ export function pinGeometry(): THREE.BufferGeometry {
     ],
     8,
   );
-  colorize(shaft, (_x, y) => mix(rgb(0xd6cfba), rgb(0xb89038), Math.min(1, y / 7)));
-  const collar = new THREE.TorusGeometry(0.42, 0.13, 6, 12);
+  colorize(shaft, (_x, y) => mix(rgb(0x8a8672), rgb(0x7a5c1c), Math.min(1, y / 7)));
+  const collar = new THREE.TorusGeometry(0.42, 0.13, 4, 9);
   collar.rotateX(Math.PI / 2);
   collar.translate(0, 6.6, 0);
   colorize(collar, PAL.brass);
-  const bead = new THREE.SphereGeometry(0.74, 12, 9);
+  const bead = new THREE.SphereGeometry(0.74, 10, 7);
   bead.translate(0, 7.08, 0);
   colorize(bead, (_x, y, _z, nx, ny, nz) => {
-    // a ruby with a wet highlight up and to the left
+    // an amber bead like the liquid in his jar, with a wet highlight up and to the left (not red: red is what hurts)
     const hl = Math.max(0, nx * -0.45 + (ny * 0.6) + nz * 0.5);
-    let c = mix(rgb(0x8a0f22), rgb(0xe0283c), 0.5 + 0.5 * ny);
-    c = mix(c, rgb(0xffd0d4), Math.pow(hl, 14));
+    let c = mix(rgb(0x8a4a0a), rgb(0xe0a030), 0.45 + 0.5 * ny);
+    c = mix(c, rgb(0xfff0c0), Math.pow(hl, 12));
     return c;
   });
   return mergeGeos([shaft, collar, bead]);

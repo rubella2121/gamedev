@@ -64,13 +64,33 @@ function pocketsSDF(): SDF {
   };
 }
 
+/** A fleshy lip that stands out round every drawer's mouth. */
+function lipsSDF(): SDF {
+  const hx = 0.62 + 0.05;
+  const hy = 0.43 + 0.05;
+  const rr = 0.2;
+  return (x, y, z) => {
+    if (z < ZF - 0.5 || z > ZF + 0.6 || y < 3.2 || y > 10.4 || Math.abs(x) > 3.0) return 9;
+    const cx = Math.max(0, Math.min(COL_X.length - 1, Math.round(x / PITCH_X + 1)));
+    const cy = Math.max(0, Math.min(ROW_Y.length - 1, Math.round((y - ROW_Y[0]!) / PITCH_Y)));
+    const px = x - (cx - 1) * PITCH_X;
+    const py = y - (ROW_Y[0]! + cy * PITCH_Y);
+    const qx = Math.abs(px) - (hx - rr);
+    const qy = Math.abs(py) - (hy - rr);
+    const d2 = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rr;
+    // a ring round the mouth, a little proud of the cabinet's face
+    const ring = Math.abs(d2 - 0.04) - 0.13;
+    return Math.max(ring, Math.abs(z - (ZF - 0.02)) - 0.2);
+  };
+}
+
 /** One rib: an ellipse around the chest, kept to the sides so the drawers stay clear. */
 function ribSDF(y0: number, sign: number): SDF {
   const A = chestHx(y0) + 0.95;
   const B = 2.45;
   const k = Math.min(A, B);
   return (x, y, z) => {
-    const d = Math.hypot((Math.hypot(x / A, (z - 0.1) / B) - 1) * k, (y - y0) * 1.0) - 0.4;
+    const d = Math.hypot((Math.hypot(x / A, (z - 0.1) / B) - 1) * k, (y - y0) * 1.0) - 0.32;
     // only the side on `sign`, only from the cabinet's corner back to the spine
     return Math.max(d, sign * -x + A * 0.74, z - 1.85);
   };
@@ -100,9 +120,10 @@ function bandsSDF(): SDF {
   return smin(0.1, band(3.05, 2.55, 2.0, 0.05, 0.32), band(10.45, 1.75, 1.55, 0.25, 0.3), strap(-1), strap(1), socket([-3.9, 10.5, -0.2]), socket([3.9, 10.0, -0.2]), socket([-2.9, 7.4, 1.0]), socket([2.9, 7.4, 1.0]));
 }
 
-export function torsoField(): { body: SDF; cab: SDF; pockets: SDF; ribs: SDF; bands: SDF } {
+export function torsoField(): { body: SDF; cab: SDF; pockets: SDF; lips: SDF; ribs: SDF; bands: SDF } {
   const cab = cabinetSDF();
   const pockets = pocketsSDF();
+  const lips = lipsSDF();
   const ribs = ribsSDF();
   const bands = bandsSDF();
   const shoulder = (sx: number, dy: number, rx: number) => ellipsoid([sx * 3.7, 10.0 + dy, -0.3], [rx, 1.15, 1.35]);
@@ -116,11 +137,12 @@ export function torsoField(): { body: SDF; cab: SDF; pockets: SDF; ribs: SDF; ba
     const c = capsule([sx * 2.5, 10.4, 0], [sx * 4.3, 15.6, 0], 1.25, 0.12);
     return (x, y, z) => c(x, y, (z + 1.5) * 2.4);
   };
-  const neck = capsule([0, 9.6, 0.2], [0, 11.9, 0.5], 1.4, 0.85);
+  const neck = capsule([0, 9.4, 0.2], [0, 9.9, 0.4], 1.4, 0.55);
   const waist = ellipsoid([0, 3.3, 0.05], [2.55, 1.7, 1.9]);
   const hips = ellipsoid([0, 1.5, 0.1], [3.4, 2.2, 2.5]);
   let body: SDF = smin(0.9, cab, shoulder(-1, 0.5, 1.8), shoulder(1, -0.2, 1.9), trap(-1, 0.5), trap(1, -0.2), hump, neck, waist, hips, blade(-1), blade(1));
-  body = ssub(0.22, body, pockets);
+  body = smin(0.12, body, lips);
+  body = ssub(0.2, body, pockets);
   body = smin(0.3, body, ribs, bands);
   const base = body;
   const field: SDF = (x, y, z) => {
@@ -131,12 +153,12 @@ export function torsoField(): { body: SDF; cab: SDF; pockets: SDF; ribs: SDF; ba
     const amp = lerp(0.2, 0.05, smoothstep(0.5, 0.0, cd));
     return d + (fbm(x * 0.95, y * 0.95, z * 0.95, 3, 71) - 0.5) * amp + (worley(x * 3.2, y * 3.2, z * 3.2, 5) - 0.45) * 0.03;
   };
-  return { body: field, cab, pockets, ribs, bands };
+  return { body: field, cab, pockets, lips, ribs, bands };
 }
 
 /** Vertex colours of the torso. */
-export function torsoPainter(f: { cab: SDF; pockets: SDF; ribs: SDF; bands: SDF }) {
-  const { cab, pockets, ribs, bands } = f;
+export function torsoPainter(f: { cab: SDF; pockets: SDF; lips: SDF; ribs: SDF; bands: SDF }) {
+  const { cab, pockets, lips, ribs, bands } = f;
   return (x: number, y: number, z: number, nx: number, ny: number, nz: number, ao: number): RGB => {
     const m = fbm(x * 0.55, y * 0.55, z * 0.55, 3, 11);
     // sickly flesh, patched with stitched leather
@@ -160,13 +182,17 @@ export function torsoPainter(f: { cab: SDF; pockets: SDF; ribs: SDF; bands: SDF 
       if (grain > 0.66) wood = mix(wood, PAL.leatherDark, 0.5);
       c = mix(c, wood, cabK);
     }
-    // sinew lips round every drawer, and darkness inside
+    // wet sinew lips round every drawer, veined, and darkness inside
     const pk = pockets(x, y, z);
-    if (pk < 0.26 && z > ZF - 0.75) {
-      const lip = 1 - smoothstep(0.0, 0.26, pk);
-      c = mix(c, mix(PAL.sinew, rgb(0xc07a70), fbm(x * 3, y * 3, z * 3, 2, 3)), lip * 0.85);
-      if (z < ZF - 0.12 && pk < 0.08) c = mix(c, rgb(0x0c0504), 0.92);
+    const lp = lips(x, y, z);
+    if (lp < 0.06 && pk < 0.4) {
+      const lipK = 1 - smoothstep(0.0, 0.06, lp);
+      let lc = mix(PAL.sinew, rgb(0xe08838), 0.4 + 0.6 * fbm(x * 3.5, y * 3.5, z * 3.5, 2, 3));
+      const lv = ridge(x * 5, y * 5, z * 5, 2, 8);
+      if (lv > 0.9) lc = mix(lc, PAL.vein, (lv - 0.9) * 9);
+      c = mix(c, lc, lipK * 0.95);
     }
+    if (pk < 0.12 && z < ZF - 0.1) c = mix(c, rgb(0x0c0504), 0.92 * (1 - smoothstep(0.0, 0.12, pk)) + 0.05);
     // ribs: old ivory
     const rd = ribs(x, y, z);
     if (rd < 0.12) {
@@ -198,7 +224,7 @@ export function torsoPainter(f: { cab: SDF; pockets: SDF; ribs: SDF; bands: SDF 
 
 export function* buildTorso(): Generator<void, THREE.BufferGeometry, void> {
   const f = torsoField();
-  return yield* meshGen(f.body, [-6.4, -0.9, -4.3], [6.4, 16.4, 3.4], 0.2, { color: torsoPainter(f), aoAmount: 0.9 });
+  return yield* meshGen(f.body, [-6.4, -0.9, -4.3], [6.4, 16.4, 3.4], 0.3, { color: torsoPainter(f), aoAmount: 0.9 });
 }
 
 /* ---------------------------------------------------------------- */
@@ -231,7 +257,7 @@ function poolField(): SDF {
 
 export function* buildPool(): Generator<void, THREE.BufferGeometry, void> {
   const f = poolField();
-  return yield* meshGen(f, [-9.6, -3.0, -6.4], [9.6, 3.4, 6.8], 0.26, {
+  return yield* meshGen(f, [-9.6, -3.0, -6.4], [9.6, 3.4, 6.8], 0.6, {
     color: (x, y, z, nx, ny, nz, ao) => {
       const m = fbm(x * 0.5, y * 0.5, z * 0.5, 3, 7);
       let c = mix(PAL.ink, PAL.inkSheen, m * m * 1.2);

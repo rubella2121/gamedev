@@ -27,12 +27,13 @@ const PIN_SOLID = 0.5;
 const MAX_PINS = 10;
 const JAR_RING = JAR_R + 0.2;
 const TRAP_R = JAR_R - 0.2;
-const JAR_HOVER = 10.5;
+const JAR_HOVER = 5.2;
 /** where he looks at his collection from: the pins must leave this part of the floor alone */
-const KEEP_CLEAR = { x: 7.5, zMax: -9.5 };
+const KEEP_CLEAR = { x: 7, zMax: -6.5 };
 const MINION_R = 0.95;
 const MARK_PINS = 0;
 const MARK_JAR = 8;
+const MARK_LAND = 9;
 
 type Kind = 'wait' | 'pins' | 'jar' | 'drawers' | 'inspect';
 interface Step {
@@ -109,9 +110,8 @@ export class CollectorBoss extends Boss3D {
   private said = new Set<string>();
   private shown = false;
   private wallSaved: { x: number; y: number; z: number; rz: number }[] | null = null;
-  private amb: THREE.AmbientLight | null = null;
-  private ambBase = 1.25;
-  private lights = 0;
+  /** the arena's lights, and how bright they are when the arena is itself */
+  private rig: { l: THREE.Light; base: number }[] = [];
 
   /* pins */
   private pend: Pending[] = [];
@@ -164,7 +164,8 @@ export class CollectorBoss extends Boss3D {
   private v3 = new THREE.Vector3();
   private weakPool: Weak[] = Array.from({ length: 10 }, () => ({ x: 0, y: 0, z: 0, reach: 0, r: 0, tag: '' }));
   private weakOut: Weak[] = [];
-  private warm = 0;
+  private warmN = 0;
+  private ambT = 1;
   private jTick = 0;
 
   constructor(env: Env, world: THREE.Group, onVictory: () => void) {
@@ -172,10 +173,9 @@ export class CollectorBoss extends Boss3D {
     this.model = new CollectorModel(world, BOSS_Z);
     this.model.pins.onLand = (slot) => this.pinLanded(slot);
     this.model.onRelease = (arm, pos, dir) => this.pinReleased(arm, pos, dir);
-    const a = env.arena.world.children.find((c) => (c as THREE.AmbientLight).isAmbientLight) as THREE.AmbientLight | undefined;
-    if (a) {
-      this.amb = a;
-      this.ambBase = a.intensity;
+    // the arena's own lights (not the little ones that follow the player): he can turn them down
+    for (const c of env.arena.world.children) {
+      if (c instanceof THREE.AmbientLight || c instanceof THREE.DirectionalLight) this.rig.push({ l: c, base: c.intensity });
     }
   }
 
@@ -210,6 +210,7 @@ export class CollectorBoss extends Boss3D {
     const { env } = this;
     this.model.root.visible = false;
     this.clearHazards();
+    this.model.clearFx();
     this.model.pins.clear();
     this.model.jar.show(false);
     this.model.minions.hideAll();
@@ -235,8 +236,8 @@ export class CollectorBoss extends Boss3D {
     for (let i = 0; i < pinned.length; i++) {
       const m = pinned[i]!;
       const b = w[i]!;
-      m.position.set(b.x + Math.sin(t * 38 + i * 1.7) * 0.5 * a, b.y + Math.sin(t * 31 + i * 2.3) * 0.4 * a, b.z + Math.cos(t * 35 + i) * 0.5 * a);
-      m.rotation.z = b.rz + Math.sin(t * 27 + i * 3.1) * 0.12 * a;
+      m.position.set(b.x + Math.sin(t * 38 + i * 1.7) * 1.6 * a, b.y + Math.sin(t * 31 + i * 2.3) * 1.3 * a, b.z + Math.cos(t * 35 + i) * 1.6 * a);
+      m.rotation.z = b.rz + Math.sin(t * 27 + i * 3.1) * 0.35 * a;
     }
   }
 
@@ -249,12 +250,12 @@ export class CollectorBoss extends Boss3D {
         pinned[i]!.rotation.z = b.rz;
       }
     }
-    if (this.amb) this.amb.intensity = this.ambBase;
+    for (const r of this.rig) r.l.intensity = r.base;
   }
 
   /** 0 = the arena's own lights, 1 = a candle in the dark */
   private dim(k: number) {
-    if (this.amb) this.amb.intensity = this.ambBase * (1 - 0.5 * k);
+    for (const r of this.rig) r.l.intensity = r.base * (1 - 0.8 * k);
   }
 
   /* ---------------------------------------------------------------- */
@@ -287,6 +288,9 @@ export class CollectorBoss extends Boss3D {
     m.death = 0;
     m.lookAt(0, 40, BOSS_Z - 6);
     this.saveWall();
+    // show the jar and the little monsters once, too small to see, so their shaders are ready
+    m.warm(true);
+    this.warmN = 3;
     env.audio.rumble();
     env.audio.v.glassPing(0.55);
     window.setTimeout(() => env.audio.v.collectorTsk(2), 800);
@@ -379,6 +383,9 @@ export class CollectorBoss extends Boss3D {
     this.recoilT = 0;
     this.recoilV = 0;
     this.jarCount = 0;
+    this.said.delete('lidpop');
+    this.said.delete('slam');
+    this.said.delete('clang');
     m.headU = 0;
     m.lidU = 0;
     m.eyeOut = 0;
@@ -389,6 +396,7 @@ export class CollectorBoss extends Boss3D {
     m.pinHeld[0] = m.pinHeld[1] = 1;
     for (let i = 0; i < DRAWERS; i++) m.setDrawer(i, 0, 0);
     env.arena.setRedLight(0);
+    env.audio.setHeart(0, 0);
   }
 
   protected startPhase() {
@@ -412,9 +420,13 @@ export class CollectorBoss extends Boss3D {
     const line = lines[Math.min(this.phase, 2)]!;
     if (announce && !this.said.has(`p${this.phase}`)) {
       this.said.add(`p${this.phase}`);
-      window.setTimeout(() => {
-        if (this.state === 'fight') this.say(line);
-      }, 500);
+      // the first one waits until the boss title has gone
+      window.setTimeout(
+        () => {
+          if (this.state === 'fight') this.say(line);
+        },
+        this.phase === 0 ? 2600 : 500,
+      );
     }
     if (this.phase > 0 && announce) {
       env.audio.v.collectorChuckle();
@@ -445,7 +457,7 @@ export class CollectorBoss extends Boss3D {
     const { env, model: m } = this;
     const pl = env.p;
     this.ft += dt;
-    this.dim(0.18);
+    this.dim(0.16);
     if (this.fst === 'script') m.lookAt(pl.x, 1.4, pl.z);
     this.tickPins(dt);
     this.tickMinions(dt);
@@ -530,6 +542,16 @@ export class CollectorBoss extends Boss3D {
     m.recoil = this.recoilV;
     m.rattle = Math.max(0, m.rattle - dt * 3);
     m.update(dt, t);
+    if (this.warmN > 0 && --this.warmN === 0) m.warm(false);
+    // ambience: the jar bubbles; now and then he clicks his tongue
+    if (this.state === 'fight') {
+      this.ambT -= dt;
+      if (this.ambT <= 0) {
+        this.ambT = 0.5 + Math.random() * 1.5;
+        env.audio.burst(0.09, 0.03 + 0.04 * this.eyeOut, 'bandpass', 450 + Math.random() * 700, 1500);
+        if (this.fst === 'script' && Math.random() < 0.07) env.audio.v.collectorTsk(1);
+      }
+    }
     // the red of the eye lights the floor while it is out
     if (this.state === 'fight') env.arena.setRedLight(26 * smooth(this.eyeOut) + 10 + 6 * Math.sin(t * 2.1));
     else if (this.state === 'intro') env.arena.setRedLight(30 * smooth(unlerp(2.2, 3.2, this.st)));
@@ -579,6 +601,14 @@ export class CollectorBoss extends Boss3D {
     }
     // scatter: the best of a handful of random spots, near enough to matter and far from each other
     let best = { x: 0, z: 8 };
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * TAU;
+      const r = Math.sqrt(Math.random()) * (ARENA_R - 2.2);
+      if (this.pinOk(Math.cos(a) * r, Math.sin(a) * r, 1.8)) {
+        best = { x: Math.cos(a) * r, z: Math.sin(a) * r };
+        break;
+      }
+    }
     let bestS = -1e9;
     for (let i = 0; i < 28; i++) {
       const a = Math.random() * TAU;
@@ -634,7 +664,8 @@ export class CollectorBoss extends Boss3D {
       m.pins.slots[slot]!.state = 'free';
       return;
     }
-    const mark = MARK_PINS + (slot % 8);
+    let mark = MARK_PINS;
+    while (this.pend.some((q) => q.mark === mark) && mark < MARK_PINS + 7) mark++;
     const p: Pending = { slot, x: tgt.x, z: tgt.z, t: 0, T: 0.08 + this.tele(0.9), arm, launched: false, dropped: false, mark, done: false };
     this.pend.push(p);
     this.armPin[arm] = p;
@@ -719,6 +750,7 @@ export class CollectorBoss extends Boss3D {
     env.audio.tone(900, 0.12, 'triangle', 0.08, 300);
     env.arena.burst3(sp.x, 2.4, sp.z, 12, [0xffe4a0, 0xf4efe0, 0xd01e30, 0xb89038], 8);
     env.addLight(0.34);
+    if (this.state === 'fight') this.sayOnce('pinbreak', 'careful. those are numbered.', 2200);
   }
 
   private pullPin(sp: StuckPin) {
@@ -758,6 +790,7 @@ export class CollectorBoss extends Boss3D {
     m.jar.setPos(this.jx, this.jy, this.jz);
     env.audio.v.collectorTsk(2);
     env.audio.warnPing();
+    env.audio.whoosh();
     this.jarCount++;
     if (this.jarCount === 1) this.sayOnce('jar', 'careful with the glass.');
   }
@@ -789,14 +822,14 @@ export class CollectorBoss extends Boss3D {
       const T = this.jT;
       const t = this.jt;
       // it swings in from the sky, hangs over the ring, and tracks you until the last moment
-      const lockAt = T - 0.7;
+      const lockAt = T - 0.85;
       if (t < lockAt) {
         const gx = pl.x + pl.vx * 0.3;
         const gz = pl.z + pl.vz * 0.3;
         const dx = gx - this.jx;
         const dz = gz - this.jz;
         const d = Math.hypot(dx, dz);
-        const sp = Math.min(d, 4.6 * D.speed * dt);
+        const sp = Math.min(d, 4.2 * D.speed * dt);
         if (d > 0.01) {
           this.jx += (dx / d) * sp;
           this.jz += (dz / d) * sp;
@@ -812,8 +845,8 @@ export class CollectorBoss extends Boss3D {
         env.audio.bell(1.4);
       }
       const u = clamp(t / T, 0, 1);
-      this.jy = lerp(34, JAR_HOVER, smooth(unlerp(0, 0.5, t)));
-      if (t > T - 0.18) this.jy = lerp(JAR_HOVER, 0, Math.pow(unlerp(T - 0.18, T, t), 2));
+      this.jy = lerp(34, JAR_HOVER, smooth(unlerp(0, 0.6, t / T)));
+      if (t > T - 0.2) this.jy = lerp(JAR_HOVER, 0, Math.pow(unlerp(T - 0.2, T, t), 2));
       jar.setPos(this.jx, this.jy, this.jz);
       jar.setWheel(t * 4);
       this.top(this.v1);
@@ -945,6 +978,7 @@ export class CollectorBoss extends Boss3D {
     env.arena.marks.set(MARK_JAR, false);
     m.releaseArms();
     if (freed) env.arena.burst3(this.jx, 2, this.jz, 14, [0xffffff, 0x9fe8ff, 0xffdf8a], 9);
+    if (freed && this.state === 'fight') this.sayOnce('jarbreak', 'oh. my glass.', 2000);
     this.jLocked = false;
   }
 
@@ -958,11 +992,10 @@ export class CollectorBoss extends Boss3D {
     const picks: number[] = [];
     const cols = [0, 1, 2];
     // drawers from all over his chest, never two next to each other
-    while (picks.length < Math.min(n, 6)) {
+    for (let tries = 0; picks.length < Math.min(n, 6) && tries < 200; tries++) {
       const d = Math.floor(Math.random() * DRAWERS);
       if (picks.some((p) => Math.abs((p % 3) - (d % 3)) + Math.abs(Math.floor(p / 3) - Math.floor(d / 3)) < 2)) continue;
       picks.push(d);
-      if (picks.length > 24) break;
     }
     void cols;
     const kinds: MinionKind[] = [0, 1, 2, 1, 0, 2];
@@ -974,7 +1007,7 @@ export class CollectorBoss extends Boss3D {
         st: 'queued',
         t: 0,
         drawer: d,
-        at: 0.2 + i * 0.85 * D.tele,
+        at: 0.2 + i * 0.68 * D.tele,
         x: 0,
         y: 0,
         z: BOSS_Z,
@@ -1000,7 +1033,8 @@ export class CollectorBoss extends Boss3D {
 
   private runDrawers() {
     if (this.minions.length === 0) return;
-    const alive = this.minions.filter((mn) => mn.st !== 'gone').length;
+    let alive = 0;
+    for (const mn of this.minions) if (mn.st !== 'gone') alive++;
     if (alive === 0) {
       this.minions.length = 0;
       this.stepDone = true;
@@ -1071,6 +1105,7 @@ export class CollectorBoss extends Boss3D {
         // it drops out of the drawer and lands at the far edge of the floor
         const T = 0.95;
         const u = clamp(mn.t / T, 0, 1);
+        env.arena.marks.set(MARK_LAND + (mn.id % 6), true, mn.lx, mn.lz, 1.3 + 0.5 * (1 - u), { col: 0xffe4a0, fill: 0.15, alpha: 0.5 + 0.4 * u });
         mn.x = lerp(mn.sx, mn.lx, u);
         mn.z = lerp(mn.sz, mn.lz, u);
         mn.y = lerp(mn.sy, 0, u * u) + Math.sin(Math.PI * u) * 3.4;
@@ -1083,6 +1118,7 @@ export class CollectorBoss extends Boss3D {
           mn.t = 0;
           mn.y = 0;
           env.audio.thump(0.5);
+          env.arena.marks.set(MARK_LAND + (mn.id % 6), false);
           env.arena.burst3(mn.x, 0.3, mn.z, 6, [0x3a2a62, 0x6a5a98], 4);
         }
       } else if (mn.st === 'dazed') {
@@ -1169,6 +1205,7 @@ export class CollectorBoss extends Boss3D {
   private killMinion(mn: Minion, light = true) {
     const { env } = this;
     if (mn.st === 'dying' || mn.st === 'gone') return;
+    env.arena.marks.set(MARK_LAND + (mn.id % 6), false);
     if (mn.st === 'queued' || mn.st === 'open') {
       // still in its drawer: it simply goes back to sleep
       mn.st = 'gone';
@@ -1181,6 +1218,7 @@ export class CollectorBoss extends Boss3D {
     env.audio.kill();
     env.arena.burst3(mn.x, 0.9, mn.z, 9, mn.kind === 0 ? [0x6ff0ff, 0x07040e, 0x1a2a3a] : mn.kind === 1 ? [0xe8cf90, 0xa88a50, 0xf4efe0] : [0xe8f0ff, 0x3aa88a, 0xa01830], 7);
     if (light) env.addLight(0.25);
+    if (light) this.sayOnce('minion', 'i have more.', 2000);
   }
 
   /* ---------------------------------------------------------------- */
@@ -1256,7 +1294,6 @@ export class CollectorBoss extends Boss3D {
       this.v1.lerp(this.v2, smooth(looking));
       m.lookAt(this.v1.x, this.v1.y, this.v1.z);
       m.pupil = 0.35 + 0.6 * smooth(looking);
-      this.warm += dt;
       if (ft >= this.windowT) {
         this.trace('missed');
         this.ist = 'retreat';

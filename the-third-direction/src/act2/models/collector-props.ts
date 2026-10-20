@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
-import { fbm, mix, rgb, scale, type RGB } from '../kit/noise';
+import { fbm, mix, ridge, rgb, scale, type RGB } from '../kit/noise';
 import { capsule, ellipsoid, inter, meshGen, smin, sphere, ssub, type SDF, type Slicer } from '../kit/sdf';
 import { skin } from '../kit/skin';
 import { PAL, colorize, glassMaterial, labelGeometry, labelMaterial, lathe, mergeGeos, rnd } from './collector-fx';
@@ -246,7 +246,7 @@ export class PropPins {
     tag: THREE.Texture,
   ) {
     for (let i = 0; i < this.size; i++) this.slots.push({ state: 'free', x: 0, z: 0, t: 0, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0, wob: 0, tag: Math.floor(rnd(i, 3) * 4) });
-    this.pin = new THREE.InstancedMesh(pinGeometry(), skin({ vertexColors: true, rim: 0xffe4a0, rimPower: 2.4, steps: 4 }), this.size);
+    this.pin = new THREE.InstancedMesh(pinGeometry(), skin({ vertexColors: true, rim: 0xe8c880, rimPower: 3.4, steps: 4 }), this.size);
     this.bases = new THREE.InstancedMesh(pinBaseGeometry(), skin({ vertexColors: true, rim: 0x9a8ad0, rimPower: 3 }), this.size);
     const tg = labelGeometry(0.95, 1.5);
     const tiles = new Float32Array(this.size);
@@ -500,7 +500,7 @@ export class PropJar {
   private pulse = 0;
 
   constructor(private world: THREE.Group) {
-    this.glassMat = glassMaterial({ tint: 0x16323a, rim: 0xa8f0ff, alpha: 0.07, glint: 1 });
+    this.glassMat = glassMaterial({ tint: 0x16323a, rim: 0xa8f0ff, alpha: 0.07, glint: 1, dirt: 0.5 });
     const glass = new THREE.Mesh(lathe(BELL, 40), this.glassMat);
     glass.renderOrder = 12;
     this.group.add(glass);
@@ -644,6 +644,10 @@ export class PropJar {
     void this.pulse;
   }
 
+  clearFx() {
+    this.shards.clear();
+  }
+
   demo(v: number) {
     this.show(true);
     this.setPos(-3, 0, -3);
@@ -662,6 +666,8 @@ export class PropJar {
 /* ---------------------------------------------------------------- */
 
 export type MinionKind = 0 | 1 | 2;
+/** The little monsters are modelled about a unit tall and drawn a little bigger than that, so they read from the game camera. */
+export const MINION_SCALE = 1.3;
 export const MINION_KINDS = 3;
 
 /** A tapered limb from a to b, as a closed cone frustum. */
@@ -709,20 +715,32 @@ function skitterField(): SDF {
 }
 
 function flowerField(): SDF {
-  const stalk = capsule([0, 0.05, 0], [0, 1.0, 0.05], 0.24, 0.17);
-  const bulb = ellipsoid([0, 1.28, 0.12], [0.52, 0.46, 0.52]);
-  let s: SDF = smin(0.3, stalk, bulb);
-  // roots to scuttle on
+  // a thin stalk on four scuttling roots; the head is a separate pair of snapping lobes
+  const stalk = capsule([0, 0.05, 0], [0, 1.0, 0.04], 0.22, 0.15);
+  const collar = ellipsoid([0, 1.02, 0.02], [0.3, 0.17, 0.3]);
+  let s: SDF = smin(0.25, stalk, collar);
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * TAU + 0.4;
     s = smin(0.18, s, capsule([0, 0.25, 0], [Math.cos(a) * 0.8, 0.02, Math.sin(a) * 0.8], 0.16, 0.05));
   }
-  // the mouth: a cavity cut into the front of the bulb
-  s = ssub(0.12, s, ellipsoid([0, 1.26, 0.5], [0.3, 0.26, 0.3]));
   return (x, y, z) => {
     const d = s(x, y, z);
     if (d > 0.3 || d < -0.3) return d;
     return d + (fbm(x * 3.5, y * 3.5, z * 3.5, 2, 21) - 0.5) * 0.07;
+  };
+}
+
+/** One lobe of the flower's jaw. The hinge is the origin, the lobe reaches along +z and curves up (+y); its rim lies in y = 0. */
+const LOBE_C: [number, number, number] = [0, 0.04, 0.62];
+const LOBE_R: [number, number, number] = [0.62, 0.5, 0.68];
+function lobeField(): SDF {
+  const outer = ellipsoid(LOBE_C, LOBE_R);
+  const inner = ellipsoid([LOBE_C[0], LOBE_C[1] - 0.02, LOBE_C[2]], [LOBE_R[0] - 0.1, LOBE_R[1] - 0.08, LOBE_R[2] - 0.1]);
+  const shell: SDF = (x, y, z) => Math.max(outer(x, y, z), -inner(x, y, z), -y);
+  return (x, y, z) => {
+    const d = shell(x, y, z);
+    if (d > 0.2 || d < -0.2) return d;
+    return d + (fbm(x * 4, y * 4, z * 4, 2, 31) - 0.5) * 0.05;
   };
 }
 
@@ -739,13 +757,13 @@ export class PropMinions {
   /** six slots; each holds all three shapes and shows the one it needs */
   readonly slots: { root: THREE.Group; kinds: MinionVis[]; shown: number }[] = [];
   readonly size = 6;
-  private geos: (THREE.BufferGeometry | null)[] = [null, null, null];
+  private geos: (THREE.BufferGeometry | null)[] = [null, null, null, null];
   private ready = false;
-  private eyeCy = new THREE.MeshBasicMaterial({ color: 0x6ff0ff, fog: false });
-  private eyePink = new THREE.MeshBasicMaterial({ color: 0xff5a7a, fog: false });
+  private mEye = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
   private mBlob = skin({ vertexColors: true, rim: 0x6ff0ff, rimPower: 2.4, steps: 3 });
   private mBone = skin({ vertexColors: true, rim: 0xffe0a0, rimPower: 2.6, steps: 4 });
   private mFlower = skin({ vertexColors: true, rim: 0xc8f0ff, rimPower: 2.6, steps: 4 });
+  private mFlowerJaw = skin({ vertexColors: true, rim: 0xd8c8ff, rimPower: 2.6, steps: 4, side: THREE.DoubleSide });
 
   constructor(private world: THREE.Group) {
     for (let i = 0; i < this.size; i++) {
@@ -761,7 +779,7 @@ export class PropMinions {
     const jobs: Promise<void>[] = [];
     const job = <T>(gen: Generator<void, T, void>, done: (v: T) => void) => jobs.push(new Promise<void>((res) => slicer.add(gen, (v) => (done(v), res()))));
     job(
-      meshGen(blobField(), [-1.6, -0.1, -1.6], [1.6, 1.9, 1.6], 0.08, {
+      meshGen(blobField(), [-1.6, -0.1, -1.6], [1.6, 1.9, 1.6], 0.1, {
         color: (x, y, z, nx, ny, nz, ao) => {
           const m = fbm(x * 2, y * 2, z * 2, 2, 3);
           let c = mix(rgb(0x07040e), rgb(0x1a2a3a), m * m);
@@ -775,7 +793,7 @@ export class PropMinions {
       (g) => (this.geos[0] = g),
     );
     job(
-      meshGen(skitterField(), [-1.3, 0.1, -1.6], [1.3, 1.5, 1.5], 0.07, {
+      meshGen(skitterField(), [-1.3, 0.1, -1.6], [1.3, 1.5, 1.5], 0.09, {
         color: (x, y, z, nx, ny, nz, ao) => {
           const m = fbm(x * 3, y * 3, z * 3, 3, 7);
           let c = mix(rgb(0xa88a50), rgb(0xe8cf90), m);
@@ -791,21 +809,40 @@ export class PropMinions {
       (g) => (this.geos[1] = g),
     );
     job(
-      meshGen(flowerField(), [-1.1, -0.1, -1.1], [1.1, 1.9, 1.2], 0.07, {
+      meshGen(flowerField(), [-1.1, -0.1, -1.1], [1.1, 1.3, 1.1], 0.09, {
         color: (x, y, z, nx, ny, nz, ao) => {
           const m = fbm(x * 2.5, y * 2.5, z * 2.5, 2, 11);
-          let c = mix(rgb(0x1a6a5a), rgb(0x3aa88a), m);
-          if (y > 1.0) c = mix(c, rgb(0xe8f0ff), smoothUp((y - 1.0) / 0.3) * 0.9);
-          // the inside of the mouth is raw
-          if (y > 1.0 && z > 0.3 && Math.abs(x) < 0.4 && Math.abs(y - 1.26) < 0.32) c = mix(c, rgb(0xa01830), 0.8);
+          const c = mix(rgb(0x1a6a5a), rgb(0x3aa88a), m);
           void nx;
           void ny;
           void nz;
+          void x;
+          void y;
+          void z;
           return scale(c, 0.55 + 0.5 * ao);
         },
         aoAmount: 0.5,
       }),
       (g) => (this.geos[2] = g),
+    );
+    job(
+      meshGen(lobeField(), [-0.8, -0.05, -0.15], [0.8, 0.7, 1.45], 0.075, {
+        color: (x, y, z, nx, ny, nz, ao) => {
+          // outside: pale petal flushed with violet along the veins; inside (facing the middle): raw red
+          const m = fbm(x * 3, y * 3, z * 3, 2, 41);
+          let c = mix(rgb(0xe6dcff), rgb(0x9a72d8), clamp(0.3 + 0.7 * m, 0, 1) * clamp((z + 0.1) / 1.2, 0, 1));
+          const v = ridge(x * 5, y * 5, z * 5, 2, 17);
+          if (v > 0.88) c = mix(c, rgb(0x6a3aa8), (v - 0.88) * 8);
+          // inside: the surface normal points down toward the other lobe, or inward
+          const inside = clamp(-ny * 1.4 + (y < 0.35 ? 0.3 : 0), 0, 1);
+          c = mix(c, mix(rgb(0xb0182c), rgb(0x5a0a18), clamp(1 - z, 0, 1)), inside);
+          void nx;
+          void nz;
+          return scale(c, 0.55 + 0.5 * ao);
+        },
+        aoAmount: 0.5,
+      }),
+      (g) => (this.geos[3] = g),
     );
     return Promise.all(jobs).then(() => {
       this.assemble();
@@ -831,44 +868,47 @@ export class PropMinions {
       return mergeGeos(parts);
     };
     const legs = [legGeo(0.45, 0.8), legGeo(0.0, 0.0), legGeo(-0.45, -0.8)];
-    // the flower's petals: a ring of five round leaves round the bulb
-    const petals = (() => {
+    // the flower's jaw: a lobe with a row of teeth along its rim (the lower one is the same lobe turned over)
+    const teethRow = (offset: number): THREE.BufferGeometry[] => {
       const parts: THREE.BufferGeometry[] = [];
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * TAU;
-        const p = new THREE.SphereGeometry(0.34, 8, 6);
-        p.scale(0.55, 1.0, 0.18);
-        p.translate(0, 0.46, 0);
-        p.rotateZ(a);
-        colorize(p, (x, y) => mix(rgb(0xdcecff), rgb(0x9a7ad8), clamp(Math.hypot(x, y) / 0.9, 0, 1) * 0.6));
-        parts.push(p);
+      const N = 11;
+      for (let i = 0; i < N; i++) {
+        const t = (i + offset) / N;
+        const a = Math.PI * (0.05 + 0.9 * t);
+        // along the rim of the lobe: a half ellipse in the plane y = 0 from the left, round the front, to the right
+        const x = -Math.cos(a) * (LOBE_R[0] - 0.04);
+        const z = LOBE_C[2] + Math.sin(a) * (LOBE_R[2] - 0.04);
+        const tooth = new THREE.ConeGeometry(0.075, 0.3, 5);
+        tooth.translate(0, -0.15, 0);
+        // the tooth leans in toward the middle of the mouth
+        tooth.rotateX(-0.25 * Math.sin(a));
+        tooth.translate(x, 0.02, z);
+        colorize(tooth, rgb(0xfff2d4));
+        parts.push(tooth);
       }
+      return parts;
+    };
+    const lobeUp = mergeGeos([this.geos[3]!, ...teethRow(0)]);
+    const lobeDn = mergeGeos([this.geos[3]!, ...teethRow(0.5)]);
+    // glowing eyes: spheres merged into one mesh each, unlit, with their own colours
+    const eyes = (list: [number, number, number, number][], c: RGB): THREE.BufferGeometry => {
+      const parts = list.map(([x, y, z, r]) => {
+        const g = new THREE.SphereGeometry(r, 6, 4);
+        g.translate(x, y, z);
+        return colorize(g, c);
+      });
       return mergeGeos(parts);
-    })();
-    const teeth = (() => {
-      const parts: THREE.BufferGeometry[] = [];
-      for (let i = 0; i < 9; i++) {
-        const a = (i / 9) * TAU;
-        const t = new THREE.ConeGeometry(0.055, 0.2, 4);
-        t.rotateX(Math.PI / 2);
-        t.translate(Math.cos(a) * 0.26, 1.26 + Math.sin(a) * 0.23, 0.74);
-        colorize(t, rgb(0xfff4dc));
-        parts.push(t);
-      }
-      return mergeGeos(parts);
-    })();
-    const eye = (r: number) => new THREE.SphereGeometry(r, 7, 5);
+    };
+    const eyesBlob = eyes([[-0.3, 0.9, 0.78, 0.17], [0.28, 0.95, 0.8, 0.13], [0.0, 0.62, 0.9, 0.09]], [0.43, 0.95, 1]);
+    const eyesSkit = eyes([[-0.14, 0.86, 1.04, 0.07], [0.14, 0.86, 1.04, 0.07]], [1, 0.35, 0.48]);
+    const eyesFlow = eyes([[-0.3, 0.28, 0.3, 0.07], [0.3, 0.28, 0.3, 0.07]], [1, 0.35, 0.48]);
     for (const s of this.slots) {
       // 0: the blob
       {
         const g = new THREE.Group();
         const body = new THREE.Mesh(this.geos[0]!, this.mBlob);
         g.add(body);
-        for (const [x, y, z, r] of [[-0.3, 0.9, 0.78, 0.17], [0.28, 0.95, 0.8, 0.13], [0.0, 0.62, 0.9, 0.09]] as [number, number, number, number][]) {
-          const e = new THREE.Mesh(eye(r), this.eyeCy);
-          e.position.set(x, y, z);
-          g.add(e);
-        }
+        g.add(new THREE.Mesh(eyesBlob, this.mEye));
         g.visible = false;
         s.root.add(g);
         s.kinds.push({ group: g, kind: 0, parts: [], legs: [], petals: null, body });
@@ -883,33 +923,28 @@ export class PropMinions {
           g.add(m);
           return m;
         });
-        for (const sx of [-1, 1]) {
-          const e = new THREE.Mesh(eye(0.07), this.eyePink);
-          e.position.set(sx * 0.14, 0.86, 1.04);
-          g.add(e);
-        }
+        g.add(new THREE.Mesh(eyesSkit, this.mEye));
         g.visible = false;
         s.root.add(g);
         s.kinds.push({ group: g, kind: 1, parts: [], legs: legMeshes, petals: null, body });
       }
-      // 2: the flower with teeth
+      // 2: the flower with teeth: a stalk on roots and a pair of jaws that snap
       {
         const g = new THREE.Group();
         const body = new THREE.Mesh(this.geos[2]!, this.mFlower);
         g.add(body);
         const head = new THREE.Group();
-        head.position.set(0, 1.26, 0.12);
-        const pm = new THREE.Mesh(petals, this.mFlower);
-        pm.position.set(0, 0, -0.1);
-        pm.rotation.x = -0.4;
-        head.add(pm);
-        const tm = new THREE.Mesh(teeth, this.mFlower);
-        tm.position.set(0, -1.26, -0.12);
-        head.add(tm);
+        head.position.set(0, 1.1, -0.1);
+        const up = new THREE.Mesh(lobeUp, this.mFlowerJaw);
+        const dn = new THREE.Mesh(lobeDn, this.mFlowerJaw);
+        // the lower lobe is the upper one turned upside down
+        dn.rotation.x = Math.PI;
+        head.add(up, dn);
+        head.add(new THREE.Mesh(eyesFlow, this.mEye));
         g.add(head);
         g.visible = false;
         s.root.add(g);
-        s.kinds.push({ group: g, kind: 2, parts: [head], legs: [], petals: pm, body });
+        s.kinds.push({ group: g, kind: 2, parts: [head, up, dn], legs: [], petals: null, body });
       }
     }
   }
@@ -927,7 +962,8 @@ export class PropMinions {
     s.root.rotation.y = yaw;
     const v = s.kinds[kind]!;
     const sq = 1 - squash * 0.35;
-    s.root.scale.set(sc / Math.sqrt(sq), sc * sq, sc / Math.sqrt(sq));
+    const S = sc * MINION_SCALE;
+    s.root.scale.set(S / Math.sqrt(sq), S * sq, S / Math.sqrt(sq));
     if (kind === 0) {
       // a wobbling ooze
       const w = Math.sin(ph * 2) * 0.08;
@@ -946,14 +982,32 @@ export class PropMinions {
       // it hops on its roots, and the mouth works
       const hop = Math.abs(Math.sin(ph));
       v.group.position.y = hop * 0.35;
-      v.group.rotation.x = -0.12 + Math.sin(ph) * 0.1;
-      v.parts[0]!.rotation.x = -0.15 - mouth * 0.5;
-      if (v.petals) v.petals.rotation.x = -0.4 - mouth * 0.5;
+      v.group.rotation.x = -0.1 + Math.sin(ph) * 0.08;
+      // the head nods with each hop; the jaws open wide as it nears you and snap shut
+      const snap = 0.5 + 0.5 * Math.sin(ph * 3);
+      const open = 0.25 + mouth * 0.9 + 0.15 * snap;
+      v.parts[0]!.rotation.x = 0.1 + Math.sin(ph) * 0.12;
+      v.parts[1]!.rotation.x = -open;
+      v.parts[2]!.rotation.x = Math.PI + open * 0.45;
     }
   }
 
   hide(i: number) {
     this.slots[i]!.root.visible = false;
+  }
+
+  /** Show each of the three shapes for a moment, too small to see, so their shaders are compiled before the fight needs them. */
+  warm(on: boolean) {
+    if (!this.ready) return;
+    for (let i = 0; i < MINION_KINDS; i++) {
+      const s = this.slots[i]!;
+      if (!on) {
+        s.root.visible = false;
+        continue;
+      }
+      this.place(i, i as MinionKind, 0, 4, -22, 0, 0, 0, 0, 0.001);
+      s.root.visible = true;
+    }
   }
 
   hideAll() {

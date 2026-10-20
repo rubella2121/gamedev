@@ -118,9 +118,21 @@ uniform vec3 uRim;
 uniform float uAlpha;
 uniform float uFade;
 uniform float uGlint;
+uniform float uDirt;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vP;
+float h21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float vn2(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 void main() {
   vec3 n = normalize(vN);
   vec3 v = normalize(vV);
@@ -135,8 +147,14 @@ void main() {
   d2.y *= 0.55;
   float h2 = (1.0 - smoothstep(0.03, 0.22, length(d2))) * 0.5;
   float sp = (h1 + h2) * uGlint;
-  vec3 col = uTint + uRim * fr * 1.15 + vec3(1.0) * sp;
-  float a = uAlpha + fr * 0.55 + sp * 0.85;
+  // years of grime: dark streaks that run down the glass and a film of dirt
+  float ang = atan(vP.z, vP.x);
+  float streak = vn2(vec2(ang * 7.0, vP.y * 0.55));
+  streak = smoothstep(0.58, 0.9, streak);
+  float film = vn2(vec2(ang * 2.0 + vP.y * 0.4, vP.y * 1.7)) * 0.5 + vn2(vP.xy * 3.0 + vP.zz) * 0.5;
+  float dirt = streak * 0.45 + smoothstep(0.55, 0.85, film) * 0.22;
+  vec3 col = mix(uTint + uRim * fr * 1.15, vec3(0.05, 0.035, 0.015), dirt * uDirt) + vec3(1.0) * sp * (1.0 - dirt * 0.6);
+  float a = uAlpha + fr * 0.55 + sp * 0.85 + dirt * uDirt * 0.5;
   if (!gl_FrontFacing) a *= 0.55;
   gl_FragColor = vec4(col, clamp(a, 0.0, 0.94) * uFade);
   #include <tonemapping_fragment>
@@ -144,7 +162,7 @@ void main() {
 }`;
 
 /** Glass: nearly clear in the middle, bright at the edges, with two soft window reflections. Draw it after everything inside it. */
-export function glassMaterial(o: { tint?: number; rim?: number; alpha?: number; glint?: number } = {}): THREE.ShaderMaterial {
+export function glassMaterial(o: { tint?: number; rim?: number; alpha?: number; glint?: number; dirt?: number } = {}): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTint: { value: new THREE.Color(o.tint ?? 0x16323a) },
@@ -152,6 +170,7 @@ export function glassMaterial(o: { tint?: number; rim?: number; alpha?: number; 
       uAlpha: { value: o.alpha ?? 0.07 },
       uFade: { value: 1 },
       uGlint: { value: o.glint ?? 1 },
+      uDirt: { value: o.dirt ?? 0 },
     },
     vertexShader: GLASS_VS,
     fragmentShader: GLASS_FS,
@@ -581,6 +600,56 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+/** The soft-point material the particle pools use. */
+export function softPointsMaterial(additive: boolean): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { uScale: { value: 768 / (2 * Math.tan((32 * Math.PI) / 180)) } },
+    vertexShader: PT_VS,
+    fragmentShader: PT_FS,
+    transparent: true,
+    depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    fog: false,
+  });
+}
+
+/** A fixed set of glows (one per slot) in one draw call: set a slot's size, alpha and colour, move nothing. */
+export class GlowSet {
+  readonly points: THREE.Points;
+  private size: Float32Array;
+  private alpha: Float32Array;
+  private col: Float32Array;
+  private g = new THREE.BufferGeometry();
+
+  constructor(positions: [number, number, number][], additive = true) {
+    const n = positions.length;
+    const pos = new Float32Array(n * 3);
+    positions.forEach((p, i) => pos.set(p, i * 3));
+    this.size = new Float32Array(n);
+    this.alpha = new Float32Array(n);
+    this.col = new Float32Array(n * 3).fill(1);
+    this.g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.g.setAttribute('size', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
+    this.g.setAttribute('alpha', new THREE.BufferAttribute(this.alpha, 1).setUsage(THREE.DynamicDrawUsage));
+    this.g.setAttribute('color', new THREE.BufferAttribute(this.col, 3).setUsage(THREE.DynamicDrawUsage));
+    this.points = new THREE.Points(this.g, softPointsMaterial(additive));
+    this.points.frustumCulled = false;
+    this.points.renderOrder = 19;
+  }
+
+  set(i: number, size: number, alpha: number, c?: RGB) {
+    this.size[i] = size;
+    this.alpha[i] = alpha;
+    if (c) this.col.set(c, i * 3);
+  }
+
+  commit() {
+    (this.g.getAttribute('size') as THREE.BufferAttribute).needsUpdate = true;
+    (this.g.getAttribute('alpha') as THREE.BufferAttribute).needsUpdate = true;
+    (this.g.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+  }
+}
+
 /** A pool of soft round particles drawn in one call. */
 export class SoftPoints {
   readonly points: THREE.Points;
@@ -689,19 +758,19 @@ export class SoftPoints {
 
 /** Colours the Collector is painted with (linear). */
 export const PAL = {
-  leatherDark: rgb(0x3a2412),
-  leather: rgb(0x7a4a2a),
-  leatherLight: rgb(0x9a6a38),
-  flesh: rgb(0x8a5a38),
-  fleshPale: rgb(0xb08a54),
-  sinew: rgb(0x8a3a2a),
-  vein: rgb(0x2a1208),
+  leatherDark: rgb(0x2a1a08),
+  leather: rgb(0x6a4412),
+  leatherLight: rgb(0x8a6020),
+  flesh: rgb(0x7a5a20),
+  fleshPale: rgb(0xa88a40),
+  sinew: rgb(0xa04810),
+  vein: rgb(0x3a1004),
   brass: rgb(0xd9a93a),
   brassDark: rgb(0x7a5a1c),
   brassLight: rgb(0xffdf8a),
   verdigris: rgb(0x4a9c7a),
   bone: rgb(0xe0b868),
-  boneShade: rgb(0xa07838),
+  boneShade: rgb(0xa07830),
   ink: rgb(0x0a0612),
   inkSheen: rgb(0x2a2438),
   paper: rgb(0xeadfc2),
