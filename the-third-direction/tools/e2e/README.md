@@ -15,3 +15,8 @@ QS='?debug' node tools/e2e.mjs dist-standalone tools/e2e/gestures-3d.json /tmp/o
 
 On a computer without a GPU the game runs slowly and the frame time is capped, so real-time button presses do not measure what a
 phone would do; stepping by hand (as above) does.
+
+Tips
+* To stop a run you started in the background, kill it by its process id (`node tools/e2e.mjs ... & echo $!`). `pkill -f "e2e.mjs"`
+  typed inside a shell command also matches that shell's own command line and kills it.
+* The runner and the lab renderer list every HTTP error (`[http 404] <url>`) at the end, so a missing file shows up by name.

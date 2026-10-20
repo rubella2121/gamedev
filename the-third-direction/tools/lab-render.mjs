@@ -38,12 +38,20 @@ const browser = await chromium.launch({
 const page = await (await browser.newContext({ viewport: { width: 405, height: 720 } })).newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push('[pageerror] ' + e.message));
+page.on('response', (r) => { if (r.status() >= 400) errors.push(`[http ${r.status()}] ${r.url()}`); });
 page.on('console', (m) => {
   if (['error', 'warning'].includes(m.type())) errors.push(`[${m.type()}] ${m.text()}`);
   else if (m.type() === 'log') console.log('log:', m.text());
 });
 await page.goto(`http://localhost:${port}/lab3d.html`, { waitUntil: 'load' });
-await page.waitForFunction(() => window.__lab, null, { timeout: 15000 });
+try {
+  await page.waitForFunction(() => window.__lab, null, { timeout: 60000 });
+} catch (e) {
+  console.log('the lab page never became ready (did you run `npm run gallery` first?)\n' + errors.slice(0, 12).join('\n'));
+  await browser.close();
+  server.close();
+  process.exit(1);
+}
 const ms = await page.evaluate((m) => window.__lab.load(m), spec.model);
 const st = await page.evaluate(() => window.__lab.stats());
 console.log(`built ${spec.model} in ${ms} ms`, st);

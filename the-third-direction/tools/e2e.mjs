@@ -34,6 +34,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('console', (m) => { if (['error', 'warning'].includes(m.type())) errors.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errors.push(`[pageerror] ${e.message}`));
+page.on('response', (r) => { if (r.status() >= 400) errors.push(`[http ${r.status()}] ${r.url()}`); });
 await page.goto(`http://localhost:${port}/${process.env.QS || "?debug"}`, { waitUntil: 'load' });
 for (const s of steps) {
   if (s.wait) await page.waitForTimeout(s.wait);
