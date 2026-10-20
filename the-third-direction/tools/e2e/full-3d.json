@@ -1,0 +1,7 @@
+[
+  { "wait": 2500 },
+  { "click": ".segbtn:nth-child(2)" },
+  { "click": ".btn.play" },
+  { "wait": 800 },
+  { "evalFile": "tools/e2e/full-3d-run.js" }
+]
