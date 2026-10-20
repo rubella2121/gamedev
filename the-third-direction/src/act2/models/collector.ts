@@ -626,27 +626,33 @@ export class CollectorModel {
     this.jarsPet.instanceColor!.needsUpdate = true;
   }
 
-  /** Queue the heavy meshes; they appear as they finish. */
+  /** Queue the heavy meshes; they appear as they finish. The model is ready (synchronously) when the last one is done. */
   build(slicer: Slicer): Promise<void> {
-    const jobs: Promise<void>[] = [];
-    const job = <T>(gen: Generator<void, T, void>, done: (v: T) => void) => jobs.push(new Promise<void>((res) => slicer.add(gen, (v) => (done(v), res()))));
-    job(buildTorso(), (g) => {
-      this.torso = new THREE.Mesh(g, this.skinMat);
-      this.chest.add(this.torso);
-    });
-    job(buildPool(), (g) => {
-      this.pool = new THREE.Mesh(g, this.inkMat);
-      this.root.add(this.pool);
-    });
-    job(paintEyeGen(), (tex) => {
-      this.eyeMat.map = tex;
-      this.eyeMat.color.setHex(0xffffff);
-      this.eyeMat.needsUpdate = true;
-    });
-    jobs.push(this.minions.build(slicer));
-    return Promise.all(jobs).then(() => {
-      this.ready = true;
-      this.update(0, 0);
+    return new Promise<void>((resolve) => {
+      let left = 4;
+      const done = () => {
+        if (--left > 0) return;
+        this.ready = true;
+        this.update(0, 0);
+        resolve();
+      };
+      slicer.add(buildTorso(), (g) => {
+        this.torso = new THREE.Mesh(g, this.skinMat);
+        this.chest.add(this.torso);
+        done();
+      });
+      slicer.add(buildPool(), (g) => {
+        this.pool = new THREE.Mesh(g, this.inkMat);
+        this.root.add(this.pool);
+        done();
+      });
+      slicer.add(paintEyeGen(), (tex) => {
+        this.eyeMat.map = tex;
+        this.eyeMat.color.setHex(0xffffff);
+        this.eyeMat.needsUpdate = true;
+        done();
+      });
+      this.minions.build(slicer, done);
     });
   }
 
@@ -761,6 +767,9 @@ export class CollectorModel {
       j.setCracks(0);
       j.setIris(0);
     }
+    j.warmShards(on);
+    this.shards.warm(on);
+    this.pins.warm(on);
     this.minions.warm(on);
   }
 

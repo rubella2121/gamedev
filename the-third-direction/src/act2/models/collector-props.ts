@@ -29,6 +29,7 @@ export class Shards {
   private max: Float32Array;
   private size: Float32Array;
   private next = 0;
+  private warming = false;
   private d = new THREE.Object3D();
 
   constructor(world: THREE.Group, n = 72) {
@@ -48,6 +49,7 @@ export class Shards {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 15;
     this.mesh.count = 0;
+    this.mesh.visible = false;
     world.add(this.mesh);
   }
 
@@ -76,9 +78,24 @@ export class Shards {
       this.size[i] = 0.5 + Math.random() * 0.9;
     }
     this.mesh.count = this.n;
+    this.mesh.visible = true;
+  }
+
+  /** Show the shards (too small to see) for a few frames so their shader is compiled before the first break. */
+  warm(on: boolean) {
+    this.warming = on;
+    if (on) {
+      this.mesh.visible = true;
+      this.mesh.count = Math.max(1, this.mesh.count);
+    } else if (this.mesh.count <= 1) {
+      this.mesh.count = 0;
+      this.mesh.visible = false;
+    }
   }
 
   update(dt: number) {
+    // nothing in the air: nothing to do, nothing to draw
+    if (this.mesh.count === 0) return;
     let any = false;
     const d = this.d;
     for (let i = 0; i < this.n; i++) {
@@ -108,12 +125,17 @@ export class Shards {
       this.mesh.setMatrixAt(i, d.matrix);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
-    if (!any) this.mesh.count = 0;
+    if (!any && !this.warming) {
+      this.mesh.count = 0;
+      this.mesh.visible = false;
+    }
   }
 
   clear() {
     this.life.fill(0);
     this.mesh.count = 0;
+    this.mesh.visible = false;
+    this.warming = false;
   }
 }
 
@@ -232,6 +254,9 @@ export class PropPins {
   readonly slots: PinSlot[] = [];
   readonly size = 16;
   onLand: ((i: number) => void) | null = null;
+  private dirty = true;
+  private warming = false;
+  private anyVisible = false;
   private pin: THREE.InstancedMesh;
   private tags: THREE.InstancedMesh;
   private bases: THREE.InstancedMesh;
@@ -284,6 +309,7 @@ export class PropPins {
   launch(i: number, x: number, z: number, from: THREE.Vector3, dir: THREE.Vector3, flyT = PIN_FLY) {
     const s = this.slots[i]!;
     s.flyT = flyT;
+    this.dirty = true;
     s.state = 'fly';
     s.t = 0;
     s.x = x;
@@ -309,6 +335,7 @@ export class PropPins {
   /** It breaks (a strike, a lance, a nova). */
   breakPin(i: number) {
     const s = this.slots[i]!;
+    this.dirty = true;
     s.state = 'break';
     s.t = 0;
   }
@@ -324,14 +351,19 @@ export class PropPins {
 
   clear() {
     for (const s of this.slots) s.state = 'free';
+    this.dirty = true;
     this.write(0);
   }
 
   update(dt: number, t: number) {
     this.tagMat.uniforms['uTime']!.value = t;
+    // the matrices are rewritten only while a pin is moving (a stuck pin is still: its tag sways on the GPU)
+    let moving = this.dirty;
+    this.dirty = false;
     for (let i = 0; i < this.size; i++) {
       const s = this.slots[i]!;
       if (s.state === 'free' || s.state === 'wait') continue;
+      if (s.state !== 'stuck' || s.wob > 0) moving = true;
       s.t += dt;
       if (s.state === 'fly' && s.t >= s.flyT) {
         s.state = 'hover';
@@ -345,17 +377,25 @@ export class PropPins {
       else if (s.state === 'pull' && s.t >= 0.8) s.state = 'free';
       if (s.state === 'stuck') s.wob = Math.max(0, s.wob - dt * 2.2);
     }
-    this.write(t);
+    if (moving) this.write(t);
+  }
+
+  /** Show the pins (too small to see) for a few frames so their shaders are compiled before the first throw. */
+  warm(on: boolean) {
+    this.warming = on;
+    this.pin.visible = this.tags.visible = this.bases.visible = on || this.anyVisible;
   }
 
   private write(t: number) {
     const d = this.d;
+    let any = false;
     for (let i = 0; i < this.size; i++) {
       const s = this.slots[i]!;
       let px = s.x;
       let py = -PIN_BURY * PIN_SCALE;
       let pz = s.z;
       let vis = s.state !== 'free' && s.state !== 'wait';
+      if (vis) any = true;
       let sc = PIN_SCALE;
       let baseK = 0;
       const q = this.q;
@@ -437,6 +477,8 @@ export class PropPins {
     this.pin.instanceMatrix.needsUpdate = true;
     this.tags.instanceMatrix.needsUpdate = true;
     this.bases.instanceMatrix.needsUpdate = true;
+    this.anyVisible = any;
+    this.pin.visible = this.tags.visible = this.bases.visible = any || this.warming;
   }
 
   /** The lab's view: n pins stuck in the floor and two in the air. */
@@ -651,6 +693,10 @@ export class PropJar {
     this.shards.clear();
   }
 
+  warmShards(on: boolean) {
+    this.shards.warm(on);
+  }
+
   demo(v: number) {
     this.show(true);
     this.setPos(-3, 0, -3);
@@ -777,10 +823,21 @@ export class PropMinions {
     }
   }
 
-  /** Mesh the three bodies (a few ms at a time) and set up the slots. */
-  build(slicer: Slicer): Promise<void> {
-    const jobs: Promise<void>[] = [];
-    const job = <T>(gen: Generator<void, T, void>, done: (v: T) => void) => jobs.push(new Promise<void>((res) => slicer.add(gen, (v) => (done(v), res()))));
+  /**
+   * Mesh the little monsters (a few ms at a time) and set up the slots. `finished` is called, synchronously inside the slicer, the
+   * moment the last job is done (a promise would only say so a moment later, and a flushed slicer should leave the model ready).
+   */
+  build(slicer: Slicer, finished: () => void): void {
+    let left = 4;
+    const job = <T>(gen: Generator<void, T, void>, done: (v: T) => void) =>
+      slicer.add(gen, (v) => {
+        done(v);
+        if (--left === 0) {
+          this.assemble();
+          this.ready = true;
+          finished();
+        }
+      });
     job(
       meshGen(blobField(), [-1.6, -0.1, -1.6], [1.6, 1.9, 1.6], 0.1, {
         color: (x, y, z, nx, ny, nz, ao) => {
@@ -840,10 +897,6 @@ export class PropMinions {
       }),
       (g) => (this.geos[3] = g),
     );
-    return Promise.all(jobs).then(() => {
-      this.assemble();
-      this.ready = true;
-    });
   }
 
   private assemble() {
