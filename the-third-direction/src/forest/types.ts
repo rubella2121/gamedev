@@ -168,6 +168,8 @@ export interface Zone {
   overlay?(): void;
   /** the zone wants to hear about the player every frame, even when far away */
   always?: boolean;
+  /** where the zone's hidden warmth is waiting (the next thing to touch in its puzzle), or null once it is found: the moth leans toward it */
+  secretSpot?(): { x: number; y: number } | null;
   /** (debug) the key positions of the zone, to check they are on walkable ground */
   debugPoints?(): { x: number; y: number; name: string }[];
 }

@@ -134,6 +134,7 @@ export class Arena {
   private belowMat: THREE.MeshBasicMaterial | null = null;
   readonly moth = new THREE.Group();
   private mothWings: THREE.Mesh[] = [];
+  private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
 
   constructor() {
@@ -493,6 +494,15 @@ export class Arena {
     this.moth.add(this.mothLight);
     this.moth.visible = false;
     this.world.add(this.moth);
+    // the moth's shield: a bubble of moonlight around you while the moth can take a hit for you
+    this.shieldMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.25, 20, 14),
+      new THREE.MeshBasicMaterial({ color: 0x9fe8ff, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
+    );
+    this.shieldMesh.position.y = 1.05;
+    this.shieldMesh.scale.set(1, 1.2, 1);
+    this.shieldMesh.visible = false;
+    this.player.add(this.shieldMesh);
   }
 
 
@@ -631,14 +641,25 @@ export class Arena {
     for (const p of this.peekers) p.g.scale.setScalar(Math.max(0.001, Math.min(1, Math.max(0, (u - p.delay * 0.6) * 3))));
   }
 
-  setMoth(x: number, y: number, z: number, t: number, show = true) {
+  /** `calm` 1: resting on your head (slow small wingbeats). `fast` 1: trembling. `glow`: how bright it is. */
+  setMoth(x: number, y: number, z: number, t: number, show = true, calm = 0, glow = 1, fast = 0) {
     this.moth.visible = show;
-    this.moth.position.set(x, y + Math.sin(t * 3) * 0.12, z);
-    const f = Math.sin(t * 28);
+    this.moth.position.set(x, y + Math.sin(t * 3) * 0.12 * (1 - calm), z);
+    const f = Math.sin(t * (28 - 20 * calm + 18 * fast));
     this.mothWings.forEach((w) => {
       const side = w.userData['side'] as number;
-      w.rotation.z = side * (0.35 + 0.55 * f);
+      w.rotation.z = side * (0.35 + 0.55 * f * (1 - 0.6 * calm));
     });
+    this.mothLight.intensity = 16 * glow;
+  }
+
+  /** The shield bubble: `u` 1 is up, 0 is gone; `flash` is the burst when it takes a hit or comes back. */
+  setShield(u: number, flash: number, t: number) {
+    const m = this.shieldMesh.material as THREE.MeshBasicMaterial;
+    this.shieldMesh.visible = u > 0.01 || flash > 0.01;
+    m.opacity = 0.13 * u + 0.4 * flash + 0.02 * Math.sin(t * 3) * u;
+    const s = 1 + 0.04 * Math.sin(t * 3) + 0.25 * flash;
+    this.shieldMesh.scale.set(s, 1.2 * s, s);
   }
 
   crumblePillar(i: number) {

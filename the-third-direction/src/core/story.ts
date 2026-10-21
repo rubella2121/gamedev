@@ -74,9 +74,6 @@ export const STORY = {
     meadow: { name: 'Moth Meadow', sub: 'it is very quiet. quiet is how it starts.' },
   },
 
-  /** the first time a heart wakes a guardian */
-  guardianWakes: thought('Something was sleeping on that heart. It is awake now.', 3200),
-
   /** when a zone falls and X's shadow comes down on it */
   falls: {
     gloom: world('the shadows scatter. something above leans closer.', 3000),
@@ -105,7 +102,19 @@ export const STORY = {
   ] as readonly Line[],
 
   /** the Mournmoth is freed */
-  moth: [thought('It was trapped, and it still shines.', 2600), world('a shadow cannot swallow light.', 2800)] as readonly Line[],
+  moth: [
+    thought('It was trapped, and it still shines.', 2600),
+    world('a shadow cannot swallow light.', 2600),
+    world('it is a child of the moon, a long way from home.', 3000),
+  ] as readonly Line[],
+
+  /** what the moth does for you: the first time its shield is up, and the first time it takes a hit */
+  mothShield: {
+    armed: thought('The moth is watching over me.', 2600),
+    took: thought('It took the hit for me.', 2400),
+  },
+  /** the first time the moth leans toward something hidden */
+  mothSense: thought('The moth wants to show me something.', 2800),
 
   /** Mother's voice, when it gets hard. Keyed by how many times you have fallen. */
   deaths: {
@@ -162,5 +171,6 @@ export const STORY = {
     low(at(8.0, world('the clearing grows back. the crater stays.', 2300))),
     low(at(9.7, warm('Look up.', 1300))),
     low(at(10.8, thought('I can look up now.', 3600))),
+    low(at(14.7, world('the moon blinks. the moth is home.', 2300))),
   ] as readonly Timed[],
 };

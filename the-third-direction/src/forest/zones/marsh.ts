@@ -133,6 +133,10 @@ export class MarshZone implements Zone {
     return this.gate.solid() && !this.cleared ? [GATE] : [];
   }
 
+  secretSpot() {
+    return this.lily.done ? null : LILIES[Math.min(this.lily.next, LILIES.length - 1)]!;
+  }
+
   debugPoints() {
     return [
       ...BELLS.map((b, i) => ({ x: b.a[0]!, y: b.a[1]!, name: `bell${i}a` })),

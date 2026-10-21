@@ -15,6 +15,10 @@ together, with a scorpion tail) -> the ending with the rebuilt clearing, a share
 The five zones (each has monsters you fight with light, a puzzle, a secret and a heart to reach):
 Gloom Hollow, Rootmaw Thicket, Echo Marsh, Bone Wastes and Moth Meadow. See [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
 Secrets give bonus hearts (up to +3) for the 3D fights. Every monster has a voice made in code ([`src/core/voice.ts`](./src/core/voice.ts)).
+The **Mournmoth** (the friend you free in Moth Meadow) has a job: it takes the first hit of every fight (the **Moth Shield**: a bubble of
+moonlight, then it dims and comes back after 18 / 25 / 40 seconds on Gentle / Normal / Nightmare), it leans toward a hidden warmth when you are
+near one, it rests on your head when you stand still, trembles when you are one hit from a fall, dims when you are hit, and in the ending it
+goes home to the moon (it is the moon's child). The logic is in [`src/core/mothbond.ts`](./src/core/mothbond.ts).
 The story is told in captions in three voices: the blob's thoughts, Mother and Father, and the world itself. Every line, in order, is in [`docs/STORY.md`](./docs/STORY.md).
 
 Not done yet: tuning from real playtests (difficulty, timings, audio mix), real-phone performance checks, and RUN host testing

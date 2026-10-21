@@ -178,6 +178,21 @@ export class MeadowZone implements Zone {
     this.open = [true, true, true, true, true];
   }
 
+  secretSpot() {
+    if (this.moonDone) return null;
+    const pl = this.hub.player;
+    let best: { x: number; y: number } | null = null;
+    let bd = Infinity;
+    MOON.forEach((m, i) => {
+      const d = dist(pl.x, pl.y, m.x, m.y);
+      if (!this.moon[i] && d < bd) {
+        bd = d;
+        best = m;
+      }
+    });
+    return best;
+  }
+
   debugPoints() {
     return [
       { ...CAGE, name: 'cage' },

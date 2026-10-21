@@ -33,8 +33,10 @@ The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some
 - **Bone Wastes**: something small runs on too many legs.
 - **Moth Meadow**: it is very quiet. quiet is how it starts.
 
-**First guardian wakes**
-- **Something was sleeping on that heart. It is awake now.**  _(blob)_
+**The Mournmoth's shield** (first time it is up, and the first hit it takes)
+- **The moth is watching over me.**  _(blob)_
+- **It took the hit for me.**  _(blob)_
+- when it first leans toward something hidden: **The moth wants to show me something.**  _(blob)_
 
 **When a zone falls** (X's shadow comes down), then the count
 - gloom: **the shadows scatter. something above leans closer.**  _(world)_
@@ -51,7 +53,7 @@ The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some
 
 **Hidden warmths** (secrets): **A hidden warmth. Some of it stays with me.**  _(blob)_ / **Another. Someone hid these for me.**  _(blob)_ / **I feel braver.**  _(blob)_ / **Warm.**  _(blob)_
 
-**The Mournmoth is freed**: **It was trapped, and it still shines.**  _(blob)_ then **a shadow cannot swallow light.**  _(world)_
+**The Mournmoth is freed**: **It was trapped, and it still shines.**  _(blob)_ then **a shadow cannot swallow light.**  _(world)_ then **it is a child of the moon, a long way from home.**  _(world)_
 
 **Mother, when it gets hard** (by number of falls): 1: **It's all right. Up we get.**  _(family)_ / 5: **Breathe. Again.**  _(family)_ / 12: **I am right here.**  _(family)_
 
@@ -91,3 +93,4 @@ After The Collector:
 - 8s  **the clearing grows back. the crater stays.**  _(world)_
 - 9.7s  **Look up.**  _(family)_
 - 10.8s  **I can look up now.**  _(blob)_
+- 14.7s  **the moon blinks. the moth is home.**  _(world)_

@@ -80,6 +80,10 @@ export class GloomZone implements Zone {
     return this.guardian !== null;
   }
 
+  secretSpot() {
+    return this.ringDone ? null : { x: 365, y: 1110 };
+  }
+
   /** The player is in the arena: the Gloommother wakes. */
   onArrive() {
     this.guardian = new Gloommother(this.hub, arenaDef('gloom'), () => {

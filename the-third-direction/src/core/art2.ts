@@ -72,11 +72,12 @@ export function drawSkitter(p: Pix, x: number, y: number, t: number, seed: numbe
 }
 
 /** A tiny glowing Mournmoth. (x, y) is its centre in the air. */
-export function drawMoth(p: Pix, x: number, y: number, t: number, glow = 1) {
-  p.dither(x, y, 15, 11, C.moon, 0.14 * glow);
-  p.dither(x, y, 9, 7, C.moonCore, 0.2 * glow);
-  const f = Math.abs(Math.sin(t * 13));
-  const wy = 1.6 + f * 2.8;
+/** `calm` 1 is a moth resting on your head (slow, small wingbeats); `fast` 1 is a moth trembling for you. */
+export function drawMoth(p: Pix, x: number, y: number, t: number, glow = 1, calm = 0, fast = 0) {
+  p.dither(x, y, 15, 11, C.moon, Math.min(0.4, 0.14 * glow));
+  p.dither(x, y, 9, 7, C.moonCore, Math.min(0.5, 0.2 * glow));
+  const f = Math.abs(Math.sin(t * (13 - 9 * calm + 9 * fast)));
+  const wy = 1.6 + f * 2.8 * (1 - 0.65 * calm);
   p.ellipse(x - 3.6, y - 1.2, 3.8, wy, '#7fd8f5');
   p.ellipse(x + 3.6, y - 1.2, 3.8, wy, '#7fd8f5');
   p.ellipse(x - 3.6, y - 1.4, 2.8, wy * 0.7, '#e8fffb');

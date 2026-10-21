@@ -197,6 +197,12 @@ export class ThicketZone implements Zone {
     return { x0: b.x - 6, y0: b.y - 5, x1: b.x + 6, y1: b.y + 3 };
   }
 
+  secretSpot() {
+    if (this.secretDone) return null;
+    const i = this.plateOn.findIndex((on) => !on);
+    return PLATES[i < 0 ? 0 : i]!;
+  }
+
   debugPoints() {
     return [
       ...MAWS.map((m, i) => ({ ...m, name: `maw${i}` })),

@@ -15,6 +15,9 @@
 > name cards for each zone. Every line, in order, is in [`docs/STORY.md`](./docs/STORY.md) (generated from `src/core/story.ts`), so the
 > "all the words in the game" list at the bottom of this file is out of date.
 
+> **v7 note:** The Mournmoth now does things: a Moth Shield (it takes the first hit of every fight), it points at hidden warmths, it rests on
+> your head, and it goes home to the moon at the end (it is the moon's child). See `src/core/mothbond.ts` and `docs/STORY.md`.
+
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension. The monster that hunts it, **X, "The Hollow"**, is stitched together from the creatures you meet.
 
 **Playtime** (estimates, to be verified by playtesting):

@@ -38,8 +38,10 @@ The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some
 **Name cards** (first step into each zone)
 ${Object.values(STORY.zones).map((z) => `- **${z.name}**: ${z.sub}`).join('\n')}
 
-**First guardian wakes**
-- ${q(STORY.guardianWakes)}
+**The Mournmoth's shield** (first time it is up, and the first hit it takes)
+- ${q(STORY.mothShield.armed)}
+- ${q(STORY.mothShield.took)}
+- when it first leans toward something hidden: ${q(STORY.mothSense)}
 
 **When a zone falls** (X's shadow comes down), then the count
 ${Object.entries(STORY.falls).map(([k, l]) => `- ${k}: ${q(l)}`).join('\n')}

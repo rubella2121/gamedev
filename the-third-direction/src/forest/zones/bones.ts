@@ -144,6 +144,12 @@ export class BonesZone implements Zone {
     return this.bar.broken < 0.85 ? [BAR] : [];
   }
 
+  secretSpot() {
+    if (this.plateDone) return null;
+    const i = this.plates.t.findIndex((v) => v <= 0);
+    return PLATES[i < 0 ? 0 : i]!;
+  }
+
   debugPoints() {
     return [
       ...HOMES.map((h, i) => ({ x: h[0], y: h[1], name: `sk${i}` })),

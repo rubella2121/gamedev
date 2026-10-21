@@ -3,6 +3,7 @@ import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
 import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 import { playTimed, say, STORY } from '../core/story';
+import { MothMood, MothShield } from '../core/mothbond';
 import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
@@ -63,6 +64,11 @@ export class Forest implements Hub {
   private smudge = 0;
   private edgeFlakeT = 0;
   private mothDust = 0;
+  /** the moth's shield (first hit of every fight) and its moods (resting on you, trembling, dim) */
+  private shield = new MothShield();
+  private mood = new MothMood();
+  /** where the moth is pointing at the moment: a hidden thing it wants to show you */
+  private mothGuide: { x: number; y: number } | null = null;
   private glitchT = 0;
   private glitchFlash = false;
   private teased = false;
@@ -164,6 +170,11 @@ export class Forest implements Hub {
   hurt(fromX: number, fromY: number, dmg = 1) {
     const pl = this.player;
     if (pl.dead > 0 || pl.invuln > 0 || this.mode === 'opening' || this.mode === 'consume') return;
+    if (this.arena && this.moth.has && this.shield.absorb()) {
+      this.mothTakesIt();
+      return;
+    }
+    this.mood.hurt();
     pl.hearts -= dmg;
     pl.calm = 0;
     this.ui.hearts(Math.max(0, pl.hearts), pl.maxHearts);
@@ -339,7 +350,10 @@ export class Forest implements Hub {
         window.setTimeout(() => this.ui.hint(null), 11000);
       }
       tr.zone.onArrive?.();
-      this.fire('guardian-wakes', true, () => say(this.ui, STORY.guardianWakes));
+      if (this.moth.has) {
+        this.shield.arm();
+        this.fire('shield-armed', true, () => window.setTimeout(() => this.arena && say(this.ui, STORY.mothShield.armed), 4800));
+      }
       this.trans = null;
     } else if (tr.kind === 'out' && !tr.done && tr.t >= 1.0) {
       tr.done = true;
@@ -358,6 +372,7 @@ export class Forest implements Hub {
       pl.invuln = 0;
       pl.hearts = pl.maxHearts;
       this.cp = { x: pl.x, y: pl.y };
+      this.shield.disarm();
       this.ui.bossBar(null);
       this.ui.light(null);
       this.ui.speech(null);
@@ -405,6 +420,9 @@ export class Forest implements Hub {
     this.land.decals.length = 0;
     this.features = { teeth: false, eyes: false, limbs: false, cyan: false };
     this.moth = { has: false, x: 0, y: 0 };
+    this.shield.disarm();
+    this.mood.reset();
+    this.mothGuide = null;
     this.zones.forEach((z) => z.reset());
     this.player = this.newPlayer();
     this.player.maxHearts = this.maxHearts;
@@ -640,6 +658,8 @@ export class Forest implements Hub {
     this.ui.fade(0, 450);
     const mother = STORY.deaths[this.ctx.stats.deaths];
     if (mother) say(this.ui, mother);
+    if (this.arena && this.moth.has) this.shield.arm();
+    this.mood.reset();
   }
 
   private updateSlams(dt: number) {
@@ -999,17 +1019,77 @@ export class Forest implements Hub {
     }
   }
 
+  /** The moth throws itself in front of a hit: no damage, a flash of cyan, a moment to get away. */
+  private mothTakesIt() {
+    const pl = this.player;
+    pl.invuln = 1.0;
+    pl.calm = 0;
+    this.audio.chime();
+    this.ui.flash(0.22, 220);
+    this.shake(2);
+    burst(this.parts, pl.x, pl.y - 8, 14, [C.moonCore, C.moon, '#ffffff'], 46, 1, 10);
+    this.moth.x = pl.x;
+    this.moth.y = pl.y - 11;
+    this.fire('shield-took', true, () => say(this.ui, STORY.mothShield.took));
+  }
+
   private updateMoth(dt: number) {
     const m = this.moth;
     if (!m.has) return;
     const pl = this.player;
-    const tx = pl.x + 11;
-    const ty = pl.y - 18 + Math.sin(this.time * 3) * 2;
-    m.x += (tx - m.x) * (1 - Math.exp(-4 * dt));
-    m.y += (ty - m.y) * (1 - Math.exp(-4 * dt));
+    this.mood.update(dt, Math.hypot(pl.vx, pl.vy) > 6 || this.mode !== 'play', pl.hearts, pl.maxHearts);
+    if (this.shield.update(dt) && this.arena) {
+      this.audio.chime();
+      burst(this.parts, m.x, m.y, 8, [C.moonCore, C.moon], 30, 1, 0);
+    }
+
+    // a hidden warmth close by: the moth leans toward it, and circles over it when you are near
+    this.mothGuide = null;
+    if (!this.arena && this.mode === 'play') {
+      let bd = 150;
+      for (const z of this.zones) {
+        const s = z.secretSpot?.();
+        if (!s) continue;
+        const d = Math.hypot(s.x - pl.x, s.y - pl.y);
+        if (d < bd) {
+          bd = d;
+          this.mothGuide = s;
+        }
+      }
+    }
+    const g = this.mothGuide;
+    if (g) this.fire('moth-sense', true, () => say(this.ui, STORY.mothSense));
+
+    // where it wants to be: beside you, resting on your head when you stand still, close and trembling when you are one hit from a fall
+    let tx = pl.x + 11;
+    let ty = pl.y - 18 + Math.sin(this.time * 3) * 2;
+    const rest = g ? 0 : this.mood.calm;
+    tx += (pl.x + 1 - tx) * rest;
+    ty += (pl.y - 13 - ty) * rest;
+    const worry = this.mood.worry;
+    tx += (pl.x + 5 - tx) * worry * 0.8 + Math.sin(this.time * 31) * 0.9 * worry;
+    ty += (pl.y - 15 - ty) * worry * 0.6 + Math.cos(this.time * 27) * 0.7 * worry;
+    if (g) {
+      const dx = g.x - pl.x;
+      const dy = g.y - pl.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d < 46) {
+        tx = g.x + Math.cos(this.time * 2.2) * 8;
+        ty = g.y - 14 + Math.sin(this.time * 2.2) * 4;
+      } else {
+        tx = pl.x + (dx / d) * 30;
+        ty = pl.y - 16 + (dy / d) * 14 + Math.sin(this.time * 3) * 2;
+      }
+      if (Math.random() < dt * 5) {
+        this.parts.push({ x: m.x, y: m.y + 2, vx: (dx / d) * 14 + (Math.random() - 0.5) * 6, vy: (dy / d) * 14 - 4, life: 0.9, max: 0.9, col: C.moonCore, g: 0, size: 1 });
+      }
+    }
+    const follow = rest > 0.5 ? 7 : 4;
+    m.x += (tx - m.x) * (1 - Math.exp(-follow * dt));
+    m.y += (ty - m.y) * (1 - Math.exp(-follow * dt));
     this.mothDust -= dt;
     if (this.mothDust <= 0) {
-      this.mothDust = 0.07;
+      this.mothDust = rest > 0.5 ? 0.25 : 0.07;
       this.parts.push({ x: m.x + (Math.random() - 0.5) * 4, y: m.y + 3, vx: (Math.random() - 0.5) * 8, vy: 6 + Math.random() * 8, life: 1.2, max: 1.2, col: Math.random() < 0.5 ? C.moonCore : C.moon, g: -1, size: 1 });
     }
     // near the end of the world the dust shows the invisible edge
@@ -1345,13 +1425,26 @@ export class Forest implements Hub {
           fn: () => {
             this.drawGlowUnder(pl.x - camX, pl.y - camY);
             drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink });
+            // the moth's shield: a thin bubble of moonlight while it is ready
+            if (this.arena && this.moth.has && this.shield.ready) {
+              const bx = pl.x - camX;
+              const by = pl.y - camY - 6;
+              const wob = 0.6 * Math.sin(t * 3);
+              p.dither(bx, by, 11.5 + wob, 9.5 - wob * 0.5, C.moon, 0.2 + 0.25 * this.shield.back);
+              p.alpha(0.55);
+              p.ring(bx, by, 11 + wob, 9 - wob * 0.5, 1, C.moon);
+              p.alpha(1);
+            }
           },
         });
       }
     }
     if (this.moth.has && !opening) {
       const m = this.moth;
-      list.push({ y: this.player.y + 40, fn: () => drawMoth(p, m.x - camX, m.y - camY, t, 1) });
+      const sh = this.shield;
+      // a spent shield dims the moth until it comes back; a hit it just took makes it flare
+      const glow = this.mood.glow * (this.arena && !sh.ready ? 0.4 + 0.5 * sh.charge : 1) * (1 + 0.8 * sh.took + 0.6 * sh.back) * (this.mothGuide ? 1.3 : 1);
+      list.push({ y: this.player.y + 40, fn: () => drawMoth(p, m.x - camX, m.y - camY, t, glow, this.mothGuide ? 0 : this.mood.calm, Math.max(this.mood.worry, this.mothGuide ? 0.6 : 0)) });
     }
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.fn();

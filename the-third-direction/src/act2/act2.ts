@@ -10,6 +10,7 @@ import { D } from '../core/difficulty';
 import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
 import { playTimed, say, STORY } from '../core/story';
+import { MothMood, MothShield } from '../core/mothbond';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
 type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
@@ -40,6 +41,9 @@ export class Act2 {
   private shard!: THREE.Mesh;
   private fired = new Set<string>();
   private arenaStory = false;
+  /** the moth takes the first hit of every fight; it rests on your head when you stand still and trembles when you are low */
+  private shield = new MothShield();
+  private mood = new MothMood();
   private tmp = new THREE.Object3D();
   private tmpC = new THREE.Color();
   private tmpV = new THREE.Vector3();
@@ -413,6 +417,7 @@ export class Act2 {
     this.lances = [];
     this.nova = null;
     this.resetSolids();
+    this.shield.arm();
     this.boss.begin(titleDelay);
   }
 
@@ -465,6 +470,11 @@ export class Act2 {
     const pl = this.pl;
     if (pl.invuln > 0 || pl.dead || this.boss.state !== 'fight' || this.state !== 'fight') return;
     const { ui, audio } = this.ctx;
+    if (this.shield.absorb()) {
+      this.mothTakesIt();
+      return;
+    }
+    this.mood.hurt();
     this.hearts--;
     pl.invuln = 1.5;
     ui.hearts(this.hearts, this.maxHearts);
@@ -476,6 +486,19 @@ export class Act2 {
     this.dvz += (kz / l) * 9;
     this.arena.burst3(pl.x, 0.8, pl.z, 8, [0xf2d36b, 0xfff1a6], 5);
     if (this.hearts <= 0) this.die();
+  }
+
+  /** The moth throws itself in front of a hit: no damage, a flash of moonlight, a moment to get away. */
+  private mothTakesIt() {
+    const { ui, audio } = this.ctx;
+    const pl = this.pl;
+    pl.invuln = 1.0;
+    audio.chime();
+    ui.flash(0.22, 220);
+    this.shake = Math.max(this.shake, 0.35);
+    this.arena.burst3(pl.x, 1.2, pl.z, 14, [0x9fe8ff, 0xcff6ff, 0xffffff], 6);
+    this.mothP.set(pl.x, 1.5, pl.z);
+    this.fire('shield-took', true, () => say(ui, STORY.mothShield.took));
   }
 
   private die() {
@@ -514,6 +537,8 @@ export class Act2 {
     this.resetSolids();
     this.features.reset();
     this.boss.onPlayerDied();
+    this.shield.arm();
+    this.mood.reset();
     this.ctx.ui.hearts(this.hearts, this.maxHearts);
     this.ctx.ui.light(this.light);
     this.ctx.ui.fade(0, 450);
@@ -928,9 +953,43 @@ export class Act2 {
   private updateMoth(dt: number) {
     const a = this.arena;
     const pl = this.pl;
+    const { audio } = this.ctx;
+    // the ending: the moth goes home to the moon
+    if (this.state === 'ending' && this.et >= 12.4) {
+      const k = unlerp(12.4, 16.7, this.et);
+      const e = smooth(k);
+      // in the camera's own frame: from the bottom of the picture up to where the moon hangs, and further away as it goes
+      const cam = a.camera;
+      const fwd = cam.getWorldDirection(this.tmpV);
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+      const right = new THREE.Vector3().crossVectors(fwd, up);
+      const d = lerp(15, 70, e);
+      const s = lerp(-0.8, 0.7, e);
+      this.mothP.copy(cam.position).addScaledVector(fwd, d).addScaledVector(up, d * 0.62 * s).addScaledVector(right, Math.sin(this.et * 2.4) * d * 0.06);
+      a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, k < 0.985, 0, 1.4 + 1.2 * e, 0);
+      a.setShield(0, 0, this.time);
+      return;
+    }
+    const moving = Math.hypot(pl.vx, pl.vz) > 0.6 || this.dashT > 0 || this.state === 'boom';
+    this.mood.update(dt, moving, this.hearts, this.maxHearts);
+    const inFight = this.state === 'fight';
+    if (this.shield.update(dt) && inFight) {
+      audio.chime();
+      a.burst3(pl.x, 1.4, pl.z, 8, [0x9fe8ff, 0xcff6ff], 4);
+    }
+    // beside you; on your head when you stand still; close and trembling when you are one hit from a fall
+    const rest = this.mood.calm;
+    const worry = this.mood.worry;
     const target = new THREE.Vector3(pl.x - 1.4, 2.1, pl.z + 0.4);
-    this.mothP.lerp(target, 1 - Math.exp(-3.5 * dt));
-    a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, this.state !== 'end');
+    target.lerp(new THREE.Vector3(pl.x + 0.05, 2.15, pl.z), rest);
+    target.lerp(new THREE.Vector3(pl.x - 0.7, 1.95, pl.z + 0.3), worry * 0.8);
+    target.x += Math.sin(this.time * 31) * 0.05 * worry;
+    target.y += Math.cos(this.time * 27) * 0.04 * worry;
+    this.mothP.lerp(target, 1 - Math.exp(-(rest > 0.5 ? 7 : 3.5) * dt));
+    const sh = this.shield;
+    const glow = this.mood.glow * (inFight && !sh.ready ? 0.4 + 0.5 * sh.charge : 1) * (1 + 0.8 * sh.took + 0.6 * sh.back);
+    a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, this.state !== 'end', rest, glow, worry);
+    a.setShield(inFight && sh.ready ? 1 : 0, Math.max(sh.took, sh.back), this.time);
   }
 
   /* ---------------------------------------------------------------- */
@@ -948,6 +1007,7 @@ export class Act2 {
     this.hearts = this.maxHearts;
     ui.hearts(this.hearts, this.maxHearts);
     input.setCharge(0, 0);
+    this.shield.disarm();
     if (this.bi >= this.bosses.length - 1) {
       this.beginEnding();
       return;
