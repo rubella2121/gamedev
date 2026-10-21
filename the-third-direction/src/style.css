@@ -180,6 +180,12 @@ body {
 .bossbar .bp i.off { opacity: 0.16; background: #1a1020; box-shadow: none; transform: skewX(-18deg) scaleY(0.7); }
 .lightmeter { position: absolute; left: calc(var(--u) * 4); top: calc(var(--u) * 12.6 + env(safe-area-inset-top, 0px)); z-index: 10; display: flex; gap: calc(var(--u) * 1.3); pointer-events: none; opacity: 0; transition: opacity 300ms; }
 .lightmeter.show { opacity: 1; }
+.falls { position: absolute; left: calc(var(--u) * 4); top: calc(var(--u) * 18 + env(safe-area-inset-top, 0px)); z-index: 10; display: flex; align-items: center; gap: calc(var(--u) * 1.2); pointer-events: none; opacity: 0; transition: opacity 300ms; }
+.falls.show { opacity: 0.9; }
+.falls b { font-size: calc(var(--u) * 2.4); letter-spacing: 0.2em; text-transform: uppercase; font-weight: 400; color: rgba(255, 170, 170, 0.8); margin-right: calc(var(--u) * 0.6); }
+.falls i { display: block; width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); transform: rotate(45deg); border: 1.5px solid rgba(255, 120, 120, 0.7); background: transparent; transition: background 200ms, box-shadow 200ms; }
+.falls i.on { background: #e02b3a; box-shadow: 0 0 calc(var(--u) * 1.6) rgba(224, 43, 58, 0.9); }
+.falls.last i.on { animation: pulse 0.6s ease-in-out infinite; }
 .lightmeter i { --f: 0; display: block; width: calc(var(--u) * 3.4); height: calc(var(--u) * 3.4); border-radius: 50%; border: 1.5px solid rgba(255, 233, 160, 0.55); background: radial-gradient(circle, rgba(255, 241, 166, calc(var(--f) * 0.95)) 0 calc(var(--f) * 62%), transparent calc(var(--f) * 62% + 2%)); transition: box-shadow 200ms; }
 .lightmeter i.full { box-shadow: 0 0 calc(var(--u) * 2) rgba(255, 233, 160, 0.9); border-color: #ffe9a0; }
 .lightmeter.ready i { animation: pulse 0.5s ease-in-out infinite; border-color: #ff9ad0; box-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 154, 208, 0.95); }

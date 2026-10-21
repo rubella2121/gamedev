@@ -85,6 +85,8 @@ export interface Env {
   hitStop(s: number): void;
   addLight(n: number): void;
   refillHearts(): void;
+  /** the boss's next phase has begun (the fall counter for the phase starts clean) */
+  phaseBegan(): void;
   /** a hit has landed on the boss: slow the world for a heartbeat */
   slowmo(scale: number, secs: number): void;
   /** while true the player cannot walk or dash (a jar over them), but can still strike, throw and burst light */
@@ -160,7 +162,7 @@ export abstract class Boss3D {
   }
 
   /** the fight begins: the model appears and the entrance plays */
-  begin(titleDelay = 900) {
+  begin(titleDelay = 900, quiet = false) {
     this.rescale();
     this.state = 'intro';
     this.st = 0;
@@ -170,7 +172,8 @@ export abstract class Boss3D {
     this.iframes = 0;
     this.bar();
     this.onBegin();
-    window.setTimeout(() => this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
+    // starting over after too many falls: the entrance plays again, but without the name card
+    if (!quiet) window.setTimeout(() => this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
   }
 
   protected bar() {
@@ -230,6 +233,7 @@ export abstract class Boss3D {
     } else if (this.hp <= this.phaseFloor) {
       this.phase++;
       this.pt = 0;
+      this.env.phaseBegan();
       this.env.refillHearts();
       this.onPhaseEnd();
       this.startPhase();
@@ -256,6 +260,7 @@ export abstract class Boss3D {
     this.phase = phase;
     this.hp = this.phaseStartHp;
     this.pt = 0;
+    this.env.phaseBegan();
     if (this.state === 'intro') {
       this.state = 'fight';
       this.st = 0;

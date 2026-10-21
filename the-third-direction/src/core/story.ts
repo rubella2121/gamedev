@@ -113,6 +113,12 @@ export const STORY = {
     armed: thought('The moth is watching over me.', 2600),
     took: thought('It took the hit for me.', 2400),
   },
+  /** when you keep falling: the Nightmare warning and restart, and the moth's Second Wind on the other difficulties */
+  retry: {
+    warn: world('one more fall, and it begins again.', 2800),
+    restart: warm('From the start, then. You know it better now.', 3200),
+    assist: thought('The moth gives me a little more light.', 2800),
+  },
   /** the first time the moth leans toward something hidden */
   mothSense: thought('The moth wants to show me something.', 2800),
 

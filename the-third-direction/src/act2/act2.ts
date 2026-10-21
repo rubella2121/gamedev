@@ -11,6 +11,7 @@ import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
 import { playTimed, say, STORY } from '../core/story';
 import { MothMood, MothShield } from '../core/mothbond';
+import { Falls, type Verdict } from '../core/falls';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
 type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
@@ -44,6 +45,11 @@ export class Act2 {
   /** the moth takes the first hit of every fight; it rests on your head when you stand still and trembles when you are low */
   private shield = new MothShield();
   private mood = new MothMood();
+  /** falls in the fight you are in: Nightmare starts it over at four, the moth steps in at three in a phase otherwise */
+  private falls = new Falls();
+  private fallVerdict: Verdict = 'none';
+  /** the fight is starting over: skip the "Strike." hint and the name card */
+  private quietStart = false;
   private tmp = new THREE.Object3D();
   private tmpC = new THREE.Color();
   private tmpV = new THREE.Vector3();
@@ -97,7 +103,12 @@ export class Act2 {
   private mothP = new THREE.Vector3(0, 2, 6);
   /** hearts per phase: the difficulty's hearts plus the bonus hearts found in secrets */
   private get maxHearts() {
-    return D.hearts + Math.min(3, this.ctx.stats.bonus);
+    return D.hearts + Math.min(3, this.ctx.stats.bonus) + this.falls.extraHearts;
+  }
+
+  private showFalls() {
+    const f = this.state === 'fight' ? this.falls.shown : null;
+    this.ctx.ui.falls(f ? f.n : null, f ? f.max : 4);
   }
 
   // ending
@@ -157,6 +168,7 @@ export class Act2 {
       hitStop: (s) => (this.hitStopT = Math.max(this.hitStopT, s)),
       addLight: (v) => this.addLight(v),
       refillHearts: () => this.refillHearts(),
+      phaseBegan: () => this.falls.newPhase(),
       slowmo: (scale, secs) => {
         this.slowScale = scale;
         this.slowT = secs;
@@ -405,8 +417,10 @@ export class Act2 {
   /* a boss begins                                                     */
   /* ---------------------------------------------------------------- */
 
-  private startBoss(titleDelay = 900) {
+  private startBoss(titleDelay = 900, startOver = false) {
     this.state = 'fight';
+    this.falls.reset();
+    this.quietStart = startOver;
     this.boss = this.bosses[this.bi]!;
     this.hud = false;
     this.control = false;
@@ -418,7 +432,8 @@ export class Act2 {
     this.nova = null;
     this.resetSolids();
     this.shield.arm();
-    this.boss.begin(titleDelay);
+    this.showFalls();
+    this.boss.begin(titleDelay, startOver);
   }
 
   /** the HUD and the controls come on when the entrance ends */
@@ -432,7 +447,7 @@ export class Act2 {
     ui.light(this.light);
     ui.recenter(true, () => this.resetCamera());
     this.resetCamera();
-    if (this.bi === 0) {
+    if (this.bi === 0 && !this.quietStart) {
       ui.caption('Strike.', 2400);
       if (!this.arenaStory) {
         this.arenaStory = true;
@@ -441,6 +456,7 @@ export class Act2 {
       window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
       window.setTimeout(() => ui.hint(null), 9600);
     }
+    this.quietStart = false;
     input.setAction('strike');
   }
 
@@ -507,6 +523,8 @@ export class Act2 {
     this.trapped = false;
     this.deadT = 1.1;
     this.ctx.stats.deaths++;
+    this.fallVerdict = this.falls.fall();
+    this.showFalls();
     ui.fade(1, 250);
     audio.death();
     this.control = false;
@@ -536,12 +554,32 @@ export class Act2 {
     a.lanes.forEach((l) => (l.visible = false));
     this.resetSolids();
     this.features.reset();
+    const verdict = this.fallVerdict;
+    this.fallVerdict = 'none';
+    const { ui, audio } = this.ctx;
+    if (verdict === 'restart') {
+      // too many falls on Nightmare: the whole fight again, from its first phase
+      this.mood.reset();
+      ui.hearts(null);
+      ui.light(null);
+      ui.fade(0, 450);
+      this.boss.hide();
+      this.startBoss(300, true);
+      say(ui, STORY.retry.restart);
+      return;
+    }
     this.boss.onPlayerDied();
     this.shield.arm();
     this.mood.reset();
-    this.ctx.ui.hearts(this.hearts, this.maxHearts);
-    this.ctx.ui.light(this.light);
-    this.ctx.ui.fade(0, 450);
+    if (verdict === 'warn') say(ui, STORY.retry.warn);
+    if (verdict === 'assist') {
+      say(ui, STORY.retry.assist);
+      audio.chime();
+      this.shield.back = 1;
+    }
+    ui.hearts(this.hearts, this.maxHearts);
+    ui.light(this.light);
+    ui.fade(0, 450);
     this.control = true;
   }
 
@@ -1008,6 +1046,8 @@ export class Act2 {
     ui.hearts(this.hearts, this.maxHearts);
     input.setCharge(0, 0);
     this.shield.disarm();
+    this.falls.reset();
+    this.ctx.ui.falls(null);
     if (this.bi >= this.bosses.length - 1) {
       this.beginEnding();
       return;

@@ -47,6 +47,7 @@ export class UI {
   private bossHpMax = 0;
   private capTimer = 0;
   private cardEl: HTMLElement;
+  private fallsEl: HTMLElement;
   private cardTimer = 0;
   private nq: Narration[] = [];
   private nowN: Narration | null = null;
@@ -84,6 +85,7 @@ export class UI {
     this.lightEl = mk('lightmeter');
     this.speechEl = mk('speech');
     this.cardEl = mk('zonecard');
+    this.fallsEl = mk('falls');
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
@@ -189,6 +191,21 @@ export class UI {
     this.captionEl.textContent = text;
     this.captionEl.classList.add('show');
     if (holdMs > 0) this.capTimer = window.setTimeout(() => this.captionEl.classList.remove('show'), holdMs);
+  }
+
+  /** Nightmare: how many falls you have had in this fight, out of how many it takes to start over. null hides it. */
+  falls(n: number | null, max = 4) {
+    if (n === null) {
+      this.fallsEl.classList.remove('show');
+      return;
+    }
+    if (this.fallsEl.childElementCount !== max) {
+      this.fallsEl.innerHTML = '<b>falls</b>' + '<i></i>'.repeat(max);
+    }
+    const pips = this.fallsEl.querySelectorAll('i');
+    pips.forEach((p, i) => p.classList.toggle('on', i < n));
+    this.fallsEl.classList.toggle('last', n >= max - 1);
+    this.fallsEl.classList.add('show');
   }
 
   /** A place name with one line under it, when you first step into somewhere new. */

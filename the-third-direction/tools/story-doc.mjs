@@ -43,6 +43,11 @@ ${Object.values(STORY.zones).map((z) => `- **${z.name}**: ${z.sub}`).join('\n')}
 - ${q(STORY.mothShield.took)}
 - when it first leans toward something hidden: ${q(STORY.mothSense)}
 
+**When you keep falling in a fight**
+- Nightmare, on the 3rd fall: ${q(STORY.retry.warn)}
+- Nightmare, on the 4th fall (the fight starts over): ${q(STORY.retry.restart)}
+- Normal and Gentle, on the 3rd fall in a phase (a Second Wind): ${q(STORY.retry.assist)}
+
 **When a zone falls** (X's shadow comes down), then the count
 ${Object.entries(STORY.falls).map(([k, l]) => `- ${k}: ${q(l)}`).join('\n')}
 ${STORY.hearts.map((l, i) => `- after heart ${i + 1}: ${q(l)}`).join('\n')}

@@ -4,6 +4,7 @@ import { C } from '../core/palette';
 import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 import { playTimed, say, STORY } from '../core/story';
 import { MothMood, MothShield } from '../core/mothbond';
+import { Falls } from '../core/falls';
 import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
@@ -64,6 +65,8 @@ export class Forest implements Hub {
   private smudge = 0;
   private edgeFlakeT = 0;
   private mothDust = 0;
+  /** falls in the guardian fight you are in: Nightmare starts it over at four, the moth steps in at three in a phase otherwise */
+  private falls = new Falls();
   /** the moth's shield (first hit of every fight) and its moods (resting on you, trembling, dim) */
   private shield = new MothShield();
   private mood = new MothMood();
@@ -164,7 +167,21 @@ export class Forest implements Hub {
   }
 
   get maxHearts() {
-    return D.hearts + Math.min(3, this.ctx.stats.bonus);
+    return D.hearts + Math.min(3, this.ctx.stats.bonus) + (this.arena ? this.falls.extraHearts : 0);
+  }
+
+  /** a guardian's next phase began: the moth's help (if any) ends with the phase it was for */
+  phaseBegan() {
+    this.falls.newPhase();
+    const pl = this.player;
+    pl.maxHearts = this.maxHearts;
+    pl.hearts = Math.min(pl.hearts, pl.maxHearts);
+    this.ui.hearts(Math.max(0, pl.hearts), pl.maxHearts);
+  }
+
+  private showFalls() {
+    const f = this.arena ? this.falls.shown : null;
+    this.ui.falls(f ? f.n : null, f ? f.max : 4);
   }
 
   hurt(fromX: number, fromY: number, dmg = 1) {
@@ -350,6 +367,8 @@ export class Forest implements Hub {
         window.setTimeout(() => this.ui.hint(null), 11000);
       }
       tr.zone.onArrive?.();
+      this.falls.reset();
+      this.showFalls();
       if (this.moth.has) {
         this.shield.arm();
         this.fire('shield-armed', true, () => window.setTimeout(() => this.arena && say(this.ui, STORY.mothShield.armed), 4800));
@@ -373,6 +392,8 @@ export class Forest implements Hub {
       pl.hearts = pl.maxHearts;
       this.cp = { x: pl.x, y: pl.y };
       this.shield.disarm();
+      this.falls.reset();
+      this.ui.falls(null);
       this.ui.bossBar(null);
       this.ui.light(null);
       this.ui.speech(null);
@@ -421,6 +442,8 @@ export class Forest implements Hub {
     this.features = { teeth: false, eyes: false, limbs: false, cyan: false };
     this.moth = { has: false, x: 0, y: 0 };
     this.shield.disarm();
+    this.falls.reset();
+    this.ui.falls(null);
     this.mood.reset();
     this.mothGuide = null;
     this.zones.forEach((z) => z.reset());
@@ -637,6 +660,19 @@ export class Forest implements Hub {
 
   private respawn() {
     const pl = this.player;
+    // a fall inside a guardian fight: Nightmare counts toward starting over, the others toward the moth's help
+    let startOver: Zone | null = null;
+    if (this.arena && this.fightZone) {
+      const v = this.falls.fall();
+      if (v === 'restart') startOver = this.fightZone;
+      else if (v === 'warn') say(this.ui, STORY.retry.warn);
+      else if (v === 'assist') {
+        say(this.ui, STORY.retry.assist);
+        this.audio.chime();
+        this.shield.back = 1;
+      }
+      this.showFalls();
+    }
     pl.x = this.cp.x;
     pl.y = this.cp.y;
     pl.vx = pl.vy = 0;
@@ -653,13 +689,22 @@ export class Forest implements Hub {
     this.lances = [];
     this.novas = [];
     this.ui.hearts(pl.hearts, pl.maxHearts);
-    this.zones.forEach((z) => z.onRespawn());
+    this.zones.forEach((z) => z !== startOver && z.onRespawn());
     this.snapCamera();
     this.ui.fade(0, 450);
     const mother = STORY.deaths[this.ctx.stats.deaths];
     if (mother) say(this.ui, mother);
     if (this.arena && this.moth.has) this.shield.arm();
     this.mood.reset();
+    if (startOver) {
+      // the whole fight again, from its first phase
+      this.falls.reset();
+      this.showFalls();
+      this.player.light = 0;
+      this.ui.light(0);
+      say(this.ui, STORY.retry.restart);
+      startOver.onArrive?.();
+    }
   }
 
   private updateSlams(dt: number) {

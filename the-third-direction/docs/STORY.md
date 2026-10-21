@@ -38,6 +38,11 @@ The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some
 - **It took the hit for me.**  _(blob)_
 - when it first leans toward something hidden: **The moth wants to show me something.**  _(blob)_
 
+**When you keep falling in a fight**
+- Nightmare, on the 3rd fall: **one more fall, and it begins again.**  _(world)_
+- Nightmare, on the 4th fall (the fight starts over): **From the start, then. You know it better now.**  _(family)_
+- Normal and Gentle, on the 3rd fall in a phase (a Second Wind): **The moth gives me a little more light.**  _(blob)_
+
 **When a zone falls** (X's shadow comes down), then the count
 - gloom: **the shadows scatter. something above leans closer.**  _(world)_
 - thicket: **the roots go slack. a shadow slides over them.**  _(world)_

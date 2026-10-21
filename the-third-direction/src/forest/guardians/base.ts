@@ -129,6 +129,7 @@ export abstract class Guardian {
       this.pt = 0;
       this.hz.clear();
       this.shots.clear();
+      this.hub.phaseBegan();
       this.startPhase();
     } else this.onHurt();
     return true;
@@ -164,6 +165,7 @@ export abstract class Guardian {
     this.phase = phase;
     this.hp = this.phaseStartHp;
     this.pt = 0;
+    this.hub.phaseBegan();
     this.hz.clear();
     this.shots.clear();
     if (this.state === 'intro') {

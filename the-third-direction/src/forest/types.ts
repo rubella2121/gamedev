@@ -88,6 +88,8 @@ export type Drawable = { y: number; fn: () => void };
 
 /** What a zone may use from the forest. */
 export interface Hub {
+  /** a guardian's next phase has begun (the fall counter for the phase starts clean) */
+  phaseBegan(): void;
   p: Pix;
   land: Land;
   audio: Sfx;
