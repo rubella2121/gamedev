@@ -1,0 +1,323 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>The Pressed Garden: 3D arena reference</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js"}}</script>
+<style>
+  html,body{margin:0;background:#07070f}
+  #sheet{width:1800px;height:2000px;position:relative;overflow:hidden;background:radial-gradient(1200px 900px at 50% 30%,#1c1432 0%,#0e0a1c 60%,#07070f 100%);font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace;color:#e8e2d0}
+  #sheet img,#sheet svg{position:absolute;display:block}
+  #sheet img{border:1.5px solid #3a2f5c;border-radius:4px;box-sizing:border-box}
+</style></head><body><div id="sheet"></div>
+<script type="module">
+import * as THREE from 'three';
+const R=18;
+const rng=(seed)=>{let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}};
+const hash2=(x,z)=>{const h=Math.sin(x*127.1+z*311.7)*43758.5453;return h-Math.floor(h)};
+const pol=(r,deg)=>[r*Math.sin(deg*Math.PI/180),-r*Math.cos(deg*Math.PI/180)];     // north (the boss) is -z
+const phiOf=(x,z)=>(Math.atan2(x,-z)*180/Math.PI+360)%360;
+const pd=(a,b)=>{let d=Math.abs(a-b)%360;return d>180?360-d:d};
+const col=(h)=>new THREE.Color(h);
+function canvasTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=8;return t}
+const glowTex=canvasTex(128,128,(g,w,h)=>{const r=g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.3,'rgba(255,255,255,.45)');r.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=r;g.fillRect(0,0,w,h)});
+const glow=(color,size,x,y,z,op=.8)=>{const m=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));m.scale.set(size,size,1);m.position.set(x,y,z);return m};
+const lam=(c,e,ei=0.6)=>new THREE.MeshLambertMaterial({color:c,emissive:e??0x000000,emissiveIntensity:e?ei:0});
+const bas=(c,o={})=>new THREE.MeshBasicMaterial(Object.assign({color:c,fog:false},o));
+
+/* ---------------- biomes ---------------- */
+const PAL={
+ stage:['#2a1622','#34192a','#221220','#3c1e30'], entry:['#d6cfb4','#c4bc9f','#dcd5be'], road:['#6a58a0','#5e4c94','#7260a8'],
+ thicket:['#4a6a2a','#3e5a22','#5a4a28','#4a7a30'], marsh:['#14444f','#1b5a5a','#23707c','#103846'], bones:['#7a7660','#8e8a74','#68644e','#9a9680'],
+ hollow:['#24405a','#1c3450','#2e4e6a','#2a2a5a'], meadow:['#1f6a3a','#2e8a4f','#2a7a6c','#3a9a5a'], rim:['#2a2048','#34285a']};
+function biome(x,z){
+  const d=Math.hypot(x,z), ph=phiOf(x,z)+(hash2(x*1.7,z*2.3)-0.5)*9;
+  if(d<4.9) return 'meadow';
+  if(Math.abs(x)<1.55 && d>3.5) return 'road';
+  if(pd(ph,0)<27 && d>9) return 'stage';
+  if(pd(ph,180)<15 && d>12.2) return 'entry';
+  if(ph>=27&&ph<90) return 'marsh';
+  if(ph>=90&&ph<165) return 'bones';
+  if(ph>=195&&ph<270) return 'hollow';
+  return 'thicket';
+}
+const WELLS=[{r:5.4,a:204,name:'W1'},{r:11.6,a:236,name:'W2'},{r:13.4,a:308,name:'W3'}];
+const PADS=[45,135,225,315].map((a,i)=>({r:9.5,a,name:'P'+(i+1)}));
+const CRYS=[50,95,140,222,266,312].map((a,i)=>({r:16.3,a,name:'C'+(i+1)}));
+const PILL_IN=[{a:45,kind:'bell'},{a:135,kind:'rib'},{a:225,kind:'lamp'},{a:315,kind:'arch'}].map(p=>({...p,r:6.8}));
+const PILL_OUT=[{a:82,kind:'bell'},{a:150,kind:'rib'},{a:212,kind:'lamp'},{a:283,kind:'arch'}].map(p=>({...p,r:13.3}));
+const SPAWN=[0,12];
+
+/* ---------------- the scene ---------------- */
+const scene=new THREE.Scene(); scene.background=col('#07060f');
+const hemi=new THREE.HemisphereLight(0x8a7ac8,0x1a1230,1.15); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xd8e0ff,1.05); sun.position.set(-14,30,16); scene.add(sun);
+const extra=new THREE.DirectionalLight(0xbfc8ff,1.6); extra.position.set(60,-6,14); extra.visible=false; scene.add(extra);
+const bossLight=new THREE.PointLight(0xff2a40,2.2,46,1.4); bossLight.position.set(0,12,-26); scene.add(bossLight);
+const world=new THREE.Group(); scene.add(world);
+const G={plan:new THREE.Group(),dress:new THREE.Group(),x:new THREE.Group(),col:new THREE.Group(),mash:new THREE.Group()};
+for(const k in G) world.add(G[k]);
+
+// tiles
+const tiles=[];
+for(let x=-19;x<=19;x++)for(let z=-19;z<=19;z++){const d=Math.hypot(x,z); if(d<=R+0.3&&!(d>R-1.3&&hash2(x*3.1,z*7.7)<0.26)) tiles.push({x,z,d});}
+// the bridge out of the 2D world: a few pale tiles, crumbling toward the void
+for(let z=19;z<=27;z++)for(const x of [-1,0,1]){ if(z>22&&hash2(x*5.3,z*1.9)<0.3+(z-22)*0.08) continue; tiles.push({x,z,d:Math.hypot(x,z),bridge:true}); }
+const tileGeo=new THREE.BoxGeometry(0.96,0.7,0.96);
+const tileMesh=new THREE.InstancedMesh(tileGeo,new THREE.MeshLambertMaterial({color:0xffffff}),tiles.length); tileMesh.frustumCulled=false;
+const m4=new THREE.Object3D();
+const topY=(t)=>{ if(t.bridge) return -0.02; if(t.b==='marsh'&&hash2(t.x*2.2,t.z*1.3)>0.55) return -0.12; if(t.b==='meadow') return -0.1; if(t.d>14.8&&t.b!=='entry') return 0.32; if(t.b==='stage'&&t.d>12.4) return 0.18; return 0; };
+const flowers=[], crackGlow=[], lampDots=[];
+tiles.forEach((t,i)=>{
+  t.b=t.bridge?'entry':biome(t.x,t.z);
+  const h=hash2(t.x*3+1,t.z*7+2); let key=t.b; let c;
+  const ringRoad=Math.abs(t.d-9.5)<0.55||Math.abs(t.d-14.2)<0.4;
+  if(t.b==='entry'||t.b==='stage'&&false) key='entry';
+  if(ringRoad && t.b!=='stage') key='road';
+  const arr=PAL[key]; c=col(arr[Math.floor(h*arr.length)%arr.length]);
+  if(t.d>R-1.5&&!t.bridge) c.multiplyScalar(0.7);
+  if(t.b==='entry'&&!t.bridge&&t.d<15.5) c.lerp(col('#6a58a0'),Math.max(0,(15.5-t.d)/5));
+  if(t.bridge) c=col(['#d6cfb4','#c4bc9f','#dcd5be'][Math.floor(h*3)%3]);
+  if(t.b==='stage'&&h>0.92){c=col('#b3263a'); crackGlow.push(t);}
+  if(t.b==='marsh'&&topY(t)<0) c=col('#2e8a96');
+  if(t.b==='meadow'&&h>0.55) flowers.push(t);
+  if(t.b==='hollow'&&h>0.9) lampDots.push(t);
+  const y=topY(t); t.y=y;
+  m4.position.set(t.x,y-0.35,t.z); m4.rotation.set(0,0,0); m4.scale.set(1,1,1); m4.updateMatrix(); tileMesh.setMatrixAt(i,m4.matrix); tileMesh.setColorAt(i,c);
+});
+G.plan.add(tileMesh);
+// small things that sit on tiles (instanced, unlit so they glow)
+{ const g=new THREE.ConeGeometry(0.12,0.5,5); const n=flowers.length*2; const im=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0xffffff,fog:false}),n); const r=rng(7); let k=0;
+  const cs=['#ff9ec0','#9fe8ff','#ffe58a','#ffffff']; for(const t of flowers) for(let j=0;j<2;j++){ m4.position.set(t.x+(r()-0.5)*0.7,t.y+0.18,t.z+(r()-0.5)*0.7); m4.rotation.set(0,r()*3,0); m4.scale.setScalar(0.8+r()*0.8); m4.updateMatrix(); im.setMatrixAt(k,m4.matrix); im.setColorAt(k,col(cs[Math.floor(r()*4)])); k++; } G.plan.add(im); }
+for(const t of crackGlow){ G.x.add(glow(0xff2a40,2.4,t.x,t.y+0.5,t.z,0.7)); }
+for(const t of lampDots){ const m=new THREE.Mesh(new THREE.SphereGeometry(0.14,8,6),bas(0xcfffe8)); m.position.set(t.x,t.y+0.2,t.z); G.plan.add(m); G.plan.add(glow(0x9fffd8,1.1,t.x,t.y+0.3,t.z,0.55)); }
+
+// decals
+function decal(tex,size,x,z,rot=0,y=0.4,op=1){const m=new THREE.Mesh(new THREE.PlaneGeometry(size,size),new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:op,depthWrite:false,fog:false})); m.rotation.x=-Math.PI/2; m.rotation.z=rot; m.position.set(x,y,z); m.renderOrder=2; return m}
+const chev=canvasTex(128,128,(g)=>{g.clearRect(0,0,128,128);g.strokeStyle='#7fe8ff';g.lineWidth=14;g.lineCap='round';g.lineJoin='round';for(const y of [46,92]){g.beginPath();g.moveTo(30,y+26);g.lineTo(64,y-6);g.lineTo(98,y+26);g.stroke()}});
+const seal=canvasTex(256,256,(g)=>{g.strokeStyle='#ffd86a';g.lineWidth=7;g.beginPath();g.arc(128,128,112,0,7);g.stroke();g.lineWidth=3;g.beginPath();g.arc(128,128,86,0,7);g.stroke();g.fillStyle='#ffd86a';for(let i=0;i<8;i++){const a=i/8*6.283;g.beginPath();g.arc(128+Math.cos(a)*99,128+Math.sin(a)*99,6,0,7);g.fill()}g.beginPath();g.arc(128,128,26,0,7);g.globalAlpha=.4;g.fill()});
+const rune=canvasTex(512,512,(g)=>{g.strokeStyle='#ff4a5e';g.lineWidth=8;g.beginPath();g.arc(256,256,236,0,7);g.stroke();g.lineWidth=4;g.beginPath();g.arc(256,256,196,0,7);g.stroke();g.lineWidth=5;for(let i=0;i<12;i++){const a=i/12*6.283;g.beginPath();g.moveTo(256+Math.cos(a)*196,256+Math.sin(a)*196);g.lineTo(256+Math.cos(a)*236,256+Math.sin(a)*236);g.stroke()}g.beginPath();for(let i=0;i<3;i++){const a=i/3*6.283-1.57;g.lineTo(256+Math.cos(a)*150,256+Math.sin(a)*150)}g.closePath();g.stroke();g.beginPath();g.arc(256,256,40,0,7);g.stroke()});
+G.plan.add(decal(seal,3.6,SPAWN[0],SPAWN[1],0,0.39,0.95));
+{const [bx,bz]=pol(15.6,0); G.plan.add(decal(rune,10.5,bx,bz,0,0.34,0.8)); G.x.add(decal(rune,10.5,bx,bz,0,0.35,0.0));}
+for(const p of PADS){const [x,z]=pol(p.r,p.a); const dirx=Math.cos(p.a*Math.PI/180), dirz=Math.sin(p.a*Math.PI/180); // clockwise tangent in plan view
+  const plate=new THREE.Mesh(new THREE.BoxGeometry(2.3,0.16,2.3),lam('#2a2250')); plate.position.set(x,0.08,z); plate.rotation.y=-(p.a+90)*Math.PI/180+Math.PI; G.plan.add(plate);
+  G.plan.add(decal(chev,2.0,x,z,-(p.a)*Math.PI/180,0.19,1)); G.plan.add(glow(0x7fe8ff,2.6,x,0.4,z,0.22)); p.x=x;p.z=z;}
+for(const w of WELLS){const [x,z]=pol(w.r,w.a); const g=new THREE.Group(); g.position.set(x,0,z);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(1.35,0.28,8,28),lam('#4a3d6a')); ring.rotation.x=Math.PI/2; ring.position.y=0.22; g.add(ring);
+  const pool=new THREE.Mesh(new THREE.CircleGeometry(1.2,28),bas(0x9fe8ff)); pool.rotation.x=-Math.PI/2; pool.position.y=0.3; g.add(pool);
+  const r=rng(Math.floor(x*91+z*13)+5); for(let i=0;i<14;i++){const a=i/14*6.283+r()*0.3; const f=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.7+r()*0.5,5),bas(i%3?0xcff6ff:0xffb0d0)); f.position.set(Math.cos(a)*1.55,0.45,Math.sin(a)*1.55); f.rotation.z=(r()-0.5)*0.4; g.add(f)}
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.25,6,20,1,true),new THREE.MeshBasicMaterial({color:0x9fe8ff,transparent:true,opacity:0.13,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); shaft.position.y=3.2; g.add(shaft);
+  g.add(glow(0x9fe8ff,3.4,0,0.9,0,0.4)); G.plan.add(g); w.x=x;w.z=z;}
+for(const c of CRYS){const [x,z]=pol(c.r,c.a); const g=new THREE.Group(); g.position.set(x,0.32,z); const r=rng(Math.floor(x*31+z*7)+9);
+  for(let i=0;i<3;i++){const h=i?0.9+r()*0.5:1.9; const m=new THREE.Mesh(new THREE.OctahedronGeometry(0.5,0),bas(i?0x7fe8ff:0xcff6ff)); m.scale.set(0.55,h,0.55); m.position.set((i?(r()-0.5)*1.1:0),h*0.5,(i?(r()-0.5)*1.1:0)); m.rotation.y=r()*3; g.add(m)}
+  g.add(glow(0x7fe8ff,3.0,0,1.2,0,0.5)); G.plan.add(g); c.x=x;c.z=z;}
+// themed pillars
+function pillar(kind,x,z,out){const g=new THREE.Group(); g.position.set(x,0,z); const sc=out?1:0.92;
+  if(kind==='bell'){ const post=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.4,3.6,8),lam('#3a5a64')); post.position.y=1.8; g.add(post);
+    const bell=new THREE.Mesh(new THREE.ConeGeometry(1.0,1.3,14,1,true),new THREE.MeshLambertMaterial({color:0xe0b84a,emissive:0x6a4a10,emissiveIntensity:0.6,side:THREE.DoubleSide})); bell.position.set(0,3.7,0); bell.rotation.x=Math.PI; g.add(bell);
+    const base=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.5,1.5),lam('#2a4a56')); base.position.y=0.25; g.add(base);}
+  if(kind==='rib'){ for(let i=0;i<3;i++){const t=new THREE.Mesh(new THREE.TorusGeometry(1.3,0.19,6,16,Math.PI),lam('#c8c2a8')); t.rotation.y=i*Math.PI/3+0.3; t.position.y=0.1; g.add(t)} const sp=new THREE.Mesh(new THREE.BoxGeometry(0.3,2.9,0.3),lam('#aaa48c')); sp.position.y=1.4; g.add(sp);}
+  if(kind==='lamp'){ const st=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.34,2.8,7),lam('#2a3a48')); st.position.y=1.4; g.add(st); const cap=new THREE.Mesh(new THREE.SphereGeometry(1.15,14,8,0,6.283,0,Math.PI/2),new THREE.MeshLambertMaterial({color:0x9fffd8,emissive:0x3aa88a,emissiveIntensity:0.9})); cap.position.y=2.8; g.add(cap); g.add(glow(0x9fffd8,5,0,3.1,0,0.6)); const base=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.4,1.4),lam('#1a2a3a')); base.position.y=0.2; g.add(base);}
+  if(kind==='arch'){ for(const s of [-1,1]){const p=new THREE.Mesh(new THREE.BoxGeometry(0.55,3.2,0.55),lam('#4a3a22')); p.position.set(s*1.0,1.6,0); p.rotation.z=-s*0.08; g.add(p)} const l=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.5,0.6),lam('#3a5a2a')); l.position.set(0,3.25,0); g.add(l); for(let i=0;i<4;i++){const v=new THREE.Mesh(new THREE.ConeGeometry(0.1,1.2,5),lam('#2e7a3a')); v.position.set(-1+i*0.66,2.7,0.35); v.rotation.z=Math.PI; g.add(v)}}
+  g.scale.setScalar(sc); return g}
+for(const p of PILL_IN){const [x,z]=pol(p.r,p.a); G.plan.add(pillar(p.kind,x,z,false)); p.x=x;p.z=z}
+for(const p of PILL_OUT){const [x,z]=pol(p.r,p.a); G.plan.add(pillar(p.kind,x,z,true)); p.x=x;p.z=z}
+// terrace parapet: low blocks on the rim, open at the entry and in front of the boss
+{ const g=new THREE.BoxGeometry(1.2,0.6,0.5); const r=rng(3); const list=[]; for(let a=0;a<360;a+=7){ if(pd(a,180)<14||pd(a,0)<24) continue; if(r()<0.2) continue; list.push(a)} const im=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({color:0xffffff}),list.length); list.forEach((a,i)=>{const [x,z]=pol(17.2,a); m4.position.set(x,0.95,z); m4.rotation.set(0,-a*Math.PI/180,0); m4.scale.set(1,1,1); m4.updateMatrix(); im.setMatrixAt(i,m4.matrix); im.setColorAt(i,col(['#4a3d6a','#5a4a8a','#3a2f5c'][i%3]))}); G.plan.add(im) }
+
+// the blob (a quick stand-in with the new design: gumdrop, tuft, back shell with 3 sockets)
+function makeBlob(pips=2){const g=new THREE.Group(); const gold=new THREE.MeshLambertMaterial({color:0xf2d36b,emissive:0x8a6420,emissiveIntensity:0.75}); const amber=new THREE.MeshLambertMaterial({color:0xd9a93a,emissive:0x5a3a10,emissiveIntensity:0.6});
+  const body=new THREE.Mesh(new THREE.SphereGeometry(0.62,24,18),gold); body.scale.set(1,1.06,0.95); body.position.y=0.78; g.add(body);
+  const belly=new THREE.Mesh(new THREE.SphereGeometry(0.42,16,12),new THREE.MeshBasicMaterial({color:0xfff1a6,transparent:true,opacity:0.55})); belly.position.set(0,0.62,0.4); g.add(belly);
+  const t1=new THREE.Mesh(new THREE.ConeGeometry(0.13,0.5,6),gold); t1.position.set(0.02,1.62,-0.02); t1.rotation.z=-0.18; g.add(t1); const t2=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.3,6),gold); t2.position.set(0.15,1.5,0); t2.rotation.z=-1.0; g.add(t2);
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(0.4,16,12),amber); shell.scale.set(1,1,0.55); shell.position.set(0,1.0,-0.5); g.add(shell);
+  for(let i=0;i<3;i++){const a=2.55-i*1.0; const p=new THREE.Mesh(new THREE.SphereGeometry(0.07,8,6),bas(i<pips?0xffffff:0x4a2c0a)); p.position.set(Math.cos(a)*0.24,1.0+Math.sin(a)*0.24+0.03,-0.74); g.add(p); if(i<pips) g.add(glow(0xfff1a6,0.5,Math.cos(a)*0.24,1.0+Math.sin(a)*0.24+0.03,-0.78,0.9));}
+  for(const s of [-1,1]){const f=new THREE.Mesh(new THREE.SphereGeometry(0.2,10,8),amber); f.scale.set(1,0.55,1.25); f.position.set(s*0.3,0.14,0.05); g.add(f); const a=new THREE.Mesh(new THREE.SphereGeometry(0.15,10,8),gold); a.position.set(s*0.66,0.78,0.04); g.add(a);
+    const e=new THREE.Mesh(new THREE.SphereGeometry(0.15,12,10),bas(0xffffff)); e.scale.set(0.8,1.1,0.4); e.position.set(s*0.24,0.95,0.55); g.add(e); const pu=new THREE.Mesh(new THREE.SphereGeometry(0.08,8,6),bas(0x3a1020)); pu.scale.set(0.8,1.2,0.5); pu.position.set(s*0.24,0.93,0.62); g.add(pu);}
+  g.add(glow(0xffd070,3.6,0,0.9,0,0.55)); const L=new THREE.PointLight(0xffd070,1.1,9,1.6); L.position.set(0,1.4,0.6); g.add(L); g.scale.setScalar(1.25); return g}
+const blob=makeBlob(2); blob.position.set(SPAWN[0],0.34-0.34,SPAWN[1]); blob.rotation.y=Math.PI; G.dress.add(blob);
+// moth
+{const m=new THREE.Group(); for(const s of [-1,1]){const w=new THREE.Mesh(new THREE.PlaneGeometry(0.75,0.55),new THREE.MeshBasicMaterial({color:0xcff6ff,side:THREE.DoubleSide,transparent:true,opacity:0.92})); w.position.x=s*0.38; w.rotation.set(0.3,0,-s*0.5); m.add(w)} m.add(glow(0x7fe8ff,2.4,0,0,0,0.5)); m.position.set(-1.9,2.5,SPAWN[1]+0.3); G.dress.add(m)}
+
+// the island underneath
+{ const pts=[[R+0.4,-0.35],[R+0.2,-1.2],[R-1,-3.0],[R-4,-5.6],[R-8,-8.8],[R-12,-12.8],[3.4,-17.5],[0.7,-23]].map(([x,y])=>new THREE.Vector2(x,y)); const geo=new THREE.LatheGeometry(pts,30); const p=geo.getAttribute('position'); const v=new THREE.Vector3();
+  for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i); const n=hash2(v.x*0.9+v.y*0.3,v.z*0.9-v.y*0.2); const k=1+(n-0.5)*0.22; p.setXYZ(i,v.x*k,v.y+(n-0.5)*0.9,v.z*k)} geo.computeVertexNormals();
+  const m=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({color:0x2a2048,flatShading:true})); G.dress.add(m);
+  const r=rng(11); for(let i=0;i<16;i++){const a=r()*6.283, rr=3+r()*11, y=-4-(rr<8?r()*6:r()*2); const c=new THREE.Mesh(new THREE.ConeGeometry(0.35+r()*0.3,1.8+r()*2.6,5),bas(i%4?0x4fd0e8:0xcff6ff)); c.rotation.x=Math.PI; c.position.set(Math.cos(a)*rr,y-1.4,Math.sin(a)*rr); G.dress.add(c); if(i%3===0) G.dress.add(glow(0x7fe8ff,3,c.position.x,c.position.y,c.position.z,0.5))}
+  for(let i=0;i<14;i++){const a=r()*6.283, rr=R-2-r()*10; const pts2=[]; let x=Math.cos(a)*rr,y=-2-r()*3,z=Math.sin(a)*rr; for(let k=0;k<6;k++){pts2.push(new THREE.Vector3(x,y,z)); x+=(r()-0.5)*1.4; y-=1.4+r()*1.6; z+=(r()-0.5)*1.4} const tube=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts2),16,0.12+r()*0.1,5),lam('#4a3a22')); G.dress.add(tube)} }
+// drifting rocks and pressed sprites in the void
+{ const r=rng(41); const rocks=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xffffff}),70);
+  for(let i=0;i<70;i++){const a=r()*6.283, d=R+9+r()*40, s=0.8+r()*r()*5; m4.position.set(Math.cos(a)*d,-3-r()*16+(r()<0.25?14:0),Math.sin(a)*d); m4.rotation.set(r()*3,r()*3,r()*3); m4.scale.set(s,s*(0.5+r()*0.8),s); m4.updateMatrix(); rocks.setMatrixAt(i,m4.matrix); rocks.setColorAt(i,col(['#2a2048','#34285a','#1b3a4a','#46346f'][Math.floor(r()*4)]))} rocks.frustumCulled=false; G.dress.add(rocks);
+  const star=new Float32Array(1800*3); for(let i=0;i<1800;i++){const a=r()*6.283,b=Math.acos(2*r()-1),d=90+r()*120; star[i*3]=Math.sin(b)*Math.cos(a)*d; star[i*3+1]=Math.cos(b)*d*0.8; star[i*3+2]=Math.sin(b)*Math.sin(a)*d} const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(star,3)); G.dress.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0xdfe6ff,size:0.9,sizeAttenuation:true,fog:false}))); }
+// the wall of pressed specimens behind the boss
+const specTex=canvasTex(2048,512,(g,w,h)=>{g.fillStyle='#120d22';g.fillRect(0,0,w,h);const r=rng(5);const cw=128,ch=128; for(let cx=0;cx<w/cw;cx++)for(let cy=0;cy<h/ch;cy++){const x=cx*cw+64,y=cy*ch+64,k=Math.floor(r()*6); g.fillStyle='rgba(60,46,100,.35)';g.fillRect(cx*cw+8,cy*ch+8,cw-16,ch-16);
+  if(k<2){g.fillStyle='#e8c24a';g.beginPath();g.ellipse(x,y+4,34,30,0,0,7);g.fill();g.fillStyle='#fff';g.fillRect(x-18,y-6,12,16);g.fillRect(x+6,y-6,12,16);g.fillStyle='#3a1020';g.fillRect(x-14,y,6,10);g.fillRect(x+10,y,6,10)}
+  else if(k===2){g.fillStyle='#8fd6f0';g.beginPath();g.ellipse(x-22,y,26,14,-.4,0,7);g.ellipse(x+22,y,26,14,.4,0,7);g.fill();g.fillStyle='#5a8aa8';g.fillRect(x-4,y-14,8,32)}
+  else if(k===3){g.fillStyle='#ff9ec0';for(let i=0;i<5;i++){const a=i/5*6.283;g.beginPath();g.arc(x+Math.cos(a)*20,y+Math.sin(a)*20,12,0,7);g.fill()}g.fillStyle='#ffe58a';g.beginPath();g.arc(x,y,11,0,7);g.fill()}
+  else if(k===4){g.fillStyle='#d8d2b8';g.beginPath();g.arc(x,y-4,30,0,7);g.fill();g.fillRect(x-18,y+14,36,20);g.fillStyle='#120d22';g.fillRect(x-16,y-10,12,14);g.fillRect(x+4,y-10,12,14)}
+  else {g.fillStyle='#e0b84a';g.beginPath();g.moveTo(x-30,y+30);g.quadraticCurveTo(x,y-50,x+30,y+30);g.closePath();g.fill();g.fillStyle='#fff3b0';g.fillRect(x-6,y+28,12,10)} g.fillStyle='rgba(255,236,180,.35)';g.fillRect(cx*cw+14,cy*ch+ch-26,cw-28,10)} });
+specTex.wrapS=THREE.RepeatWrapping;
+const wall=new THREE.Mesh(new THREE.CylinderGeometry(46,46,40,64,1,true,Math.PI-1.9,3.8),new THREE.MeshBasicMaterial({map:specTex,side:THREE.BackSide,color:0x7a70a8,fog:true})); wall.position.y=14; G.dress.add(wall);
+
+// three looming silhouettes (stand-ins; the real models live in the game)
+function dark(c){return new THREE.MeshLambertMaterial({color:c,emissive:0x1a0a18,emissiveIntensity:0.4})}
+{ const g=G.x; g.position.set(0,0,-33);
+  const torso=new THREE.Mesh(new THREE.BoxGeometry(12,14,5),dark('#3a2e4a')); torso.position.y=9; g.add(torso);
+  for(const s of [-1,1]){const sh=new THREE.Mesh(new THREE.SphereGeometry(3.2,12,10),dark('#42365a')); sh.position.set(s*7.2,14.5,0); g.add(sh); const arm=new THREE.Mesh(new THREE.BoxGeometry(3,15,3),dark('#3a2e4a')); arm.position.set(s*8.8,6,2.5); arm.rotation.z=s*0.12; g.add(arm); for(let i=0;i<3;i++){const cl=new THREE.Mesh(new THREE.ConeGeometry(0.4,3.4,5),dark('#c8c2a8')); cl.position.set(s*9.6+(i-1)*1.0,-2.5,4.4); cl.rotation.x=Math.PI; g.add(cl)}}
+  const head=new THREE.Mesh(new THREE.SphereGeometry(3.6,16,12),dark('#4a3e5a')); head.scale.set(1,1.25,1); head.position.y=19; g.add(head);
+  for(const x of [-1.5,0,1.5]){const e=new THREE.Mesh(new THREE.SphereGeometry(0.65,10,8),bas(0xff2a40)); e.position.set(x,19.8,3.2); g.add(e); g.add(glow(0xff2a40,3.2,x,19.8,3.4,0.9))}
+  const jaw=new THREE.Mesh(new THREE.BoxGeometry(3.4,1.2,1),dark('#d8d2b8')); jaw.position.set(0,16.6,3.2); g.add(jaw);
+  for(let i=0;i<5;i++){const rb=new THREE.Mesh(new THREE.BoxGeometry(9,0.5,0.6),bas(0x7a1020)); rb.position.set(0,5+i*1.7,2.6); g.add(rb)} }
+{ const g=G.col; g.position.set(0,0,-33); g.visible=false;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(8,10,5),new THREE.MeshLambertMaterial({color:0x6a4a2a,emissive:0x2a1808,emissiveIntensity:0.6})); body.position.y=7; g.add(body);
+  for(let i=0;i<4;i++)for(let j=0;j<5;j++){const d=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.0,0.3),bas(j%2?0xd9a93a:0x8a5a24)); d.position.set(-2.4+j*1.2,3.5+i*1.6,2.6); g.add(d)}
+  const jar=new THREE.Mesh(new THREE.CylinderGeometry(3,3.2,8,24),new THREE.MeshBasicMaterial({color:0xffc060,transparent:true,opacity:0.35,fog:false})); jar.position.y=17; g.add(jar); const lid=new THREE.Mesh(new THREE.CylinderGeometry(3.2,3.2,0.8,24),bas(0xd9a93a)); lid.position.y=21.2; g.add(lid);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(1.9,16,12),bas(0xff5a40)); eye.position.y=17; g.add(eye); const pupil=new THREE.Mesh(new THREE.SphereGeometry(0.8,10,8),bas(0x200008)); pupil.position.set(0,17,1.5); g.add(pupil); g.add(glow(0xffa040,16,0,17,1,0.55));
+  const r=rng(8); for(let i=0;i<6;i++){const s=i<3?-1:1; const a=new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,13,6),bas(0x7a5a30)); a.position.set(s*(6+(i%3)*2.4),10+(i%3)*2,1); a.rotation.z=s*(0.9+(i%3)*0.12); g.add(a); const k=new THREE.Mesh(new THREE.ConeGeometry(0.5,2.6,5),bas(0xe0c070)); k.position.set(s*(11+(i%3)*3),4+(i%3)*1.5,2); k.rotation.z=-s*2.2; g.add(k)} }
+{ const g=G.mash; g.position.set(0,0,-30); g.visible=false;
+  for(let i=0;i<14;i++){const a=i/14*6.283; const p=new THREE.Mesh(new THREE.ConeGeometry(1.9,10,6),new THREE.MeshLambertMaterial({color:i%2?0x2a8aa0:0x3aa0b8,emissive:0x0a3040,emissiveIntensity:0.6})); p.position.set(Math.cos(a)*6,11+Math.sin(a)*6,0); p.rotation.z=a-Math.PI/2; g.add(p)}
+  const maw=new THREE.Mesh(new THREE.CircleGeometry(4.6,24),bas(0xff5a8a)); maw.position.set(0,11,0.5); g.add(maw); const eye=new THREE.Mesh(new THREE.SphereGeometry(1.5,14,10),bas(0xffb020)); eye.position.set(0,5,2.5); g.add(eye); g.add(glow(0xff5a8a,14,0,11,1,0.5));
+  const pts=[]; for(let i=0;i<26;i++){const u=i/25; const a=-0.3+u*3.7; pts.push(new THREE.Vector3(12+Math.cos(a)*8*(1-u*0.3),4+u*18+Math.sin(a*0.9)*3,-2+Math.sin(a)*3))} pts.forEach((p,i)=>{const sp=new THREE.Mesh(new THREE.SphereGeometry(1.5-i*0.035,10,8),dark('#d8c8a8')); sp.position.copy(p); g.add(sp); const k=new THREE.Mesh(new THREE.ConeGeometry(0.4,2.2,5),dark('#f0e4c8')); k.position.copy(p).add(new THREE.Vector3(0,1.4,0)); g.add(k)}); const st=new THREE.Mesh(new THREE.ConeGeometry(0.9,4,6),bas(0xcff6ff)); st.position.copy(pts[25]).add(new THREE.Vector3(-1.5,1.5,0)); st.rotation.z=1.2; g.add(st); g.add(glow(0xcff6ff,6,pts[25].x-1.5,pts[25].y+1.5,pts[25].z,0.8));
+  // stitches in the floor
+  const lm=new THREE.LineBasicMaterial({color:0x7fe8ff}); for(const a of [-60,-30,0,30,60]){const [x1,z1]=pol(6,a),[x2,z2]=pol(17,a); const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1,0.45,z1+30),new THREE.Vector3(x2,0.45,z2+30)]),lm); g.add(ln)} }
+// brass inlay for the Collector: warm lines on the floor
+{ const g=G.col; const rings=[9.5,14.2]; for(const r of rings){const ln=new THREE.Mesh(new THREE.RingGeometry(r-0.07,r+0.07,96),bas(0xd9a93a)); ln.rotation.x=-Math.PI/2; ln.position.set(0,0.42,33); g.add(ln)} }
+
+/* ---------------- rendering ---------------- */
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,alpha:false}); renderer.setPixelRatio(1);
+function setup(v){
+  G.x.visible=v==='x'||v==='base'; G.col.visible=v==='col'; G.mash.visible=v==='mash';
+  const set=(h,s,sc,bc,bi)=>{hemi.color.set(h);sun.color.set(s);scene.background.set(sc);bossLight.color.set(bc);bossLight.intensity=bi};
+  if(v==='col') set(0x9a7a68,0xffe0b0,'#0d0a12',0xffa840,2.4);
+  else if(v==='mash') set(0x7a8ad0,0xd8f0ff,'#080a18',0xff5a8a,2.2);
+  else set(0x8a7ac8,0xd8e0ff,'#07060f',0xff2a40,2.2);
+  scene.fog=new THREE.Fog(scene.background.getHex(),60,170);
+}
+function shot(o){
+  const {w,h,cam,ortho,variant='base',hide=[],scale=1}=o; setup(variant); extra.visible=!!o.side;
+  const vis=hide.map(k=>[k,G[k].visible]); hide.forEach(k=>G[k].visible=false);
+  renderer.setSize(w*scale,h*scale,false);
+  let c; if(ortho){c=new THREE.OrthographicCamera(-ortho.w/2,ortho.w/2,ortho.h/2,-ortho.h/2,0.1,400); c.up.set(...(cam.up||[0,1,0]));} else c=new THREE.PerspectiveCamera(cam.fov,w/h,0.1,500);
+  c.position.set(...cam.pos); c.lookAt(...cam.look); c.updateMatrixWorld();
+  if(o.noFog) scene.fog=null;
+  // the planned view hides the sky dressing
+  const dres=o.plan; const old={wall:wall.visible}; if(dres){wall.visible=false}
+  renderer.render(scene,c); const url=renderer.domElement.toDataURL('image/png'); wall.visible=old.wall; vis.forEach(([k,v])=>G[k].visible=v); return url;
+}
+const GAMECAM={fov:64,pos:[0,7.3,20.4],look:[0,2.9,-3]};
+const SHOTS={
+ wide: shot({w:1060,h:590,scale:1,cam:{fov:42,pos:[31,22,32],look:[0,3,-5]}}),
+ game: shot({w:432,h:768,cam:GAMECAM}),
+ plan: shot({w:760,h:760,scale:2,ortho:{w:48,h:48},cam:{pos:[0,80,0],look:[0,0,0],up:[0,0,-1]},hide:['x'],plan:true,noFog:true}),
+ profile: shot({w:1010,h:404,scale:1,ortho:{w:60,h:24},cam:{pos:[80,-8.4,0],look:[0,-8.4,0]},hide:['x'],plan:true,noFog:true,side:true}),
+ vx: shot({w:460,h:240,cam:{fov:60,pos:[0,9.5,23],look:[0,8,-12]},variant:'x'}),
+ vcol: shot({w:460,h:240,cam:{fov:60,pos:[0,9.5,23],look:[0,8,-12]},variant:'col'}),
+ vmash: shot({w:460,h:240,cam:{fov:60,pos:[0,9.5,23],look:[0,8,-12]},variant:'mash'}),
+};
+
+/* ---------------- the sheet ---------------- */
+const sheet=document.getElementById('sheet');
+const NS='http://www.w3.org/2000/svg';
+const mk=()=>{const e=document.createElementNS(NS,'svg');e.setAttribute('width',1800);e.setAttribute('height',2000);e.setAttribute('viewBox','0 0 1800 2000');e.style.left='0';e.style.top='0';return e};
+const back=mk(), front=mk(); front.style.pointerEvents='none';
+let B='',F='';
+const GOLD='#f2d36b', DIM='#9a93b8', TX='#cfc8e8';
+const wrap=(t,n)=>{const w=t.split(' ');const L=[];let c='';for(const x of w){if((c+' '+x).trim().length>n){L.push(c);c=x}else c=(c+' '+x).trim()}if(c)L.push(c);return L};
+const T=(x,y,t,o={})=>`<text x="${x}" y="${y}" fill="${o.fill||TX}" font-size="${o.size||12}" ${o.bold?'font-weight="700"':''} ${o.ls?`letter-spacing="${o.ls}"`:''} text-anchor="${o.anchor||'start'}" ${o.halo?'stroke="#07060f" stroke-width="3.2" paint-order="stroke" stroke-linejoin="round"':''} ${o.op?`opacity="${o.op}"`:''}>${t}</text>`;
+const para=(x,y,t,n,o={})=>wrap(t,n).map((l,i)=>T(x,y+i*(o.lh||17),l,o)).join('');
+const lines=(t,n)=>wrap(t,n).length;
+const panel=(x,y,w,h,title)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="#0c0a18" fill-opacity=".6" stroke="#3a2f5c" stroke-width="1.5"/>`+(title?T(x+16,y+26,title,{fill:DIM,size:12,ls:'.14em'}):'');
+const img=(src,x,y,w,h)=>{const i=document.createElement('img');i.src=src;i.style.left=x+'px';i.style.top=y+'px';i.style.width=w+'px';i.style.height=h+'px';return i};
+const imgs=[];
+
+// header
+B+=T(48,66,'THE PRESSED GARDEN',{fill:GOLD,size:40,bold:true,ls:'.16em'});
+B+=T(48,98,'3D ARENA REFERENCE · v1 · the forest you crossed, pressed flat like a flower in a book, then lifted into the third dimension',{fill:DIM,size:13,ls:'.06em'});
+// row 1
+imgs.push(img(SHOTS.wide,40,130,1060,590)); imgs.push(img(SHOTS.game,1118,130,332,590));
+B+=panel(1482,130,278,590,'THE IDEA');
+let y1=188; const col1=(t,o={})=>{B+=para(1498,y1,t,32,{size:o.size||11,fill:o.fill||TX,lh:16}); y1+=lines(t,32)*16+(o.gap??8)};
+col1('Four biome wedges and a green clearing remember the zones you cleared. One road runs from where you land to where the boss waits.',{gap:16});
+B+=T(1498,y1,'TODAY  →  THIS',{fill:GOLD,size:12,ls:'.1em'}); y1+=22;
+for(const t of ['one grey disc → three rings, a raised terrace and a stage dais','plain stone pillars → themed cover: bell post, rib arch, lamp mushroom, root arch','no road → a pale pilgrim road from landing seal to stage','floating in nothing → an entry bridge, a rocky underside, glowing roots','boss from nowhere → a rune stage: where X plants its foot']) col1(t,{gap:8});
+y1+=4; col1('Kept: the wall of pressed specimens, drifting rocks, wells, surge pads and light crystals.',{fill:DIM,gap:12});
+col1('Visual design only. The terrace and dais heights are decoration; the floor you fight on stays flat.',{fill:DIM});
+
+// row 2: plan
+const PX=40,PY=770,PS=760/48;
+B+=panel(PX-6,PY-34,772,806,'');
+B+=T(PX+8,PY-12,'PLAN · north is the boss, south is where you land · 1 tile = 1 unit',{fill:DIM,size:12,ls:'.1em'});
+imgs.push(img(SHOTS.plan,PX,PY,760,760));
+const P=(x,z)=>[PX+(x+24)*PS,PY+(z+24)*PS];
+const Pp=(r,a)=>{const [x,z]=pol(r,a);return P(x,z)};
+let A='';
+for(const r of [4.9,9.5,14.8,18]) A+=`<circle cx="${P(0,0)[0]}" cy="${P(0,0)[1]}" r="${r*PS}" fill="none" stroke="#fff" stroke-opacity="${r===18?.55:.3}" stroke-width="1.4" stroke-dasharray="${r===18?'':'5 6'}"/>`;
+for(const [r,a,t] of [[4.9,90,'r 4.9'],[9.5,90,'r 9.5'],[14.8,90,'r 14.8']]){const [x,y]=Pp(r,a);A+=T(x+3,y-3,t,{size:9.5,fill:'#fff',op:.8,halo:true})}
+const lab=(r,a,t,sz=13,fill='#fff',op=.8,dx=0,dy=0)=>{const [x,y]=Pp(r,a);return T(x+dx,y+dy,t,{size:sz,fill,op,anchor:'middle',bold:true,ls:'.18em',halo:true})};
+A+=lab(21.6,315,'THICKET',13,'#9fe08a')+lab(21.6,45,'MARSH',13,'#7fdce8')+lab(21.6,135,'BONES',13,'#e0dac0')+lab(21.6,225,'HOLLOW',13,'#9ab8ff')+lab(0,0,'MEADOW',12,'#bff0c8',.9,-60,4)+lab(16.3,0,'THE STAGE',12,'#ff8a96',.95,0,4)+lab(20.5,180,'ENTRY BRIDGE',11,'#fff',.8,0,4);
+// feature markers
+const tag=(x,y,t,c='#7fe8ff')=>`<circle cx="${x}" cy="${y}" r="10" fill="#0c0a18" fill-opacity=".85" stroke="${c}" stroke-width="1.6"/>`+T(x,y+3.5,t,{size:9.5,fill:c,anchor:'middle',bold:true});
+for(const w of WELLS){const [x,y]=P(w.x,w.z);A+=tag(x+18,y-16,w.name)}
+for(const p of PADS){const [x,y]=P(p.x,p.z);A+=tag(x+20,y+18,p.name,'#9fe8ff')}
+for(const c of CRYS){const [x,y]=P(c.x,c.z);A+=tag(x+(c.x<0?-18:18),y-14,c.name,'#cff6ff')}
+for(const [i,p] of PILL_IN.concat(PILL_OUT).entries()){const [x,y]=P(p.x,p.z);const n=i<4?'a'+(i+1):'b'+(i-3);A+=T(x+11,y-9,n,{size:9.5,fill:'#ffe9a0',halo:true,bold:true})}
+{const [x,y]=P(SPAWN[0],SPAWN[1]);A+=T(x+24,y-16,'S seal',{size:11,fill:GOLD,halo:true,bold:true})}
+// strike zone and flow
+{const [x,y]=P(0,-14);A+=`<circle cx="${x}" cy="${y}" r="${6*PS}" fill="#ff2a40" fill-opacity=".05" stroke="#ff6a7a" stroke-width="1.6" stroke-dasharray="6 5"/>`+T(x+6*PS+6,y+2,'strike zone',{size:11,fill:'#ff8a96',halo:true,bold:true})+T(x+6*PS+6,y+16,'keep clear',{size:10,fill:'#ff8a96',halo:true})}
+{const a=P(0,10.2),b=P(0,-6.5);A+=`<path d="M${a[0]},${a[1]} L${b[0]},${b[1]}" stroke="#9fffb0" stroke-width="2.4" stroke-dasharray="3 7" stroke-linecap="round" opacity=".9"/><path d="M${b[0]-7},${b[1]+11} L${b[0]},${b[1]} L${b[0]+7},${b[1]+11}" fill="none" stroke="#9fffb0" stroke-width="2.4" stroke-linecap="round"/>`+T(P(0.9,-3.2)[0],P(0.9,-3.2)[1],'pilgrim road',{size:11,fill:'#9fffb0',halo:true,bold:true})}
+for(const a0 of [8,98,188,278]){const arc=[];for(let a=a0+10;a<=a0+58;a+=6){arc.push(Pp(9.5,a))} const d='M'+arc.map(p=>p.join(',')).join(' L'); const e=arc[arc.length-1],f2=arc[arc.length-2]; const ang=Math.atan2(e[1]-f2[1],e[0]-f2[0]); A+=`<path d="${d}" fill="none" stroke="#7fe8ff" stroke-width="2.2" stroke-linecap="round" opacity=".85"/><path d="M${e[0]-9*Math.cos(ang-.5)},${e[1]-9*Math.sin(ang-.5)} L${e[0]},${e[1]} L${e[0]-9*Math.cos(ang+.5)},${e[1]-9*Math.sin(ang+.5)}" fill="none" stroke="#7fe8ff" stroke-width="2.2" stroke-linecap="round"/>`}
+{const [x,y]=Pp(9.5,52);A+=T(x+14,y-16,'surge track ↻',{size:10.5,fill:'#7fe8ff',halo:true,bold:true})}
+{const [x,y]=P(-22.6,21.6);A+=`<path d="M${x},${y} L${x+10*PS},${y}" stroke="#fff" stroke-width="2"/><path d="M${x},${y-5} L${x},${y+5} M${x+10*PS},${y-5} L${x+10*PS},${y+5}" stroke="#fff" stroke-width="2"/>`+T(x+5*PS,y-8,'10 units',{size:10,anchor:'middle',halo:true})}
+{const [x,y]=P(0,-23.2);A+=T(x,y+8,'▲ BOSS · north',{size:12,fill:'#ff8a96',anchor:'middle',halo:true,bold:true})}
+{const [x,y]=P(0,23.6);A+=T(x,y,'▼ 2D world · south',{size:12,fill:'#fff',anchor:'middle',halo:true,op:.85,bold:true})}
+F+=A;
+
+// legend
+const LX=820, LY=736;
+B+=panel(LX,LY,470,372,'LEGEND · the kit stays, the placement changes');
+let ly=LY+58; const row=(tg,c,t,sub)=>{F+=tag(LX+30,ly-4,tg,c); F+=T(LX+54,ly,t,{size:12,fill:'#fff',bold:true}); const L=wrap(sub,60); L.forEach((l,i)=>F+=T(LX+54,ly+17+i*15,l,{size:11,fill:TX})); ly+=17+L.length*15+14};
+row('W','#7fe8ff','Wells · W1 W2 W3','Heal a heart and gather light, then wilt and regrow. W1 is safe by the landing, W3 is a far trip with a price.');
+row('P','#9fe8ff','Surge pads · P1 to P4','Step on a plate and you are thrown clockwise along the ring, untouchable for a moment.');
+row('C','#cff6ff','Light crystals · C1 to C6','On the terrace by the drop. Strike, lance or nova one and it bursts into light for you.');
+row('a','#ffe9a0','Themed cover · a1 to a4, b1 to b4','Bell post, rib arch, lamp mushroom, root arch, one per biome. They crumble when hit and regrow between phases.');
+row('S',GOLD,'Landing seal','A gold ring on the clearing\'s first tile: the fight starts and respawns here.');
+// rules
+const RX=820, RY=1124;
+B+=panel(RX,RY,470,418,'SIX RULES THE MAP FOLLOWS');
+let ry=RY+58; const rules=[['ONE ROAD','A pale road runs from the landing seal through the clearing to the stage, so the boss is always in view.'],['THREE RINGS','Calm clearing inside r 5, a fast ring road with surge pads at r 9.5, a risky terrace beyond r 14.8.'],['FOUR BIOMES','Floor colour, cover and glow recall the zones you beat. The green meadow in the middle is home.'],['A CLEAR STAGE','Nothing stands within 8 units of the boss line, so telegraphs read and weak points stay reachable.'],['HELP HAS A PRICE','Near wells are safe and small, far wells are risky. Crystals wait out by the edge.'],['THE VOID IS PART OF IT','Specimen wall, drifting rocks and glowing roots stay. The bridge is the crack you fell through.']];
+rules.forEach(([h,t],i)=>{B+=T(RX+18,ry,`${i+1}  ${h}`,{size:12,fill:GOLD,bold:true,ls:'.08em'}); const L=wrap(t,62); L.forEach((l,k)=>B+=T(RX+18,ry+17+k*15,l,{size:11})); ry+=17+L.length*15+14});
+// variants
+const VX=1310;
+B+=panel(VX-6,736,462,806,'ONE MAP, THREE MOODS · only dressing changes');
+const V=[['vx','X, the Hollow','Blood-red light; red cracks glow through the stage; the specimen wall stays dim.'],['vcol','The Collector','Warm amber lamps, brass inlay on the rings, the wall turns into drawer cabinets.'],['vmash','The Mash','Cold cyan stitches run across the floor, petals drift, the light turns pink and teal.']];
+V.forEach(([k,n,t],i)=>{const y=772+i*258; imgs.push(img(SHOTS[k],VX+14,y,422,220)); F+=T(VX+24,y+210,n.toUpperCase(),{size:12,fill:'#fff',bold:true,halo:true,ls:'.1em'}); B+=para(VX+14,y+238,t,64,{size:10.5,fill:DIM,lh:13})});
+// row 3: profile + table
+B+=panel(34,1554,1030,446,'');
+B+=T(48,1578,'PROFILE · a slice from the east: south (entry) on the left, north (boss) on the right',{fill:DIM,size:12,ls:'.1em'});
+imgs.push(img(SHOTS.profile,44,1590,1010,404));
+{ const X=(z)=>44+(30-z)/60*1010; const Y=(y)=>1590+(3.6-y)/24*404;
+  F+=`<path d="M${X(18)},${Y(2.1)} L${X(-18)},${Y(2.1)}" stroke="#fff" stroke-width="1.4" opacity=".8"/><path d="M${X(18)},${Y(1.4)} L${X(18)},${Y(2.8)} M${X(-18)},${Y(1.4)} L${X(-18)},${Y(2.8)}" stroke="#fff" stroke-width="1.4" opacity=".8"/>`;
+  F+=T(X(0),Y(2.9),'36 units across · R 18',{size:11,anchor:'middle',halo:true,fill:'#fff'});
+  F+=T(X(24.5),Y(1.5),'entry bridge',{size:11,fill:'#ffe9a0',halo:true,bold:true,anchor:'middle'})+T(X(-12),Y(1.0),'stage dais +0.2',{size:11,fill:'#ff8a96',halo:true,bold:true,anchor:'middle'});
+  F+=T(X(13),Y(-2.0),'terrace +0.35 with a low parapet',{size:11,fill:'#fff',halo:true,anchor:'middle'});
+  F+=T(X(0),Y(-17.5),'rocky underside, about 20 units deep',{size:11,fill:'#fff',halo:true,anchor:'middle'})+T(X(-6),Y(-9.5),'glowing crystals and roots',{size:11,fill:'#7fe8ff',halo:true,anchor:'middle'});
+  F+=T(52,1612,'◀ SOUTH · where you land',{size:11,fill:'#fff',halo:true,bold:true})+T(1046,1612,'NORTH · the boss ▶',{size:11,fill:'#ff8a96',halo:true,bold:true,anchor:'end'}); }
+// coordinates table
+B+=panel(1078,1554,682,446,'COORDINATES · x right, z toward the player, y up');
+const rows=[]; const f2=(n)=>n.toFixed(1);
+WELLS.forEach(w=>rows.push([w.name,'well','r'+w.r+' @'+w.a+'°',f2(w.x),f2(w.z)]));
+PADS.forEach(p=>rows.push([p.name,'pad','r9.5 @'+p.a+'°',f2(p.x),f2(p.z)]));
+CRYS.forEach(c=>rows.push([c.name,'crystal','r16.3 @'+c.a+'°',f2(c.x),f2(c.z)]));
+PILL_IN.forEach((p,i)=>rows.push(['a'+(i+1),p.kind,'r6.8 @'+p.a+'°',f2(p.x),f2(p.z)]));
+PILL_OUT.forEach((p,i)=>rows.push(['b'+(i+1),p.kind,'r13.3 @'+p.a+'°',f2(p.x),f2(p.z)]));
+rows.push(['S','seal','',f2(SPAWN[0]),f2(SPAWN[1])]);
+for(const c2 of [0,1]){const xx=1096+c2*336; B+=T(xx,1602,'id',{size:9.5,fill:DIM})+T(xx+28,1602,'kind',{size:9.5,fill:DIM})+T(xx+84,1602,'polar (north 0°)',{size:9.5,fill:DIM})+T(xx+226,1602,'x',{size:9.5,fill:DIM,anchor:'end'})+T(xx+268,1602,'z',{size:9.5,fill:DIM,anchor:'end'})}
+rows.forEach((r,i)=>{const c2=i<14?0:1; const yy=1624+(i%14)*20; const xx=1096+c2*336; const [id,k,p,x,z]=r; B+=T(xx,yy,id,{size:10.5,fill:GOLD,bold:true})+T(xx+28,yy,k,{size:10.5})+T(xx+84,yy,p,{size:10.5,fill:DIM})+T(xx+226,yy,x,{size:10.5,anchor:'end'})+T(xx+268,yy,z,{size:10.5,anchor:'end'})});
+B+=para(1096,1934,'The boss stands on x = 0, beyond the north edge at z = −29. Arena radius 18, as today. The start camera sits behind the seal and looks north.',76,{size:10.5,fill:DIM,lh:14});
+B+=T(48,1990,'Concept only: nothing in this sheet is in the game yet. The 3D views are a throwaway mock-up made to show the layout; the boss shapes are stand-ins.',{fill:DIM,size:11});
+
+back.innerHTML=B; front.innerHTML=F;
+sheet.appendChild(back);
+for(const i of imgs) sheet.appendChild(i);
+sheet.appendChild(front);
+front.innerHTML+=`<text x="56" y="152" fill="#fff" font-size="12" font-weight="700" letter-spacing=".1em" stroke="#07060f" stroke-width="3.2" paint-order="stroke">THE WHOLE ISLAND · from the south-east</text><text x="1130" y="152" fill="#fff" font-size="12" font-weight="700" letter-spacing=".1em" stroke="#07060f" stroke-width="3.2" paint-order="stroke">WHAT THE PLAYER SEES</text>`;
+await Promise.all(imgs.map(i=>i.decode().catch(()=>0)));
+window.__done=true;
+</script></body></html>

@@ -29,3 +29,16 @@ That builds `tools/gallery.html` (`npm run gallery`) and renders the cards with 
 
 The 2D guardians live in `src/forest/bossart.ts` (they are real sprites, ready to be dropped into the forest).
 The 3D sketches (The Moon, The Mash, The Collector) are in `tools/gallery3d.ts` and are concept only: nothing in the game uses them yet.
+
+## 3D references (not in the game yet)
+
+Design references for a new 3D hero and a new 3D arena. Reference only: nothing in `src/` uses them.
+
+| File | What |
+|---|---|
+| 3d-reference/blob-character-sheet.png | The Blob, 3D hero: turnaround, actions, faces, palette, scale and silhouette test |
+| 3d-reference/arena-map-sheet.png | The Pressed Garden, 3D arena: plan, hero views, per-boss moods, profile, coordinates |
+
+Regenerate with `node concept-art/3d-reference/render.mjs character.html blob-character-sheet.png 1800 1240` and
+`node concept-art/3d-reference/render.mjs map.html arena-map-sheet.png 1800 2000` (the sources are the `.html` files next to them;
+the map one uses three.js from `node_modules` for a throwaway mock-up).

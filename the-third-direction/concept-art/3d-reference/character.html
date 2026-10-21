@@ -1,0 +1,228 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>The Blob: 3D character reference</title>
+<style>
+  html,body{margin:0;background:#07070f;}
+  #sheet{width:1800px;height:1240px;position:relative;overflow:hidden;background:radial-gradient(900px 700px at 22% 55%,#241a3e 0%,#120d22 55%,#07070f 100%);font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace;color:#e8e2d0}
+  svg{position:absolute;left:0;top:0}
+  .h{font-weight:700;letter-spacing:.18em;fill:#f2d36b}
+  .cap{fill:#9a93b8;font-size:12px;letter-spacing:.14em}
+  .tx{fill:#cfc8e8;font-size:13px}
+  .tx b{fill:#f2d36b}
+</style></head><body><div id="sheet"></div>
+<script>
+const NS='http://www.w3.org/2000/svg';
+const C={gold:'#f2d36b',cream:'#fff1a6',amber:'#d9a93a',deep:'#7a4a10',plum:'#3a1020',blush:'#f0907c',rim:'#7fe8ff',red:'#ff2a40',floor:'#3a2a62'};
+const f=(n)=>+n.toFixed(2);
+let uid=0;
+/* ---------- the blob ---------- */
+function blob(o){
+  const P=Object.assign({psi:0,sx:1,sy:1,tilt:0,lift:0,lean:0,expr:'neutral',look:[0,0],pips:3,
+    arms:null,feet:[[0,0],[0,0]],claw:0,third:0,glow:0,hurt:0,mouth:null,blink:0,shell:true,noLimbs:false,sil:false},o);
+  const psi=P.psi*Math.PI/180, sp=Math.sin(psi), cp=Math.cos(psi);
+  if(!P.arms) P.arms=[[-13*cp,27],[13*cp,27]];
+  const id='b'+(uid++);
+  const g=[];
+  const R=(y)=>50*Math.sqrt(Math.max(0.02,1-((y+63)/51)**2));
+  const egg='M -50,-58 C -50,-96 -28,-114 0,-114 C 28,-114 50,-96 50,-58 C 50,-28 34,-12 0,-12 C -34,-12 -50,-28 -50,-58 Z';
+  const limb=(x1,y1,x2,y2,w,fill=C.gold,hl=C.cream)=>`<g stroke-linecap="round" fill="none"><path d="M${f(x1)},${f(y1)} L${f(x2)},${f(y2)}" stroke="${C.deep}" stroke-width="${w+5}"/><path d="M${f(x1)},${f(y1)} L${f(x2)},${f(y2)}" stroke="${fill}" stroke-width="${w}"/><path d="M${f(x1-w*.18)},${f(y1-w*.2)} L${f(x2-w*.18)},${f(y2-w*.2)}" stroke="${hl}" stroke-width="${w*.26}" opacity=".85"/></g>`;
+  const foot=(x,y,s)=>`<g transform="translate(${f(x)},${f(y)})"><ellipse rx="19" ry="10" cy="-4" fill="${C.deep}"/><ellipse rx="17" ry="8.4" cy="-4.6" fill="url(#gFoot)"/>${[-8,0,8].map(t=>`<ellipse cx="${t*Math.sign(sp||1)*0.0+t*0.9}" cy="-1.5" rx="3.6" ry="2.6" fill="${C.cream}" opacity=".55"/>`).join('')}</g>`;
+  const sides=[-1,1];
+  // depth per side: z = -s*sin(psi)
+  const limbs=[];
+  for(const s of sides){
+    const z=-s*sp, hx=s*22*cp, hy=-18;
+    const fo=P.feet[s===-1?0:1];
+    limbs.push({z,kind:'leg',s,svg:()=>{const fx=hx+fo[0], fy=-4+fo[1]; return limb(hx,hy,fx,fy-6,17,C.amber,C.gold)+foot(fx,fy,s)}});
+    const sx=47*s*cp, sy=-64;
+    const a=P.arms[s===-1?0:1];
+    limbs.push({z:z+0.001,kind:'arm',s,svg:()=>{
+      let out=limb(sx,sy,sx+a[0],sy+a[1],17.5);
+      out+=`<circle cx="${f(sx+a[0])}" cy="${f(sy+a[1])}" r="9.5" fill="${C.gold}" stroke="${C.deep}" stroke-width="2.4"/><circle cx="${f(sx+a[0]-3)}" cy="${f(sy+a[1]-3)}" r="3" fill="${C.cream}" opacity=".8"/>`;
+      if(P.claw&&s===-1) out+=clawSvg(sx+a[0],sy+a[1],P.claw);
+      return out;}});
+  }
+  if(P.noLimbs) limbs.length=0;
+  limbs.sort((a,b)=>a.z-b.z);
+  const far=limbs.filter(l=>l.z<0), near=limbs.filter(l=>l.z>=0);
+  // shell on the back
+  const ls=psi+Math.PI, cs=Math.cos(ls), xs=38*Math.sin(ls);
+  const shellVisFront=cs>0;
+  const shellSvg=()=>{
+    if(!P.shell) return '';
+    const k=shellVisFront?Math.max(0.2,cs):1, x=shellVisFront?xs:xs*0.55, y=-96, r=31;
+    let s=`<g transform="translate(${f(x)},${f(y)}) scale(${f(k)},1)"><circle r="${r}" fill="url(#gShell)" stroke="${C.deep}" stroke-width="3"/>`;
+    let d='';for(let t=0;t<=4.6*Math.PI;t+=0.2){const rr=3+t*2.15;d+=(t?'L':'M')+f(Math.cos(t)*rr)+','+f(Math.sin(t)*rr)}
+    s+=`<path d="${d}" fill="none" stroke="#8a5a14" stroke-width="3.2" stroke-linecap="round"/><path d="${d}" transform="translate(-1.6,-1.6)" fill="none" stroke="#ffe9a0" stroke-width="1.8" stroke-linecap="round" opacity=".9"/>`;
+    // pips: three sockets that glow with the light meter
+    for(let i=0;i<3;i++){const a=2.55-i*1.0, rr=21; const px=Math.cos(a)*rr, py=Math.sin(a)*rr*0.95+2; const on=i<P.pips;
+      s+=`<circle cx="${f(px)}" cy="${f(py)}" r="7.4" fill="#4a2c0a" stroke="${C.deep}" stroke-width="1.6"/>`+(on?`${P.sil?'':`<circle cx="${f(px)}" cy="${f(py)}" r="13" fill="#fff6c0" opacity=".7" filter="url(#blur3)"/>`}<circle cx="${f(px)}" cy="${f(py)}" r="5.6" fill="#ffffff"/>`:`<circle cx="${f(px-1)}" cy="${f(py-1)}" r="2" fill="#7a4a10"/>`)}
+    return s+'</g>'};
+  // face
+  const face=()=>{
+    let s='';
+    const eyeLong=[-0.46,0.46];
+    eyeLong.forEach((dl,i)=>{
+      const lam=psi+dl, c=Math.cos(lam); if(c<0.04) return;
+      const x=R(-72)*0.97*Math.sin(lam), y=-72, rx=11.5*Math.max(0.2,c), ry=16;
+      const cid=`${id}e${i}`;
+      s+=`<g><clipPath id="${cid}"><ellipse cx="${f(x)}" cy="${y}" rx="${f(rx)}" ry="${ry}"/></clipPath>`;
+      const ex=P.expr;
+      if(ex==='happy'){ s+=`<path d="M${f(x-rx)},${y+3} Q${f(x)},${y-15} ${f(x+rx)},${y+3}" fill="none" stroke="${C.plum}" stroke-width="4.2" stroke-linecap="round"/>`; s+='</g>'; return}
+      if(ex==='squeeze'){ const d=(i===0?1:-1); s+=`<path d="M${f(x-rx*d)},${y-9} L${f(x+rx*d)},${y} L${f(x-rx*d)},${y+9}" fill="none" stroke="${C.plum}" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>`; s+='</g>'; return}
+      s+=`<ellipse cx="${f(x)}" cy="${y}" rx="${f(rx+2.2*c)}" ry="${ry+2.2}" fill="${C.deep}" opacity=".9"/><ellipse cx="${f(x)}" cy="${y}" rx="${f(rx)}" ry="${ry}" fill="#fff"/>`;
+      const lk=P.look, pr=(ex==='scared'?4.6:ex==='hurt'?5.5:7.4)*Math.max(0.35,c), pry=(ex==='scared'?5.5:ex==='hurt'?7:10.5);
+      const px=x+lk[0]*rx*0.55, py=y+lk[1]*ry*0.4+(ex==='scared'?-1:1);
+      s+=`<g clip-path="url(#${cid})"><ellipse cx="${f(px)}" cy="${f(py)}" rx="${f(pr)}" ry="${pry}" fill="${C.plum}"/><ellipse cx="${f(px-pr*0.35)}" cy="${f(py-pry*0.45)}" rx="${f(pr*0.42)}" ry="${f(pry*0.3)}" fill="#fff"/><circle cx="${f(px+pr*0.4)}" cy="${f(py+pry*0.4)}" r="${f(Math.max(0.8,pr*0.2))}" fill="#fff" opacity=".8"/>`;
+      // lids (skin colour) slanted by expression
+      const lid={neutral:0.10,determined:0.20,hurt:0.30,scared:0.0,third:0.16}[ex]??0.1;
+      const sl={neutral:0,determined:(i===0?1:-1)*3,hurt:(i===0?-1:1)*5,scared:0,third:(i===0?1:-1)*5}[ex]??0;
+      const top=y-ry+ry*2*lid;
+      if(lid>0||P.blink) { const t2=P.blink?y+ry*(2*P.blink-1):top; s+=`<path d="M${f(x-rx-3)},${f(t2-sl)} L${f(x+rx+3)},${f(t2+sl)} L${f(x+rx+3)},${y-ry-8} L${f(x-rx-3)},${y-ry-8} Z" fill="${C.gold}"/><path d="M${f(x-rx-2)},${f(t2-sl)} L${f(x+rx+2)},${f(t2+sl)}" stroke="${C.deep}" stroke-width="2.6" stroke-linecap="round"/>`; }
+      s+='</g></g>';
+    });
+    // blush
+    for(const dl of [-0.95,0.95]){const lam=psi+dl,c=Math.cos(lam); if(c>0.15) s+=`<ellipse cx="${f(R(-56)*0.95*Math.sin(lam))}" cy="-56" rx="${f(9*c)}" ry="5" fill="${C.blush}" opacity="${P.hurt?0.35:0.75}"/>`}
+    // mouth
+    if(cp>0.2){
+      const mx=R(-50)*Math.sin(psi), m=P.mouth||{neutral:'smile',determined:'flat',hurt:'wob',scared:'o',happy:'big',squeeze:'yell',third:'flat'}[P.expr]||'smile';
+      const w=9*cp; let d='';
+      if(m==='smile') s+=`<path d="M${f(mx-w)},-50 Q${f(mx)},-43 ${f(mx+w)},-50" fill="none" stroke="${C.plum}" stroke-width="3.2" stroke-linecap="round"/>`;
+      if(m==='flat') s+=`<path d="M${f(mx-w*.8)},-48 L${f(mx+w*.8)},-48" stroke="${C.plum}" stroke-width="3.4" stroke-linecap="round"/>`;
+      if(m==='wob') s+=`<path d="M${f(mx-w)},-46 Q${f(mx-w*.5)},-52 ${f(mx)},-46 T${f(mx+w)},-46" fill="none" stroke="${C.plum}" stroke-width="3" stroke-linecap="round"/>`;
+      if(m==='o') s+=`<ellipse cx="${f(mx)}" cy="-47" rx="${f(5*cp)}" ry="6" fill="${C.plum}"/>`;
+      if(m==='big') s+=`<path d="M${f(mx-w*1.2)},-52 Q${f(mx)},-34 ${f(mx+w*1.2)},-52 Z" fill="${C.plum}"/><path d="M${f(mx-w*.6)},-43 Q${f(mx)},-38 ${f(mx+w*.6)},-43" fill="${C.blush}"/>`;
+      if(m==='yell') s+=`<ellipse cx="${f(mx)}" cy="-46" rx="${f(10*cp)}" ry="9" fill="${C.plum}"/><ellipse cx="${f(mx)}" cy="-42" rx="${f(6*cp)}" ry="4" fill="${C.blush}"/>`;
+    }
+    // the third eye: a closed seam on the forehead that opens in the Nova and the finale
+    if(cp>0.15){ const tx=R(-101)*0.9*Math.sin(psi), ty=-101, k=Math.max(0.3,cp);
+      if(P.third>0){ s+=`<ellipse cx="${f(tx)}" cy="${ty}" rx="${f(11*k)}" ry="${f(13*P.third)}" fill="${C.red}" opacity=".55" filter="url(#blur3)"/><path d="M${f(tx)},${f(ty-12*P.third)} Q${f(tx+9*k)},${ty} ${f(tx)},${f(ty+12*P.third)} Q${f(tx-9*k)},${ty} ${f(tx)},${f(ty-12*P.third)} Z" fill="${C.red}" stroke="#6a0a18" stroke-width="2"/><ellipse cx="${f(tx)}" cy="${ty}" rx="${f(2.4*k)}" ry="${f(7*P.third)}" fill="#2a0008"/><circle cx="${f(tx-2*k)}" cy="${f(ty-3)}" r="1.6" fill="#fff"/>` }
+      else s+=`<path d="M${f(tx)},${ty-8} L${f(tx)},${ty+8}" stroke="${C.deep}" stroke-width="2.6" stroke-linecap="round" opacity=".7"/><path d="M${f(tx-3.5*k)},${ty-5} L${f(tx-3.5*k)},${ty+5} M${f(tx+3.5*k)},${ty-5} L${f(tx+3.5*k)},${ty+5}" stroke="${C.deep}" stroke-width="1.4" stroke-linecap="round" opacity=".35"/>`;
+    }
+    return s};
+  // tuft
+  const tl=P.lean*0.0+(-sp*10)+P.lean;
+  const tuft=()=>`<g transform="translate(${f(sp*6)},-110)"><g transform="rotate(${f(tl)} 0 0) scale(.88)">${P.sil?'':'<circle cx="4" cy="-30" r="16" fill="#fff1a6" opacity=".35" filter="url(#blur3)"/>'}<path d="M-10,3 C-14,-12 -9,-26 3,-36 C2,-25 6,-12 11,3 Z" fill="url(#gTuft)" stroke="${C.deep}" stroke-width="3" stroke-linejoin="round"/><path d="M6,3 C11,-8 19,-14 29,-15 C25,-7 20,-1 14,3 Z" fill="url(#gTuft)" stroke="${C.deep}" stroke-width="3" stroke-linejoin="round"/><path d="M-4,-3 C-5,-14 -2,-24 4,-31" fill="none" stroke="${C.cream}" stroke-width="2.6" stroke-linecap="round" opacity=".85"/></g></g>`;
+  const dark=P.hurt?`<path d="${egg}" fill="#ff2a40" opacity="${0.35*P.hurt}"/>`:'';
+  const glowW=P.glow?`<path d="${egg}" fill="#fff" opacity="${0.42*P.glow}"/>`:'';
+  const rim=`<path d="M22,-113 C46,-100 52,-70 46,-40 C42,-24 34,-16 22,-13" fill="none" stroke="${C.rim}" stroke-width="5" opacity=".8" filter="url(#blur1)"/>`;
+  const bounce=`<path d="M-36,-20 C-20,-10 20,-10 36,-20" fill="none" stroke="#ffcf66" stroke-width="6" opacity=".55" filter="url(#blur2)"/>`;
+  const belly=cp>0.05?`<ellipse cx="${f(R(-40)*0.4*sp)}" cy="-40" rx="${f(28*Math.max(0.2,cp))}" ry="23" fill="url(#gBelly)" opacity="${0.85+0.15*P.glow}"/>`:'';
+  const shadow=P.sil?'':`<ellipse cx="0" cy="0" rx="${f(52*P.sx)}" ry="11" fill="#000" opacity="${P.lift?0.28:0.5}" filter="url(#blur3)"/><ellipse cx="0" cy="0" rx="62" ry="14" fill="url(#gPool)"/>`;
+  const body=`<g transform="translate(0,${-P.lift}) translate(0,-4) scale(${f(P.sx)},${f(P.sy)}) translate(0,4)"><clipPath id="${id}c"><path d="${egg}"/></clipPath>`+
+    far.map(l=>l.svg()).join('')+(!shellVisFront?shellSvg():'')+
+    `<path d="${egg}" fill="url(#gBody)" stroke="${C.deep}" stroke-width="3.6" stroke-linejoin="round"/><g clip-path="url(#${id}c)">${belly}${rim}${bounce}${dark}${glowW}</g>`+
+    (shellVisFront?shellSvg():'')+face()+tuft()+near.map(l=>l.svg()).join('')+`</g>`;
+  return `<g transform="rotate(${P.tilt})">${shadow}${body}</g>`;
+}
+function clawSvg(x,y,k){ // three crescents of light that grow from the hand
+  let s='';
+  for(let i=-1;i<=1;i++){
+    const a=(0.05+i*0.34), L=62*k, cx=x+Math.cos(a)*10, cy=y+Math.sin(a)*10;
+    const ex=cx+Math.cos(a)*L, ey=cy+Math.sin(a)*L, nx=-Math.sin(a), ny=Math.cos(a);
+    s+=`<path d="M${f(cx)},${f(cy)} Q${f(cx+Math.cos(a)*L*0.55+nx*14)},${f(cy+Math.sin(a)*L*0.55+ny*14)} ${f(ex)},${f(ey)} Q${f(cx+Math.cos(a)*L*0.5-nx*2)},${f(cy+Math.sin(a)*L*0.5-ny*2)} ${f(cx)},${f(cy)} Z" fill="url(#gClaw)" stroke="#7a4a10" stroke-width="2.2" stroke-linejoin="round"/>`;
+  }
+  return s;
+}
+/* ---------- scene helpers ---------- */
+const sheet=document.getElementById('sheet');
+const svg=document.createElementNS(NS,'svg'); svg.setAttribute('width',1800); svg.setAttribute('height',1240); svg.setAttribute('viewBox','0 0 1800 1240'); sheet.appendChild(svg);
+const defs=`<defs>
+<radialGradient id="gBody" cx=".34" cy=".26" r=".95"><stop offset="0" stop-color="#fff3b0"/><stop offset=".34" stop-color="#f7d96c"/><stop offset=".72" stop-color="#e2b13f"/><stop offset="1" stop-color="#b5791a"/></radialGradient>
+<radialGradient id="gBelly" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fffbe0" stop-opacity=".95"/><stop offset=".7" stop-color="#fff1a6" stop-opacity=".5"/><stop offset="1" stop-color="#fff1a6" stop-opacity="0"/></radialGradient>
+<radialGradient id="gFoot" cx=".4" cy=".3" r=".9"><stop offset="0" stop-color="#f2c957"/><stop offset="1" stop-color="#b9801f"/></radialGradient>
+<radialGradient id="gShell" cx=".35" cy=".3" r=".9"><stop offset="0" stop-color="#f6cf62"/><stop offset=".6" stop-color="#dba93a"/><stop offset="1" stop-color="#a86f17"/></radialGradient>
+<linearGradient id="gTuft" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e7b94a"/><stop offset="1" stop-color="#fff6c0"/></linearGradient>
+<radialGradient id="gPool" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ffcf66" stop-opacity=".55"/><stop offset="1" stop-color="#ffcf66" stop-opacity="0"/></radialGradient>
+<linearGradient id="gClaw" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fffbe0"/><stop offset="1" stop-color="#ffc24a"/></linearGradient>
+<filter id="blur1" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.4"/></filter>
+<filter id="blur2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>
+<filter id="blur3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;
+let out=defs;
+const T=(x,y,t,cls='tx',extra='')=>`<text x="${x}" y="${y}" class="${cls}" ${extra}>${t}</text>`;
+const panel=(x,y,w,h,title)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="#0c0a18" fill-opacity=".55" stroke="#3a2f5c" stroke-width="1.5"/>`+T(x+16,y+26,title,'cap');
+const at=(x,y,s,inner)=>`<g transform="translate(${x},${y}) scale(${s})">${inner}</g>`;
+// floor tiles (perspective diamonds) behind the hero
+function floor(cx,cy,w,h,n){let s='';const cols=['#3a2a62','#2e2252','#46346f','#34285a'];for(let i=-n;i<=n;i++)for(let j=-n;j<=n;j++){const x=cx+(i-j)*w/2,y=cy+(i+j)*h/2;if(Math.hypot(x-cx,(y-cy)*2)>n*w*0.62)continue;const c=cols[(i*7+j*13+99)%4];const a=Math.max(0,1-Math.hypot(x-cx,(y-cy)*2)/(n*w*0.62));s+=`<path d="M${x},${y-h/2} L${x+w/2},${y} L${x},${y+h/2} L${x-w/2},${y} Z" fill="${c}" opacity="${f(0.25+0.6*a)}" stroke="#1a1330" stroke-width="1"/>`}return s}
+
+// ---- title
+out+=T(48,64,'THE BLOB','h','font-size="40"')+T(48,96,'3D HERO REFERENCE · v1 · the warmest thing on the screen','cap','font-size="13"');
+out+=T(48,1210,'Concept only: nothing in this sheet is in the game yet.','cap');
+
+// ---- hero
+const HX=330, HY=1030, HS=3.4;
+out+=`<g>${floor(HX,HY-8,68,34,9)}</g><ellipse cx="${HX}" cy="${HY}" rx="220" ry="44" fill="url(#gPool)" opacity=".9"/>`;
+out+=at(HX,HY,HS,blob({psi:30,expr:'determined',look:[0.5,-0.2],pips:2,arms:[[-18,30],[16,32]],lean:4}));
+const moth=(x,y,s,r=0)=>`<circle cx="${x}" cy="${y}" r="${24*s}" fill="#7fe8ff" opacity=".2" filter="url(#blur3)"/><g transform="translate(${x},${y}) scale(${s}) rotate(${r})"><ellipse cx="-13" cy="-4" rx="13" ry="8" transform="rotate(-24 -13 -4)" fill="#cff6ff" opacity=".9" stroke="#7fe8ff" stroke-width="1.4"/><ellipse cx="13" cy="-4" rx="13" ry="8" transform="rotate(24 13 -4)" fill="#cff6ff" opacity=".9" stroke="#7fe8ff" stroke-width="1.4"/><ellipse cx="0" cy="2" rx="3.4" ry="8" fill="#6fb5d6"/><circle cx="0" cy="-7" r="3" fill="#fff"/></g>`;
+out+=moth(540,560,1.7,-8);
+const badge=(x,y,n)=>`<circle cx="${x}" cy="${y}" r="13" fill="#0c0a18" stroke="#f2d36b" stroke-width="2"/>`+T(x,y+5,n,'h','text-anchor="middle" style="font-size:14px;letter-spacing:0"');
+[[392,500,1],[252,640,2],[470,785,3],[314,896,4],[132,912,5],[382,690,6],[540,612,7]].forEach(([x,y,n])=>out+=badge(x,y,n));
+const leg=[
+ ['flame tuft: leans back when it runs, flares when light is full'],
+ ['back shell: three light sockets, the meter you see from behind'],
+ ['big glossy eyes: lids slant for effort, squeeze for pain'],
+ ['belly lantern: brightens as the light fills'],
+ ['right hand: grows the light claw on a strike, then folds away'],
+ ['third eye: a closed seam, opens red in the Nova and the finale'],
+ ['Mournmoth: the moth friend (already in the game), cyan rim light'],
+];
+leg.forEach((l,i)=>{const y=150+i*34; out+=badge(60,y-4,i+1)+T(86,y,l[0],'tx','style="font-size:12px"')});
+out+=T(48,420,'WHY IT WORKS','cap');
+out+=T(48,444,'soft, round and warm against hard, dark monsters: the one to protect','tx','style="font-size:12px"');
+out+=T(48,466,'gumdrop + tuft + shell reads from the front, side and back','tx','style="font-size:12px"');
+
+// ---- turnaround
+out+=panel(640,24,1136,404,'TURNAROUND · one gumdrop silhouette from every side');
+[[0,'FRONT'],[38,'THREE-QUARTER'],[90,'SIDE'],[180,'BACK · the view you play from']].forEach(([psi,name],i)=>{
+  const x=640+16+i*280+140;
+  out+=`<g>${floor(x,368,60,30,3)}</g>`+at(x,362,1.62,blob({psi,expr:'neutral',pips:3,third:0}))+T(x,414,name,'cap','text-anchor="middle"');
+});
+
+// ---- action poses
+out+=panel(640,444,1136,372,'ACTIONS · one thumb, four verbs');
+const fxSpark=(x,y,r)=>`<g filter="url(#glow)"><circle cx="${x}" cy="${y}" r="${r}" fill="#fffdf0"/><circle cx="${x}" cy="${y}" r="${r*2}" fill="#ffd86a" opacity=".35"/></g>`;
+const poses=[
+ {n:'IDLE',w:150,p:{psi:28,expr:'neutral',look:[0.4,-0.3],pips:1,sy:1.02,lean:6}},
+ {n:'RUN',w:170,p:{psi:52,tilt:9,expr:'determined',arms:[[-26,16],[30,30]],feet:[[-28,-2],[28,-18]],lean:-20,pips:1,sx:0.96,sy:1.03},
+   fx:`<ellipse cx="-62" cy="-4" rx="12" ry="7" fill="#9a93b8" opacity=".35"/><ellipse cx="-80" cy="-8" rx="8" ry="5" fill="#9a93b8" opacity=".22"/>`},
+ {n:'TAP · STRIKE',w:210,p:{psi:62,tilt:-3,expr:'determined',arms:[[58,-34],[8,26]],claw:1,pips:1,lean:-8,feet:[[12,0],[-14,0]]},
+   after:`<path d="M30,-170 Q112,-132 96,-40" fill="none" stroke="#fff6c0" stroke-width="7" stroke-linecap="round" opacity=".85" filter="url(#glow)"/><path d="M24,-160 Q100,-128 86,-52" fill="none" stroke="#ffd86a" stroke-width="3" stroke-linecap="round" opacity=".7"/>`},
+ {n:'HOLD · LANCE',w:190,p:{psi:56,expr:'determined',sx:1.08,sy:0.9,arms:[[30,-40],[10,-44]],pips:2,lean:12},
+   after:`${fxSpark(44,-124,12)}<path d="M62,-124 L130,-124" stroke="#fff6c0" stroke-width="3" stroke-dasharray="3 8" opacity=".75"/>`},
+ {n:'NOVA',w:190,p:{psi:0,expr:'squeeze',third:1,glow:1,sx:0.94,sy:1.08,arms:[[-46,-30],[46,-30]],pips:3,lift:10},
+   before:`<ellipse cx="0" cy="0" rx="98" ry="15" fill="none" stroke="#ffe9a0" stroke-width="3" opacity=".85"/><ellipse cx="0" cy="0" rx="72" ry="11" fill="#ffe9a0" opacity=".18"/>`+[...Array(16)].map((_,k)=>{const a=k/16*Math.PI*2;return `<path d="M${f(Math.cos(a)*66)},${f(-74+Math.sin(a)*66)} L${f(Math.cos(a)*108)},${f(-74+Math.sin(a)*108)}" stroke="#fff1a6" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`}).join('')},
+ {n:'DASH',w:194,p:{psi:72,expr:'determined',tilt:-6,sx:1.24,sy:0.8,arms:[[-30,6],[-24,12]],feet:[[-26,-6],[-30,-12]],pips:1,lean:-20},
+   before:[3,2,1].map(k=>`<g opacity="${0.10+0.09*(4-k)}" transform="translate(${-k*40},0)">`+blob({psi:72,tilt:-6,sx:1.24,sy:0.8,arms:[[-30,6],[-24,12]],feet:[[-26,-6],[-30,-12]],pips:1,lean:-20,expr:'neutral'})+'</g>').join('')+[0,1,2,3,4].map(k=>`<path d="M${-150-k*8},${-110+k*22} L${-70},${-110+k*22}" stroke="#fff1a6" stroke-width="3" stroke-linecap="round" opacity="${0.75-k*0.12}"/>`).join('')},
+];
+let px=640+16;
+poses.forEach((o)=>{
+  const x=px+o.w*0.52, y=762, s=1.2; px+=o.w;
+  out+=`<g>${floor(x,y-8,60,30,2)}</g><g transform="translate(${x},${y}) scale(${s})">${o.before||''}${o.fx||''}${blob(o.p)}${o.after||''}</g>`;
+  out+=T(x,y+42,o.n,'cap','text-anchor="middle"');
+});
+out+=T(1760,470,'squash and stretch on every move · the tuft trails behind','cap','text-anchor="end" style="font-size:11px"');
+
+// ---- expressions
+out+=panel(640,832,600,384,'FACES');
+const faces=[['CALM',{expr:'neutral'}],['DETERMINED',{expr:'determined'}],['HURT',{expr:'hurt',hurt:1}],['SCARED',{expr:'scared',look:[0,-0.4]}],['RELIEVED',{expr:'happy'}],['THIRD EYE',{expr:'determined',third:1}]];
+faces.forEach(([n,p],i)=>{const cx=640+16+(i%3)*194+96, top=832+44+Math.floor(i/3)*172, cy=top+64;
+  out+=`<g><clipPath id="fc${i}"><rect x="${cx-88}" y="${top}" width="176" height="132" rx="6"/></clipPath><rect x="${cx-88}" y="${top}" width="176" height="132" rx="6" fill="#1a1330"/><g clip-path="url(#fc${i})">`+at(cx,top+167,1.1,blob(Object.assign({psi:0,shell:false,noLimbs:true},p)))+`</g></g>`+T(cx,top+152,n,'cap','text-anchor="middle"');});
+
+// ---- palette + materials
+out+=panel(1256,832,520,200,'PALETTE');
+const sw=[['glow gold','#f2d36b'],['belly cream','#fff1a6'],['amber shade','#d9a93a'],['outline','#7a4a10'],['eye plum','#3a1020'],['blush','#f0907c'],['moon rim','#7fe8ff'],['danger red','#ff2a40']];
+sw.forEach(([n,c],i)=>{const x=1272+(i%4)*124,y=868+Math.floor(i/4)*64;out+=`<rect x="${x}" y="${y}" width="108" height="32" rx="4" fill="${c}" stroke="#000" stroke-opacity=".4"/>`+T(x,y+46,n,'cap','style="font-size:11px"')});
+out+=T(1272,1012,'Only the hero is gold. Red is for danger and the third eye.','cap','style="font-size:11px"');
+
+out+=panel(1256,1048,520,168,'SCALE · SILHOUETTE TEST');
+out+=`<g>${floor(1400,1196,46,23,3)}</g>`;
+const U=32, gy=1190;
+out+=`<rect x="1290" y="${gy-U*0.7}" width="${U}" height="${U*0.7}" fill="#46346f" stroke="#1a1330"/>`+T(1290,gy+16,'tile 1.0','cap','style="font-size:10px"');
+out+=at(1400,gy,U*1.8/150,blob({psi:20,expr:'neutral',pips:2}))+T(1400,gy+16,'blob 1.8','cap','style="font-size:10px" text-anchor="middle"');
+out+=[0,1,2].map(k=>`<rect x="1452" y="${gy-(k+1)*U*1.05}" width="${U*1.5-k*4}" height="${U*1.05}" fill="${k===2?'#6a5a98':'#4a3d6a'}" stroke="#1a1330"/>`).join('')+T(1452,gy+16,'pillar 3.2','cap','style="font-size:10px"');
+const sil=blob({psi:20,expr:'neutral',pips:2,sil:true}).replace(/url\(#[^)]*\)/g,'#06050c').replace(/<(circle|ellipse|path)[^>]*filter="url\(#blur[^"]*"[^>]*\/>/g,'').replace(/filter="[^"]*"/g,'');
+out+=[['90 px',90],['48 px',48],['28 px',28]].map(([n,h],i)=>{const x=1590+i*64;return at(x,gy-2,h/150,`<g style="filter:brightness(0) invert(1) opacity(.9)">${sil}</g>`)+T(x,gy+16,n,'cap','style="font-size:10px" text-anchor="middle"')}).join('');
+svg.innerHTML=out;
+document.title='ready'; window.__done=true;
+</script></body></html>
