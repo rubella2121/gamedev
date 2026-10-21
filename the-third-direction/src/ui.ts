@@ -20,7 +20,6 @@ interface Narration {
   tone: Tone;
   /** a line that has waited longer than this is no longer true, so it is dropped */
   until: number;
-  retried?: boolean;
 }
 
 export class UI {
@@ -127,19 +126,11 @@ export class UI {
     this.redEl.style.opacity = '0';
   }
 
-  /** Show a line now. Monsters and prompts use this: it never waits, and it can cut a narration short (which then comes back once). */
+  /** Show a line now. Monsters and prompts use this: it never waits, and it cuts a narration short (a cut line is gone, not replayed late). */
   caption(text: string | null, holdMs = 2600, low = false, tone: Tone = 'world') {
-    const n = this.nowN;
-    if (n) {
-      this.nowN = null;
-      if (text !== null && !n.retried) {
-        n.retried = true;
-        n.until = performance.now() + 7000;
-        this.nq.unshift(n);
-      }
-    }
+    this.nowN = null;
     this.show(text, holdMs, low, tone);
-    this.busyUntil = text !== null && holdMs > 0 ? performance.now() + holdMs + 350 : 0;
+    this.busyUntil = text !== null && holdMs > 0 ? performance.now() + holdMs + 300 : 0;
     this.schedulePump(this.busyUntil - performance.now());
   }
 
@@ -178,11 +169,11 @@ export class UI {
     if (!n) return;
     this.nowN = n;
     this.show(n.text, n.ms, false, n.tone);
-    this.busyUntil = now + n.ms + 450;
+    this.busyUntil = now + n.ms + 300;
     this.pumpTimer = window.setTimeout(() => {
       if (this.nowN === n) this.nowN = null;
       this.pump();
-    }, n.ms + 450);
+    }, n.ms + 300);
   }
 
   private show(text: string | null, holdMs: number, low: boolean, tone: Tone) {

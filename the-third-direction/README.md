@@ -15,6 +15,7 @@ together, with a scorpion tail) -> the ending with the rebuilt clearing, a share
 The five zones (each has monsters you fight with light, a puzzle, a secret and a heart to reach):
 Gloom Hollow, Rootmaw Thicket, Echo Marsh, Bone Wastes and Moth Meadow. See [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
 Secrets give bonus hearts (up to +3) for the 3D fights. Every monster has a voice made in code ([`src/core/voice.ts`](./src/core/voice.ts)).
+The story is told in captions in three voices: the blob's thoughts, Mother and Father, and the world itself. Every line, in order, is in [`docs/STORY.md`](./docs/STORY.md).
 
 Not done yet: tuning from real playtests (difficulty, timings, audio mix), real-phone performance checks, and RUN host testing
 (the game has only been run in a plain browser and a headless one, never inside the RUN app).

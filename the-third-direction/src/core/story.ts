@@ -111,32 +111,34 @@ export const STORY = {
     12: warm('I am right here.', 2400),
   } as Record<number, Line>,
 
-  /** the Edge, in seconds from the moment you reach it */
+  /**
+   * the Edge, in seconds from the moment you reach it. Each line waits for the one before, so these are spaced to fit: the hint to
+   * look up shows at 5, you look up by yourself at 10, and the screen cracks at 11.5. Look up early and the rest is cut, which is the point.
+   */
   edge: [
-    at(0.7, world('the forest ends.', 2000)),
-    at(2.4, world('the stars are blinking out, one by one.', 2600)),
-    at(4.2, thought('They were never stars.', 2200)),
-    at(5.8, warm("Don't look up.", 2400)),
-    at(8.2, thought('I want to see.', 2000)),
+    at(0.4, world('the forest ends.', 1600)),
+    at(2.3, world('the stars are blinking out, one by one.', 2300)),
+    at(4.9, thought('They were never stars.', 1900)),
+    at(7.1, warm("Don't look up.", 2200)),
+    at(9.6, thought('I want to see.', 1700)),
   ] as readonly Timed[],
 
   /* ------------------------------ the boom ------------------------------ */
 
   /** in seconds from the moment the boom begins (the white flash is at 0.55, you land at 2.2, the claw tip hits at 4.3) */
   boom: [
-    at(0.9, world('the world comes apart.', 2200)),
-    at(2.5, thought('Everything has a back now.', 2200)),
-    at(3.8, thought('A piece of him.', 1500)),
-    at(4.5, thought('I swallowed it. Something grows from my side.', 2800)),
-    at(6.0, thought('He is made of everything I met.', 3000)),
+    at(0.9, world('the world comes apart.', 1700)),
+    at(3.0, thought('Everything has a back now.', 1500)),
+    at(4.8, thought('I swallowed a piece of him.', 1700)),
   ] as readonly Timed[],
 
   /* ------------------------------ ACT II: the arena ------------------------------ */
 
   /** a few seconds into the first fight, in milliseconds after the fight begins */
   arena: [
-    { after: 4200, line: thought('Far below, the forest hangs like a pressed flower.', 3000) },
-    { after: 8800, line: thought('Up on the wall, two yellow smudges. I know them.', 3400) },
+    { after: 3200, line: thought('He is made of everything I met.', 3000) },
+    { after: 7600, line: thought('Far below, the forest hangs like a pressed flower.', 3000) },
+    { after: 12000, line: thought('Up on the wall, two yellow smudges. I know them.', 3400) },
   ] as readonly { after: number; line: Line }[],
 
   xDies: world('he does not scream. he goes flat, and then he is gone.', 3200),

@@ -11,6 +11,10 @@
 > gives you healing wells, surge pads and light crystals. The "four phases" fight described below is X's part of it; the other two
 > bosses are described in [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md) and the concept art in `concept-art/`.
 
+> **v6 note:** The game now has a full caption layer in three voices (the blob's thoughts, Mother and Father, and the world), with
+> name cards for each zone. Every line, in order, is in [`docs/STORY.md`](./docs/STORY.md) (generated from `src/core/story.ts`), so the
+> "all the words in the game" list at the bottom of this file is out of date.
+
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension. The monster that hunts it, **X, "The Hollow"**, is stitched together from the creatures you meet.
 
 **Playtime** (estimates, to be verified by playtesting):
