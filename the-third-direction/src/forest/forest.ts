@@ -2,6 +2,7 @@ import { D } from '../core/difficulty';
 import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
 import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../core/util';
+import { playTimed, say, STORY } from '../core/story';
 import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
@@ -238,6 +239,7 @@ export class Forest implements Hub {
     this.player.maxHearts = this.maxHearts;
     this.player.hearts = Math.min(this.player.maxHearts, this.player.hearts + 1);
     this.ui.hearts(this.player.hearts, this.player.maxHearts);
+    say(this.ui, STORY.secrets[Math.min(this.secrets, STORY.secrets.length) - 1]!);
   }
 
   /** A zone's heart was reached: X's shadow comes down on everything in the zone. */
@@ -337,6 +339,7 @@ export class Forest implements Hub {
         window.setTimeout(() => this.ui.hint(null), 11000);
       }
       tr.zone.onArrive?.();
+      this.fire('guardian-wakes', true, () => say(this.ui, STORY.guardianWakes));
       this.trans = null;
     } else if (tr.kind === 'out' && !tr.done && tr.t >= 1.0) {
       tr.done = true;
@@ -430,7 +433,7 @@ export class Forest implements Hub {
     this.fired = new Set(['cap1', 'shadow', 'cap2', 'slam', 'quiet', 'lurk', 'eyes', 'hint']);
     this.land.decals.length = 0;
     this.land.addDecal(START.x, START.y, 62, 45, 1);
-    this.ui.caption(null);
+    this.ui.narrateClear();
     this.audio.setWind(0.16, 1);
     this.audio.setCrickets(0);
     this.audio.setHeart(1.3, 0.6);
@@ -517,6 +520,7 @@ export class Forest implements Hub {
     if (this.sealOpen) return;
     this.sealOpen = true;
     if (!instant) {
+      say(this.ui, STORY.seal);
       this.audio.warm();
       this.shake(6);
       burst(this.parts, 640, 700, 40, [C.red, C.redDark, C.moss], 70, 1);
@@ -571,8 +575,9 @@ export class Forest implements Hub {
     this.ot += dt;
     const t = this.ot;
     const { ui, audio } = this;
+    this.fire('wake', t >= 0.9, () => say(ui, STORY.opening.wake));
     this.fire('cap1', t >= OP.cap1, () => {
-      ui.caption("Don't look up.", 2800);
+      say(ui, STORY.opening.mother);
       audio.blip(0.7);
     });
     this.fire('shadow', t >= OP.shadow, () => {
@@ -580,13 +585,13 @@ export class Forest implements Hub {
       audio.setLullaby(0.6, 0.8);
     });
     this.fire('cap2', t >= OP.shove, () => {
-      ui.caption("Go. Don't stop.", 2200);
+      say(ui, STORY.opening.father);
       audio.blip(1.15);
       audio.setHeart(1.8, 1);
     });
     this.fire('slam', t >= OP.slam, () => {
       ui.flash(1, 700);
-      ui.caption(null);
+      ui.narrateClear();
       this.shake(12);
       audio.slam();
       audio.silence(0.05);
@@ -594,9 +599,18 @@ export class Forest implements Hub {
       this.land.addDecal(START.x, START.y, 62, 45, 1);
       burst(this.parts, START.x, START.y - 6, 40, [C.ink, '#1a2a30', C.blobShade, C.soil], 70, 1);
     });
-    this.fire('quiet', t >= OP.ring, () => audio.setWind(0.15, 3));
-    this.fire('lurk', t >= OP.lurk, () => audio.bell(0.75));
-    this.fire('eyes', t >= OP.eyes, () => audio.setHeart(1.35, 0.8));
+    this.fire('quiet', t >= OP.ring, () => {
+      audio.setWind(0.15, 3);
+      say(ui, STORY.opening.crater);
+    });
+    this.fire('lurk', t >= OP.lurk, () => {
+      audio.bell(0.75);
+      say(ui, STORY.opening.bell);
+    });
+    this.fire('eyes', t >= OP.eyes, () => {
+      audio.setHeart(1.35, 0.8);
+      say(ui, STORY.opening.move);
+    });
     if (t >= OP.slam) this.smudge += dt;
     if (t >= OP.end) this.beginPlay();
     this.camX = OX;
@@ -624,6 +638,8 @@ export class Forest implements Hub {
     this.zones.forEach((z) => z.onRespawn());
     this.snapCamera();
     this.ui.fade(0, 450);
+    const mother = STORY.deaths[this.ctx.stats.deaths];
+    if (mother) say(this.ui, mother);
   }
 
   private updateSlams(dt: number) {
@@ -907,6 +923,16 @@ export class Forest implements Hub {
       }
     }
 
+    // --- the story: the crossroads, and a name card the first time you step into each zone
+    if (!this.arena && this.mode === 'play') {
+      if (Math.hypot((pl.x - HUB.x) / HUB.rx, (pl.y - HUB.y) / HUB.ry) < 0.8) this.fire('hub', true, () => say(this.ui, STORY.crossroads));
+      for (const z of ZONES) {
+        if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 0.8) {
+          this.fire(`card-${z.id}`, true, () => this.ui.zoneCard(STORY.zones[z.id].name, STORY.zones[z.id].sub));
+        }
+      }
+    }
+
     // --- checkpoints where the roads meet the zones
     if (!this.arena) for (const e of ENTRIES) if (Math.abs(pl.x - e.x) < 34 && Math.abs(pl.y - e.y) < 34) this.checkpoint(e.x, e.y);
 
@@ -945,6 +971,7 @@ export class Forest implements Hub {
       this.spawnSlam(d.x + 40, d.y + 20, 62, 1.1);
     });
     this.fire(`c-${z.id}-2`, t >= 1.9, () => {
+      say(this.ui, STORY.falls[z.id]);
       z.complete();
       const f = FEATURE[z.id];
       if (f) this.features[f] = true;
@@ -957,6 +984,8 @@ export class Forest implements Hub {
       this.input.setMoveEnabled(true);
       pl.invuln = 1;
       this.checkpoint(pl.x, pl.y);
+      const fallen = this.zones.filter((q) => q.cleared).length;
+      if (fallen > 0) say(this.ui, STORY.hearts[Math.min(fallen, STORY.hearts.length) - 1]!);
       // the first time a zone falls, X's claw grazes you and the forest glitches into cubes
       if (!this.teased && this.zones.filter((q) => q.cleared).length === 1) {
         this.teased = true;
@@ -1043,6 +1072,7 @@ export class Forest implements Hub {
       const x = this.camX + 20 + Math.random() * 176;
       this.parts.push({ x, y: this.land.cliffAt(x) + 1, vx: (Math.random() - 0.5) * 6, vy: -10 - Math.random() * 10, life: 2.2, max: 2.2, col: Math.random() < 0.5 ? '#2a7a52' : '#1b5659', g: -2, size: 1 });
     }
+    playTimed(ui, this.fired, 'edge-', this.et, STORY.edge);
     this.fire('edge-eyes', this.et >= 2.2, () => audio.sting());
     this.fire('edge-hint', this.et >= 5.0, () => {
       ui.hint('hold to look up');
@@ -1059,6 +1089,7 @@ export class Forest implements Hub {
       this.mode = 'crack';
       this.ct = 0;
       this.makeCracks();
+      ui.narrateClear();
       ui.flash(1, 1100);
       audio.slam();
       audio.silence(0.02);

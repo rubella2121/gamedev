@@ -49,6 +49,15 @@ body {
 }
 .caption.show { opacity: 1; }
 .caption.low { top: 44%; }
+/* three voices: the world (the default look above), the blob's own thoughts, and the family */
+.caption.tone-thought { color: #f3eefc; font-size: calc(var(--u) * 4.9); text-shadow: 0 0 calc(var(--u) * 3) rgba(196, 180, 255, 0.6), 0 2px 0 #000; }
+.caption.tone-warm { color: #fff3cf; text-shadow: 0 0 calc(var(--u) * 3.2) rgba(255, 214, 110, 0.75), 0 2px 0 #000; letter-spacing: 0.05em; }
+.caption.tone-world { text-transform: none; }
+.zonecard { position: absolute; left: 6%; right: 6%; top: 31%; text-align: center; z-index: 10; pointer-events: none; opacity: 0; --hold: 3600ms; display: flex; flex-direction: column; gap: calc(var(--u) * 1.4); }
+.zonecard b { font-size: calc(var(--u) * 4.6); letter-spacing: 0.32em; text-transform: uppercase; color: #ffe9a0; text-shadow: 0 0 calc(var(--u) * 3) rgba(255, 214, 110, 0.6), 0 2px 0 #000; padding-left: 0.32em; }
+.zonecard i { font-size: calc(var(--u) * 3.6); letter-spacing: 0.06em; color: #e8fffb; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(159, 244, 238, 0.5), 0 2px 0 #000; }
+.zonecard.show { animation: card var(--hold) ease-out forwards; }
+@keyframes card { 0% { opacity: 0; transform: translateY(calc(var(--u) * 1.2)); } 14% { opacity: 1; transform: none; } 82% { opacity: 1; } 100% { opacity: 0; } }
 .hint {
   position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 5 + env(safe-area-inset-bottom, 0px)); text-align: center; z-index: 10; pointer-events: none;
   font-size: calc(var(--u) * 3); letter-spacing: 0.22em; text-transform: uppercase;

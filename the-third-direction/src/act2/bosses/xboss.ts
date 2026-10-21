@@ -1,3 +1,4 @@
+import { say, STORY } from '../../core/story';
 import * as THREE from 'three';
 import { D } from '../../core/difficulty';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
@@ -199,6 +200,7 @@ export class XBoss extends Boss3D {
     m.setGaze(false);
     for (let i = 0; i < 4; i++) m.setJawSlot(i, false);
     env.ui.caption('...', 1200, true);
+    window.setTimeout(() => say(env.ui, STORY.xDies), 1500);
   }
 
   protected updateDying(dt: number) {

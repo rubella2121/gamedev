@@ -177,12 +177,14 @@ export class Game {
   }
 
   restart() {
+    this.ui.narrateClear();
     this.ui.hideEnd();
     this.begin();
   }
 
   /** Back to the home page (used by the end card). */
   home() {
+    this.ui.narrateClear();
     this.ui.hideEnd();
     this.ui.hearts(null);
     this.ui.recenter(false);

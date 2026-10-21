@@ -11,6 +11,18 @@ export interface HomeOptions {
 }
 
 /** All DOM overlays: captions, hints, hearts, title card, start and end screens. */
+/** Who is speaking: the blob's own thoughts, its family's voices, or the world itself (see src/core/story.ts). */
+export type Tone = 'thought' | 'warm' | 'world';
+
+interface Narration {
+  text: string;
+  ms: number;
+  tone: Tone;
+  /** a line that has waited longer than this is no longer true, so it is dropped */
+  until: number;
+  retried?: boolean;
+}
+
 export class UI {
   readonly stage: HTMLElement;
   readonly view: HTMLCanvasElement;
@@ -33,6 +45,12 @@ export class UI {
   private speechTimer = 0;
   private bossHpMax = 0;
   private capTimer = 0;
+  private cardEl: HTMLElement;
+  private cardTimer = 0;
+  private nq: Narration[] = [];
+  private nowN: Narration | null = null;
+  private busyUntil = 0;
+  private pumpTimer = 0;
   private heartMax = 3;
   private recenterEl: HTMLButtonElement;
   private onRecenter: (() => void) | null = null;
@@ -64,6 +82,7 @@ export class UI {
     this.bossEl = mk('bossbar');
     this.lightEl = mk('lightmeter');
     this.speechEl = mk('speech');
+    this.cardEl = mk('zonecard');
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
@@ -108,9 +127,68 @@ export class UI {
     this.redEl.style.opacity = '0';
   }
 
-  caption(text: string | null, holdMs = 2600, low = false) {
+  /** Show a line now. Monsters and prompts use this: it never waits, and it can cut a narration short (which then comes back once). */
+  caption(text: string | null, holdMs = 2600, low = false, tone: Tone = 'world') {
+    const n = this.nowN;
+    if (n) {
+      this.nowN = null;
+      if (text !== null && !n.retried) {
+        n.retried = true;
+        n.until = performance.now() + 7000;
+        this.nq.unshift(n);
+      }
+    }
+    this.show(text, holdMs, low, tone);
+    this.busyUntil = text !== null && holdMs > 0 ? performance.now() + holdMs + 350 : 0;
+    this.schedulePump(this.busyUntil - performance.now());
+  }
+
+  /**
+   * A line of the story. Lines wait their turn (a new one never stomps the one being read), and one that waited too long is
+   * dropped. `thought` is the blob, `warm` is Mother or Father, `world` is the forest talking.
+   */
+  narrate(text: string, ms = 2800, tone: Tone = 'thought') {
+    this.nq.push({ text, ms, tone, until: performance.now() + 7000 });
+    this.pump();
+  }
+
+  /** Forget everything waiting and hide what is showing (a restart, a skip, the end of a scene). */
+  narrateClear() {
+    this.nq = [];
+    this.nowN = null;
+    window.clearTimeout(this.pumpTimer);
+    this.pumpTimer = 0;
+    this.busyUntil = 0;
+    this.show(null, 0, false, 'world');
+  }
+
+  private schedulePump(inMs: number) {
+    window.clearTimeout(this.pumpTimer);
+    this.pumpTimer = this.nq.length ? window.setTimeout(() => this.pump(), Math.max(30, inMs)) : 0;
+  }
+
+  private pump() {
+    window.clearTimeout(this.pumpTimer);
+    this.pumpTimer = 0;
+    const now = performance.now();
+    if (now < this.busyUntil) return this.schedulePump(this.busyUntil - now + 30);
+    this.nowN = null;
+    while (this.nq.length && this.nq[0]!.until < now) this.nq.shift();
+    const n = this.nq.shift();
+    if (!n) return;
+    this.nowN = n;
+    this.show(n.text, n.ms, false, n.tone);
+    this.busyUntil = now + n.ms + 450;
+    this.pumpTimer = window.setTimeout(() => {
+      if (this.nowN === n) this.nowN = null;
+      this.pump();
+    }, n.ms + 450);
+  }
+
+  private show(text: string | null, holdMs: number, low: boolean, tone: Tone) {
     window.clearTimeout(this.capTimer);
     this.captionEl.classList.toggle('low', low);
+    for (const t of ['thought', 'warm', 'world']) this.captionEl.classList.toggle(`tone-${t}`, t === tone);
     if (text === null) {
       this.captionEl.classList.remove('show');
       return;
@@ -118,6 +196,22 @@ export class UI {
     this.captionEl.textContent = text;
     this.captionEl.classList.add('show');
     if (holdMs > 0) this.capTimer = window.setTimeout(() => this.captionEl.classList.remove('show'), holdMs);
+  }
+
+  /** A place name with one line under it, when you first step into somewhere new. */
+  zoneCard(name: string, sub: string, holdMs = 3600) {
+    window.clearTimeout(this.cardTimer);
+    this.cardEl.innerHTML = '';
+    const b = document.createElement('b');
+    b.textContent = name;
+    const i = document.createElement('i');
+    i.textContent = sub;
+    this.cardEl.append(b, i);
+    this.cardEl.style.setProperty('--hold', `${holdMs}ms`);
+    this.cardEl.classList.remove('show');
+    void this.cardEl.offsetWidth;
+    this.cardEl.classList.add('show');
+    this.cardTimer = window.setTimeout(() => this.cardEl.classList.remove('show'), holdMs + 200);
   }
 
   hint(text: string | null) {

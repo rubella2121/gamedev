@@ -9,6 +9,7 @@ import { Slicer } from './kit/sdf';
 import { D } from '../core/difficulty';
 import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
+import { playTimed, say, STORY } from '../core/story';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
 type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
@@ -38,6 +39,7 @@ export class Act2 {
   private cubeGroup = new THREE.Group();
   private shard!: THREE.Mesh;
   private fired = new Set<string>();
+  private arenaStory = false;
   private tmp = new THREE.Object3D();
   private tmpC = new THREE.Color();
   private tmpV = new THREE.Vector3();
@@ -203,6 +205,8 @@ export class Act2 {
     this.state = 'boom';
     this.t = 0;
     this.fired.clear();
+    this.arenaStory = false;
+    this.ctx.ui.narrateClear();
     // if the monsters are not built yet (a slow phone), finish them now: a stall is better than a missing boss
     this.slicer.flush();
     this.bi = Math.min(Math.max(0, boss), this.bosses.length - 1);
@@ -323,6 +327,7 @@ export class Act2 {
     if (t < 0.55) {
       this.camPos.set((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.12, 15.36);
     }
+    playTimed(ui, this.fired, 'boom', t, STORY.boom);
     this.fire('burst', t >= 0.55, () => {
       audio.boom();
       ui.flash(0.8, 500);
@@ -424,6 +429,10 @@ export class Act2 {
     this.resetCamera();
     if (this.bi === 0) {
       ui.caption('Strike.', 2400);
+      if (!this.arenaStory) {
+        this.arenaStory = true;
+        for (const s of STORY.arena) window.setTimeout(() => this.state === 'fight' && say(ui, s.line), s.after);
+      }
       window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
       window.setTimeout(() => ui.hint(null), 9600);
     }
@@ -954,11 +963,7 @@ export class Act2 {
   private updateInterlude(dt: number) {
     this.it += dt;
     const { ui } = this.ctx;
-    const line = ['the wall is quiet. it should not be.', 'the forest remembers who guarded it.'][this.bi - 1] ?? '';
-    if (this.it > 0.8 && !this.fired.has(`i${this.bi}`)) {
-      this.fired.add(`i${this.bi}`);
-      ui.caption(line, 3200, true);
-    }
+    playTimed(ui, this.fired, `int${this.bi}-`, this.it, STORY.interlude[this.bi - 1] ?? []);
     this.features.update(dt, this.fenv);
     this.updatePlayer(dt);
     this.updateLight(dt);
@@ -1060,7 +1065,7 @@ export class Act2 {
     this.camPos.lerp(new THREE.Vector3(0, lerp(9, 40, rise), lerp(20, 30, rise)), k);
     this.camLook.lerp(new THREE.Vector3(0, lerp(3, 70, rise), lerp(-2, -120, rise)), k);
     if (t >= 10.2) ui.moon(true);
-    this.fire('line', t >= 10.8, () => ui.caption('I can look up now.', 3600, true));
+    playTimed(ui, this.fired, 'end-', t, STORY.ending);
     this.fire('blink', t >= 14.4, () => ui.moonBlink());
     this.fire('end', t >= 17.2, () => {
       this.state = 'end';

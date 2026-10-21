@@ -8,6 +8,7 @@ import { arenaDef } from '../land';
 import { MimicQueen } from '../guardians/mimicqueen';
 import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
 import { onScreen } from './parts';
+import { say, STORY } from '../../core/story';
 
 interface Mimic {
   x: number;
@@ -227,6 +228,7 @@ export class MeadowZone implements Zone {
           moth.x = CAGE.x;
           moth.y = CAGE.y - 14;
           hub.ui.hint(null);
+          for (const l of STORY.moth) say(hub.ui, l);
           hub.audio.warm();
           hub.shake(2);
           burst(hub.parts, CAGE.x, CAGE.y - 10, 24, [C.moonCore, C.moon, C.root], 50, 1, 40);
