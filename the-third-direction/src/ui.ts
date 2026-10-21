@@ -18,6 +18,8 @@ interface Narration {
   text: string;
   ms: number;
   tone: Tone;
+  /** shown in the middle of the screen instead of near the top (the ending, where the moon is up there) */
+  low?: boolean;
   /** a line that has waited longer than this is no longer true, so it is dropped */
   until: number;
 }
@@ -138,8 +140,8 @@ export class UI {
    * A line of the story. Lines wait their turn (a new one never stomps the one being read), and one that waited too long is
    * dropped. `thought` is the blob, `warm` is Mother or Father, `world` is the forest talking.
    */
-  narrate(text: string, ms = 2800, tone: Tone = 'thought') {
-    this.nq.push({ text, ms, tone, until: performance.now() + 7000 });
+  narrate(text: string, ms = 2800, tone: Tone = 'thought', low = false) {
+    this.nq.push({ text, ms, tone, low, until: performance.now() + 7000 });
     this.pump();
   }
 
@@ -168,7 +170,7 @@ export class UI {
     const n = this.nq.shift();
     if (!n) return;
     this.nowN = n;
-    this.show(n.text, n.ms, false, n.tone);
+    this.show(n.text, n.ms, !!n.low, n.tone);
     this.busyUntil = now + n.ms + 300;
     this.pumpTimer = window.setTimeout(() => {
       if (this.nowN === n) this.nowN = null;

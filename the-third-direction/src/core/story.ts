@@ -17,6 +17,8 @@ export interface Line {
   text: string;
   ms: number;
   tone: Tone;
+  /** show it mid-screen instead of near the top */
+  low?: boolean;
 }
 /** a line that plays `at` seconds into a scene */
 export interface Timed extends Line {
@@ -24,15 +26,16 @@ export interface Timed extends Line {
 }
 /** where the line goes: the UI */
 export interface Narrator {
-  narrate(text: string, ms?: number, tone?: Tone): void;
+  narrate(text: string, ms?: number, tone?: Tone, low?: boolean): void;
 }
 
 const thought = (text: string, ms = 2800): Line => ({ text, ms, tone: 'thought' });
 const warm = (text: string, ms = 2600): Line => ({ text, ms, tone: 'warm' });
 const world = (text: string, ms = 2800): Line => ({ text, ms, tone: 'world' });
 const at = (t: number, l: Line): Timed => ({ ...l, at: t });
+const low = (l: Timed): Timed => ({ ...l, low: true });
 
-export const say = (ui: Narrator, l: Line) => ui.narrate(l.text, l.ms, l.tone);
+export const say = (ui: Narrator, l: Line) => ui.narrate(l.text, l.ms, l.tone, l.low);
 
 /** Play every line of a scene whose time has come, once each (`fired` remembers which). */
 export function playTimed(ui: Narrator, fired: Set<string>, prefix: string, t: number, lines: readonly Timed[]) {
@@ -153,11 +156,11 @@ export const STORY = {
 
   /** in seconds from the end of the last fight; the closing line comes at 10.8 */
   ending: [
-    at(1.2, world('the pinned things flicker. warm.', 2400)),
-    at(3.7, world('most drift home. two stay.', 2400)),
-    at(6.0, thought('Two small lights, close enough to touch.', 2300)),
-    at(8.0, world('the clearing grows back. the crater stays.', 2300)),
-    at(9.7, warm('Look up.', 1300)),
-    at(10.8, thought('I can look up now.', 3600)),
+    low(at(1.2, world('the pinned things flicker. warm.', 2400))),
+    low(at(3.7, world('most drift home. two stay.', 2400))),
+    low(at(6.0, thought('Two small lights, close enough to touch.', 2300))),
+    low(at(8.0, world('the clearing grows back. the crater stays.', 2300))),
+    low(at(9.7, warm('Look up.', 1300))),
+    low(at(10.8, thought('I can look up now.', 3600))),
   ] as readonly Timed[],
 };
