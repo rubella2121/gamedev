@@ -15,6 +15,11 @@ together, with a scorpion tail) -> the ending with the rebuilt clearing, a share
 The five zones (each has monsters you fight with light, a puzzle, a secret and a heart to reach):
 Gloom Hollow, Rootmaw Thicket, Echo Marsh, Bone Wastes and Moth Meadow. See [`OPEN_FOREST_DESIGN.md`](./OPEN_FOREST_DESIGN.md).
 Secrets give bonus hearts (up to +3) for the 3D fights. Every monster has a voice made in code ([`src/core/voice.ts`](./src/core/voice.ts)).
+**Falling in a boss fight** (guardians and the three 3D bosses): on **Nightmare**, four falls in one fight start it over from the first phase
+(a counter of four diamonds under the light meter shows how many you have used, and the third fall is a warning). On **Normal** and **Gentle**,
+three falls in the same phase call the moth's **Second Wind** for that phase: one more heart and 20% longer windows to hurt the boss.
+The rules are in [`src/core/falls.ts`](./src/core/falls.ts).
+
 The **Mournmoth** (the friend you free in Moth Meadow) has a job: it takes the first hit of every fight (the **Moth Shield**: a bubble of
 moonlight, then it dims and comes back after 18 / 25 / 40 seconds on Gentle / Normal / Nightmare), it leans toward a hidden warmth when you are
 near one, it rests on your head when you stand still, trembles when you are one hit from a fall, dims when you are hit, and in the ending it

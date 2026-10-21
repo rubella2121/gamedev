@@ -18,6 +18,9 @@
 > **v7 note:** The Mournmoth now does things: a Moth Shield (it takes the first hit of every fight), it points at hidden warmths, it rests on
 > your head, and it goes home to the moon at the end (it is the moon's child). See `src/core/mothbond.ts` and `docs/STORY.md`.
 
+> **v8 note:** Fall rules. Nightmare: four falls in one boss fight start it over from phase 1 (counter on screen). Normal and Gentle: three falls
+> in the same phase call the moth's Second Wind (one more heart, longer windows) for that phase. See `src/core/falls.ts`.
+
 A baby blob loses its family, crosses a forest of strange monsters, and discovers the third dimension. The monster that hunts it, **X, "The Hollow"**, is stitched together from the creatures you meet.
 
 **Playtime** (estimates, to be verified by playtesting):
