@@ -35,6 +35,8 @@ export class Game {
   private res = 1;
   private showcaseRun = false;
   private trailer!: Trailer;
+  /** the player wants sound for the intro (the score has a bus of its own, so it has to be told) */
+  private trailerSound = true;
   /** (tests) run the simulation this many times per frame */
   debugSpeed = 1;
   /** (tests) draw only every Nth frame, so a bot can run the game fast on a computer with no GPU */
@@ -79,7 +81,7 @@ export class Game {
       audio: this.audio,
       act1: this.act1,
       act2: this.act2,
-      score: () => makeScore(this.audio),
+      score: () => (this.trailerSound ? makeScore(this.audio) : null),
       zoom2d: (z) => this.setZoom(z),
       onDone: () => this.finishTrailer(),
     });
@@ -113,6 +115,7 @@ export class Game {
   /** the cinematic intro (from the splash, or from the home page) */
   private playTrailer() {
     this.audio.start();
+    this.trailerSound = this.audio.level > 0;
     track('intro');
     this.state = 'trailer';
     this.act1.previewMode = false;

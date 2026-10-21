@@ -76,10 +76,14 @@ rundot game set-public # only when ready: submits the game for review
   the forest. How a boss is made and how it plugs into the fight: [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md).
   No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`, `src/core/voice.ts`).
 - The cinematic intro (`src/cinematic/`): `cues.ts` is the shot list (one table of times that both the picture and the music read),
-  `trailer.ts` directs the real game scenes (it borrows the forest and the 3D arena through the `trailer*` methods on them), and the
-  score is scheduled on the WebAudio clock so it stays in step with the picture. The game's own sounds are muted while it plays.
+  `trailer.ts` directs the real game scenes (it borrows the forest and the 3D arena through the `trailer*` methods on them), and
+  `score.ts` is the music: A minor like the in-game lullaby, planned note by note on the WebAudio clock (a second of the future at a
+  time) from the same cue sheet, so a hit lands on its cut. It reuses the monster voices (`Voice.clock` places one at an exact time).
+  The game's own sounds are muted while it plays, and the score stays silent if the player turned the sound off.
   Test builds (`?debug`) skip the first-visit splash; add `&intro` to see it.
-- Dev tools (they never ship): `npm run gallery` builds the model lab and the concept-art gallery (`tools/`), `npm run concepts`
+- Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab and the concept-art gallery (`tools/`);
+  `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and
+  loudness per half second (it is how the score is balanced without listening). `npm run concepts`
   renders the boss cards into `concept-art/`, `npm run build:standalone` builds a test version with playing bots
   (`?debug` then `__bot.run('gloom'|'thicket'|'marsh'|'bones'|'meadow')` for the forest guardians and `__bot3.run(bossIndex)` for the
   3D bosses; `tools/e2e.mjs` drives the real game in headless Chromium).

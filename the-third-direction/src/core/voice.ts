@@ -136,6 +136,10 @@ export class Voice {
   private active = 0;
   /** master volume of all voices (the game's mute switch lives on the main gain, this is for balance) */
   level = 1;
+  /** when set, a recipe is placed at this audio time instead of "now" (the trailer's score plans its voices ahead of time) */
+  clock: number | null = null;
+  /** how many sound sources may be alive at once; a score that plans ahead raises it */
+  maxActive = MAX_ACTIVE;
 
   constructor(
     readonly ctx: BaseAudioContext,
@@ -192,7 +196,11 @@ export class Voice {
   }
 
   private busy(): boolean {
-    return this.active >= MAX_ACTIVE;
+    return this.active >= this.maxActive;
+  }
+
+  private now(): number {
+    return this.clock ?? this.ctx.currentTime;
   }
 
   private track(node: AudioScheduledSourceNode) {
@@ -216,7 +224,7 @@ export class Voice {
   vocal(o: VocalOpts) {
     if (this.busy()) return;
     const ctx = this.ctx;
-    const t0 = ctx.currentTime + (o.delay ?? 0);
+    const t0 = this.now() + (o.delay ?? 0);
     const dur = o.dur;
     const t1 = t0 + dur;
     const vol = (o.gain ?? 0.5) * this.level;
@@ -354,7 +362,7 @@ export class Voice {
   whisper(o: WhisperOpts) {
     if (this.busy()) return;
     const ctx = this.ctx;
-    const t0 = ctx.currentTime + (o.delay ?? 0);
+    const t0 = this.now() + (o.delay ?? 0);
     const t1 = t0 + o.dur;
     const vol = (o.gain ?? 0.3) * this.level;
     const fk = o.formants ?? [
@@ -403,7 +411,7 @@ export class Voice {
   rattle(o: { n: number; gap: number; dur?: number; f: number; f2?: number; q?: number; gain?: number; delay?: number; pan?: number; wet?: number; type?: BiquadFilterType; spread?: number }) {
     if (this.busy()) return;
     const ctx = this.ctx;
-    const base = ctx.currentTime + (o.delay ?? 0);
+    const base = this.now() + (o.delay ?? 0);
     const bus = this.bus(o.wet ?? 0.25, o.pan ?? 0);
     const vol = (o.gain ?? 0.25) * this.level;
     for (let i = 0; i < o.n; i++) {
@@ -430,7 +438,7 @@ export class Voice {
   bell(freq: number, dur = 2.2, gain = 0.2, o: { delay?: number; pan?: number; wet?: number } = {}) {
     if (this.busy()) return;
     const ctx = this.ctx;
-    const t0 = ctx.currentTime + (o.delay ?? 0);
+    const t0 = this.now() + (o.delay ?? 0);
     const bus = this.bus(o.wet ?? 0.6, o.pan ?? 0);
     const parts: [number, number, number][] = [
       [1, 1, 1],
@@ -511,7 +519,7 @@ export class Voice {
     const { ph, total } = this.plan(text, rate);
     if (this.busy()) return total;
     const ctx = this.ctx;
-    const t0 = ctx.currentTime + delay;
+    const t0 = this.now() + delay;
     const t1 = t0 + total;
     const f0 = o.f0 ?? 62;
     const vol = (o.gain ?? 0.55) * this.level;
