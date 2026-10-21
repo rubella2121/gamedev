@@ -11,7 +11,8 @@
     "deploy": "npm run build && rundot deploy",
     "build:standalone": "tsc && vite build --config vite.standalone.config.ts",
     "gallery": "tsc && vite build --config vite.gallery.config.ts",
-    "concepts": "npm run gallery && node tools/render-concepts.mjs"
+    "concepts": "npm run gallery && node tools/render-concepts.mjs",
+    "build:artifact": "tsc && vite build --config vite.artifact.config.ts && node tools/make-artifact.mjs"
   },
   "dependencies": {
     "@series-inc/rundot-game-sdk": "5.28.1",

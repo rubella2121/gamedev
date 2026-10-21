@@ -6,3 +6,4 @@ dist/
 .rundot-docs/
 dist-standalone/
 dist-gallery/
+dist-artifact/

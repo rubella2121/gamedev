@@ -37,6 +37,9 @@ npm install
 npm run dev        # local dev server
 npm run build      # type-check + production build into ./dist
 ```
+`npm run build:artifact` makes one self-contained page (`dist-artifact/artifact.html`: RUN SDK stubbed, three.js and the game's CSS and
+script inline) for pasting into a claude.ai Artifact. It is a playtest copy: no leaderboard, and saved settings last only for the tab.
+
 Add `?debug` to the URL to expose `window.__tt` (the game object) for testing.
 
 ## Deploy to RUN.world
