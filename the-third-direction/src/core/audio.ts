@@ -86,6 +86,11 @@ export class Sfx {
     lp.connect(this.droneGain).connect(this.master);
   }
 
+  /** What an outside score needs: the audio clock, the master bus, a noise buffer and the monster voices. Null until the audio has started. */
+  host() {
+    return this.ctx ? { ctx: this.ctx, out: this.master as AudioNode, noise: this.noise, v: this.v } : null;
+  }
+
   /** The monster voices, safe to call before the audio has started. */
   get v(): Voice {
     return this.voice ?? NO_VOICE;
