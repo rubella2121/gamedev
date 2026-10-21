@@ -1235,6 +1235,33 @@ export class Act2 {
   }
 
   /** Debug / showcase: skip straight to the start of a boss's fight (and a phase of it). */
+  /** The trailer: the arena stands risen and the boss's entrance begins, `skip` seconds in, with no HUD and no name card. */
+  trailerBoss(boss: number, skip = 0) {
+    this.t = 9;
+    this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);
+    const a = this.arena;
+    this.slicer.flush();
+    this.cubeGroup.visible = false;
+    a.setRise(1);
+    a.player.visible = true;
+    a.showPlayerClaw(1);
+    a.tint(0);
+    this.camPos.copy(BOOM_POS);
+    this.camLook.copy(BOOM_LOOK);
+    this.bi = boss;
+    for (const b of this.bosses) {
+      b.cut = true;
+      b.hide();
+    }
+    this.startBoss(300, true);
+    this.boss.st = skip;
+  }
+
+  /** The trailer cuts away from whoever is on screen. */
+  trailerCutAway() {
+    for (const b of this.bosses) b.cut = true;
+  }
+
   skipToFight(phase = 0, boss = 0) {
     this.t = 9;
     this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);

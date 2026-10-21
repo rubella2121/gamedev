@@ -4,6 +4,8 @@ export interface HomeOptions {
   onPlay: () => void;
   /** jump straight to a boss's fight: 0 = X, 1 = The Collector, 2 = The Mash */
   onShowcase: (boss: number) => void;
+  /** play the cinematic intro again */
+  onIntro?: () => void;
   onSound: (on: boolean) => void;
   onDifficulty: (id: DiffId) => void;
   difficulty: DiffId;
@@ -48,6 +50,16 @@ export class UI {
   private capTimer = 0;
   private cardEl: HTMLElement;
   private fallsEl: HTMLElement;
+  private splashEl: HTMLElement;
+  private cineEl: HTMLElement;
+  private cardEl2: HTMLElement;
+  private endCardEl: HTMLElement;
+  private grain: HTMLCanvasElement;
+  private grainOn = false;
+  private cineTimer = 0;
+  /** the trailer is playing: no HUD, no hints, no story lines of the game itself */
+  private mute = false;
+  private lastBossTitle = { name: '', at: 0 };
   private cardTimer = 0;
   private nq: Narration[] = [];
   private nowN: Narration | null = null;
@@ -86,6 +98,17 @@ export class UI {
     this.speechEl = mk('speech');
     this.cardEl = mk('zonecard');
     this.fallsEl = mk('falls');
+    this.cineEl = mk('cine');
+    this.cineEl.innerHTML = '<div class="cvig"></div><div class="bar top"></div><div class="bar bot"></div>';
+    this.grain = document.createElement('canvas');
+    this.grain.className = 'cgrain';
+    this.grain.width = 72;
+    this.grain.height = 128;
+    this.cineEl.appendChild(this.grain);
+    this.cardEl2 = mk('tcard');
+    this.endCardEl = mk('tend');
+    this.endCardEl.innerHTML = '<div class="tt"><span>The Third</span><span>Direction</span></div><div class="tg">don\'t look up</div><div class="tf">RUN October Jam · Monster Mash</div>';
+    this.splashEl = mk('splash hide');
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
@@ -143,6 +166,7 @@ export class UI {
    * dropped. `thought` is the blob, `warm` is Mother or Father, `world` is the forest talking.
    */
   narrate(text: string, ms = 2800, tone: Tone = 'thought', low = false) {
+    if (this.mute) return;
     this.nq.push({ text, ms, tone, low, until: performance.now() + 7000 });
     this.pump();
   }
@@ -208,6 +232,97 @@ export class UI {
     this.fallsEl.classList.add('show');
   }
 
+  /* ------------------------------ the cinematic intro ------------------------------ */
+
+  /** The trailer takes over the screen: letterbox bars, vignette and film grain on; the HUD, hints and the game's own story lines off. */
+  cinematic(on: boolean) {
+    this.mute = on;
+    this.stage.classList.toggle('cinematic', on);
+    this.cineEl.classList.toggle('on', on);
+    if (on) {
+      this.hint(null);
+      this.narrateClear();
+      this.hearts(null);
+      this.light(null);
+      this.falls(null);
+      this.bossBar(null);
+      this.startGrain();
+    } else {
+      this.grainOn = false;
+      window.clearInterval(this.cineTimer);
+      this.endCard(false);
+      this.card(null);
+    }
+  }
+
+  /** film grain: a tiny noise canvas redrawn a few times a second, scaled up and blended over the picture */
+  private startGrain() {
+    if (this.grainOn) return;
+    this.grainOn = true;
+    const g = this.grain.getContext('2d');
+    if (!g) return;
+    const img = g.createImageData(this.grain.width, this.grain.height);
+    window.clearInterval(this.cineTimer);
+    this.cineTimer = window.setInterval(() => {
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = Math.random() * 255;
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+    }, 70);
+  }
+
+  /** a small card of text in the middle of the screen: a line above and a larger line below (null clears it) */
+  card(lines: { small: string; big: string } | null, holdMs = 2200) {
+    if (!lines) {
+      this.cardEl2.classList.remove('show');
+      return;
+    }
+    this.cardEl2.innerHTML = '';
+    const a = document.createElement('i');
+    a.textContent = lines.small;
+    const b = document.createElement('b');
+    b.textContent = lines.big;
+    this.cardEl2.append(a, b);
+    this.cardEl2.style.setProperty('--hold', `${holdMs}ms`);
+    this.cardEl2.classList.remove('show');
+    void this.cardEl2.offsetWidth;
+    this.cardEl2.classList.add('show');
+  }
+
+  /** the closing title card; `step` reveals it: 1 the title, 2 the tagline, 3 the small line, 0 nothing */
+  endCard(on: boolean, step = 3) {
+    this.endCardEl.classList.toggle('show', on);
+    this.endCardEl.dataset['step'] = String(on ? step : 0);
+  }
+
+  /** a white-hot burst of light behind the title (CSS only) */
+  flare() {
+    this.cineEl.classList.remove('flare');
+    void this.cineEl.offsetWidth;
+    this.cineEl.classList.add('flare');
+  }
+
+  /** the "tap to begin" screen before the trailer (browsers need a tap before they play sound) */
+  showSplash(onTap: () => void) {
+    const el = this.splashEl;
+    el.innerHTML = '<div class="sp"><div class="sg"></div><div class="st">The Third<br>Direction</div><div class="sb">tap to begin</div><div class="ss">best with sound on</div></div>';
+    el.classList.remove('hide');
+    const go = (e: Event) => {
+      e.stopPropagation();
+      el.removeEventListener('pointerdown', go);
+      el.classList.add('out');
+      window.setTimeout(() => {
+        el.classList.add('hide');
+        el.classList.remove('out');
+      }, 450);
+      onTap();
+    };
+    el.addEventListener('pointerdown', go);
+  }
+
   /** A place name with one line under it, when you first step into somewhere new. */
   zoneCard(name: string, sub: string, holdMs = 3600) {
     window.clearTimeout(this.cardTimer);
@@ -225,6 +340,7 @@ export class UI {
   }
 
   hint(text: string | null) {
+    if (this.mute && text !== null) return;
     if (text === null) {
       this.hintEl.classList.remove('show');
     } else {
@@ -305,11 +421,18 @@ export class UI {
 
   /** The name card that slams in when a boss wakes up. */
   bossTitle(name: string, sub: string, colour = '#ff6a6a') {
+    const now = performance.now();
+    if (this.lastBossTitle.name === name && now - this.lastBossTitle.at < 1600) return;
+    this.lastBossTitle = { name, at: now };
     this.bossTitleEl.innerHTML = `<div class="bt">${name}</div><div class="bs">${sub}</div>`;
     this.bossTitleEl.style.setProperty('--tc', colour);
     this.bossTitleEl.classList.remove('show');
     void this.bossTitleEl.offsetWidth;
     this.bossTitleEl.classList.add('show');
+  }
+
+  hideBossTitle() {
+    this.bossTitleEl.classList.remove('show');
   }
 
   phase(text: string | null) {
@@ -404,7 +527,14 @@ export class UI {
       sound.textContent = on ? 'sound on' : 'sound off';
       o.onSound(on);
     });
-    foot.append(best, sound);
+    if (o.onIntro) {
+      const intro = mk('chip', '▶ intro', 'button');
+      intro.addEventListener('click', () => {
+        el.classList.add('hide');
+        o.onIntro!();
+      });
+      foot.append(best, intro, sound);
+    } else foot.append(best, sound);
 
     home.append(eyebrow, logo, tag, spacer, play, diff, row, foot);
     el.append(home);

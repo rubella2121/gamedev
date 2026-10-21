@@ -4,6 +4,8 @@ A baby blob loses its family, crosses a forest of strange monsters, and discover
 Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design lives in [`GAME_SCRIPT.md`](./GAME_SCRIPT.md).
 
 ## Status: the whole game is playable
+First visit: a **"tap to begin"** splash and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
+3D arena, with a score and sound effects made in code; **Skip** is always on screen, and the home page has a **▶ intro** chip to watch it again).
 Home page (Play, Gentle / Normal / Nightmare, How to play, Quick showcase, sound, best time) -> opening -> the **open forest**
 (walk in any direction; a crossroads and five zones you can do in any order) -> in each zone you reach the **heart**, which
 wakes a **guardian** in its own sealed clearing (Gloommother, Thornback King, Toll Queen, Bone Wyrm, Mimic Queen; each has its
@@ -73,6 +75,10 @@ rundot game set-public # only when ready: submits the game for review
   lit with a toon ramp, and moved with tube chains (necks, tails, bony arms). They are built a few milliseconds at a time while you play
   the forest. How a boss is made and how it plugs into the fight: [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md).
   No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`, `src/core/voice.ts`).
+- The cinematic intro (`src/cinematic/`): `cues.ts` is the shot list (one table of times that both the picture and the music read),
+  `trailer.ts` directs the real game scenes (it borrows the forest and the 3D arena through the `trailer*` methods on them), and the
+  score is scheduled on the WebAudio clock so it stays in step with the picture. The game's own sounds are muted while it plays.
+  Test builds (`?debug`) skip the first-visit splash; add `&intro` to see it.
 - Dev tools (they never ship): `npm run gallery` builds the model lab and the concept-art gallery (`tools/`), `npm run concepts`
   renders the boss cards into `concept-art/`, `npm run build:standalone` builds a test version with playing bots
   (`?debug` then `__bot.run('gloom'|'thicket'|'marsh'|'bones'|'meadow')` for the forest guardians and `__bot3.run(bossIndex)` for the

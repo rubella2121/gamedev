@@ -89,6 +89,8 @@ export class Forest implements Hub {
   novas: Nova[] = [];
   /** where the guardian's body is, so the camera can keep it and the player both in view */
   camFocus: { x: number; y: number } | null = null;
+  /** the trailer's own framing of a guardian's clearing: the camera looks at this point instead of at the player */
+  private cineFocus: { x: number; y: number } | null = null;
   private fightZone: Zone | null = null;
   private trans: { kind: 'in' | 'out'; t: number; zone: Zone; won: boolean; done: boolean } | null = null;
   private returnPos = { x: 0, y: 0 };
@@ -99,6 +101,8 @@ export class Forest implements Hub {
   private ghosts: { x: number; y: number; t: number }[] = [];
   private aim = { x: 0, y: -1 };
   previewMode = false;
+  /** the trailer is filming: no zone rings or compass arrow over the picture */
+  cinema = false;
   onBoom: (() => void) | null = null;
   onSection: ((name: string) => void) | null = null;
   onTeaserFlash: (() => void) | null = null;
@@ -436,6 +440,8 @@ export class Forest implements Hub {
     this.ghosts = [];
     this.slowT = 0;
     this.freezeT = 0;
+    this.cinema = false;
+    this.cineFocus = null;
     this.ui.bossBar(null);
     this.ui.light(null);
     this.land.decals.length = 0;
@@ -496,6 +502,118 @@ export class Forest implements Hub {
     pl.hearts = pl.maxHearts;
     this.ui.hearts(pl.hearts, pl.maxHearts);
     this.onSection?.('run');
+  }
+
+  /* ------------------------------------------------------------------------------------------ */
+  /* the cinematic intro drives the real forest (src/cinematic/trailer.ts)                      */
+  /* ------------------------------------------------------------------------------------------ */
+
+  /** the opening scene starts, `at` seconds in (it plays on by itself) */
+  trailerOpening(at: number) {
+    this.start();
+    this.cinema = true;
+    this.ui.skip(false);
+    this.ot = at;
+    this.previewMode = false;
+  }
+
+  /** jump the opening forward (or back) to a moment in it */
+  trailerSeek(at: number) {
+    if (this.mode === 'opening') this.ot = at;
+  }
+
+  /** the forest as a film set: nobody plays, the camera is an invisible, untouchable player */
+  trailerPlay() {
+    if (this.mode === 'opening') this.skipOpening();
+    this.arena = null;
+    this.fightZone = null;
+    this.mode = 'play';
+    this.trailerSetUp();
+  }
+
+  private trailerSetUp() {
+    const pl = this.player;
+    pl.hide = true;
+    pl.invuln = 1e9;
+    pl.dead = 0;
+    this.input.setMoveEnabled(false);
+    this.input.setAction(null);
+    this.ui.hearts(null);
+    this.ui.hint(null);
+  }
+
+  /** where the camera looks (the invisible player stands there); `cut` snaps the camera, otherwise it glides */
+  trailerAt(x: number, y: number, cut = false) {
+    const pl = this.player;
+    pl.x = x;
+    pl.y = y;
+    pl.vx = pl.vy = 0;
+    pl.invuln = 1e9;
+    this.cineFocus = null;
+    if (cut) this.snapCamera();
+  }
+
+  /** an X slam, as in the game: a shadow grows for `tele` seconds, then the foot lands */
+  trailerSlam(x: number, y: number, R: number, tele: number) {
+    this.spawnSlam(x, y, R, tele);
+  }
+
+  /** straight into a guardian's arena, no fade: its entrance plays */
+  trailerArena(id: ZoneId, skip = 0) {
+    const prev = this.fightZone;
+    if (prev) prev.reset();
+    const z = this.zones.find((q) => q.id === id)!;
+    const a = arenaDef(id);
+    const pl = this.player;
+    this.mode = 'play';
+    this.arena = a;
+    this.fightZone = z;
+    pl.x = a.entry.x;
+    pl.y = a.entry.y;
+    pl.vx = pl.vy = 0;
+    pl.hearts = pl.maxHearts;
+    pl.light = 0;
+    this.slams = [];
+    this.lances = [];
+    this.novas = [];
+    this.parts = [];
+    this.cp = { x: a.entry.x, y: a.entry.y };
+    this.falls.reset();
+    this.snapCamera();
+    this.trailerSetUp();
+    this.cineFocus = { x: a.x, y: a.boss.y + 14 };
+    this.camX = clamp(a.x - W / 2, 0, WORLD_W - W);
+    this.camY = clamp(a.boss.y + 14 - 0.41 * H, 0, WORLD_H - H);
+    z.onArrive?.();
+    // let the guardian rise before the camera sees it: the cut is only a second and a half long
+    for (let s = 0; s < skip; s += 1 / 30) this.update(1 / 30);
+  }
+
+  /** the Edge: the forest ends, the stars start to turn */
+  trailerEdge() {
+    const prev = this.fightZone;
+    if (prev) prev.reset();
+    this.arena = null;
+    this.fightZone = null;
+    this.warp('edge');
+    this.mode = 'play';
+    this.trailerSetUp();
+    this.player.y = CLIFF_Y + 60;
+    this.cineFocus = null;
+    this.beginEdge();
+    this.snapCamera();
+  }
+
+  /** drive the Edge by hand: `et` is how far along the stars are, `look` is 0..1 of looking up (1 cracks the screen) */
+  trailerEdgeDrive(et: number, look: number) {
+    if (this.mode !== 'edge') return;
+    this.et = et;
+    this.lookHold = look;
+  }
+
+  /** shorten the crack so the boom lands on the beat */
+  trailerCrack(ct: number) {
+    if (this.mode === 'crack') this.ct = Math.max(this.ct, ct);
   }
 
   /** Debug: go straight into a guardian's arena. */
@@ -972,6 +1090,10 @@ export class Forest implements Hub {
       tx = clamp((pl.x * 0.4 + f.x * 0.6) - W / 2, a.x - a.rx - 6, a.x + a.rx + 6 - W);
       ty = clamp((pl.y * 0.55 + f.y * 0.45) - 0.55 * H, a.y - a.ry + 38, a.y + a.ry + 10 - H);
     }
+    if (this.cineFocus) {
+      tx = clamp(this.cineFocus.x - W / 2, 0, WORLD_W - W);
+      ty = clamp(this.cineFocus.y - 0.41 * H, 0, WORLD_H - H);
+    }
     const kc = 1 - Math.exp(-5 * dt);
     this.camX += (tx - this.camX) * kc;
     this.camY += (ty - this.camY) * kc;
@@ -989,7 +1111,7 @@ export class Forest implements Hub {
     }
 
     // --- the story: the crossroads, and a name card the first time you step into each zone
-    if (!this.arena && this.mode === 'play') {
+    if (!this.arena && !this.cinema && this.mode === 'play') {
       if (Math.hypot((pl.x - HUB.x) / HUB.rx, (pl.y - HUB.y) / HUB.ry) < 0.8) this.fire('hub', true, () => say(this.ui, STORY.crossroads));
       for (const z of ZONES) {
         if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 0.8) {
@@ -1518,7 +1640,7 @@ export class Forest implements Hub {
       if (u > 0.6) this.drawDark((u - 0.6) * 0.5);
     }
     if (opening && ot < 1.6) this.drawDark(1 - ot / 1.6);
-    if ((this.mode === 'play' || this.mode === 'consume') && !this.arena) {
+    if ((this.mode === 'play' || this.mode === 'consume') && !this.arena && !this.cinema) {
       this.drawHud();
       if (this.mode === 'play') this.drawCompass();
     }

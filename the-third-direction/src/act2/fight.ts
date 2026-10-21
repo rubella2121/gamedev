@@ -156,6 +156,9 @@ export abstract class Boss3D {
     return Promise.resolve();
   }
 
+  /** the trailer cut away from this boss: its timers (a name card, a line it was going to say) must not fire into the next shot */
+  cut = false;
+
   /** the root object the ending can flatten and fade */
   flattenRoot(): THREE.Object3D | null {
     return null;
@@ -163,6 +166,7 @@ export abstract class Boss3D {
 
   /** the fight begins: the model appears and the entrance plays */
   begin(titleDelay = 900, quiet = false) {
+    this.cut = false;
     this.rescale();
     this.state = 'intro';
     this.st = 0;
@@ -173,7 +177,7 @@ export abstract class Boss3D {
     this.bar();
     this.onBegin();
     // starting over after too many falls: the entrance plays again, but without the name card
-    if (!quiet) window.setTimeout(() => this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
+    if (!quiet) window.setTimeout(() => !this.cut && this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
   }
 
   protected bar() {

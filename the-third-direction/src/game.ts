@@ -6,10 +6,15 @@ import { Sfx } from './core/audio';
 import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { onLifecycle, shareRun, storageInit, submitClearTime, track } from './sdk';
+import { onLifecycle, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
+import { Trailer } from './cinematic/trailer';
+import { makeScore } from './cinematic/scoreHook';
 import { UI } from './ui';
 
-type State = 'menu' | 'act1' | 'boom' | 'arena' | 'ending' | 'end';
+type State = 'splash' | 'trailer' | 'menu' | 'act1' | 'boom' | 'arena' | 'ending' | 'end';
+
+/** set once the intro has been seen (or skipped), so it only plays by itself the first time */
+const INTRO_KEY = 'tt.intro';
 
 export class Game {
   readonly ui: UI;
@@ -29,6 +34,7 @@ export class Game {
   private flash3D = 0;
   private res = 1;
   private showcaseRun = false;
+  private trailer!: Trailer;
   /** (tests) run the simulation this many times per frame */
   debugSpeed = 1;
   /** (tests) draw only every Nth frame, so a bot can run the game fast on a computer with no GPU */
@@ -68,14 +74,26 @@ export class Game {
       this.act2.prepareTeaser();
       this.flash3D = 0.2;
     };
+    this.trailer = new Trailer({
+      ui: this.ui,
+      audio: this.audio,
+      act1: this.act1,
+      act2: this.act2,
+      score: () => makeScore(this.audio),
+      zoom2d: (z) => this.setZoom(z),
+      onDone: () => this.finishTrailer(),
+    });
     this.act1.start();
     this.act1.previewMode = true;
     this.ui.skip(false);
-    this.showHome();
-    // saved settings load in the background; the home page refreshes when they arrive
+    // saved settings load first; the first visit gets the cinematic intro (after a tap, because sound needs one), later visits the home page
     void storageInit().then(() => {
       loadDifficulty();
-      if (this.state === 'menu') this.showHome();
+      if (this.state !== 'menu') return;
+      // test builds (?debug) go straight to the home page; add &intro to see the first-visit flow
+      const q = new URLSearchParams(location.search);
+      if (storageGet(INTRO_KEY) || (q.has('debug') && !q.has('intro'))) this.showHome();
+      else this.showSplash();
     });
 
     onLifecycle(
@@ -86,9 +104,42 @@ export class Game {
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  /** "tap to begin": the first visit. The tap also unlocks the sound for the trailer. */
+  private showSplash() {
+    this.state = 'splash';
+    this.ui.showSplash(() => this.playTrailer());
+  }
+
+  /** the cinematic intro (from the splash, or from the home page) */
+  private playTrailer() {
+    this.audio.start();
+    track('intro');
+    this.state = 'trailer';
+    this.act1.previewMode = false;
+    this.trailer.begin();
+  }
+
+  private finishTrailer() {
+    storageSet(INTRO_KEY, '1');
+    this.setZoom(1);
+    this.act1.start();
+    this.act1.previewMode = true;
+    this.ui.skip(false);
+    this.ui.fade(0, 0);
+    this.state = 'menu';
+    this.showHome();
+  }
+
+  private setZoom(z: number) {
+    if (this.cam2d.zoom === z) return;
+    this.cam2d.zoom = z;
+    this.cam2d.updateProjectionMatrix();
+  }
+
   private showHome() {
     this.ui.showStart({
       onPlay: () => this.begin(),
+      onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
@@ -109,6 +160,8 @@ export class Game {
 
   private setPaused(p: boolean) {
     this.paused = p;
+    // a trailer that was interrupted does not come back: it would be out of step with its music
+    if (p && this.state === 'trailer') this.trailer.skip();
     if (this.audio.ctx) void (p ? this.audio.ctx.suspend() : this.audio.ctx.resume());
     this.last = 0;
   }
@@ -223,18 +276,33 @@ export class Game {
         if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
         if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
       } else if (this.state === 'act1') this.act1.update(dt);
+      else if (this.state === 'trailer') this.trailer.update(dt);
     }
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest
-    if (this.state === 'act1' || this.state === 'menu') {
+    if (this.state === 'act1' || this.state === 'menu' || this.state === 'trailer' || this.state === 'splash') {
       // spend spare time only: a slow frame means the phone is busy, so the monsters wait
-      const spare = this.state === 'menu' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
+      const spare = this.state === 'menu' || this.state === 'splash' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
       if (spare > 0) this.act2.pump(spare);
     }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.setRes(2);
       this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
-    } else if (this.state === 'act1' || this.state === 'menu') {
+    } else if (this.state === 'trailer') {
+      const layer = this.trailer.layer;
+      if (layer === '2d') {
+        this.setRes(1);
+        this.act1.render();
+        this.trailer.post2d(this.act1.p);
+        this.tex2d.needsUpdate = true;
+        this.renderer.render(this.scene2d, this.cam2d);
+      } else if (layer === '3d') {
+        this.setRes(2);
+        this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
+      } else {
+        this.renderer.clear();
+      }
+    } else if (this.state === 'act1' || this.state === 'menu' || this.state === 'splash') {
       this.setRes(1);
       this.act1.render();
       this.tex2d.needsUpdate = true;

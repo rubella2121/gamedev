@@ -10,6 +10,9 @@ export class Sfx {
   /** the monster voices (null until the first tap starts the audio) */
   voice: Voice | null = null;
   private master!: GainNode;
+  /** the trailer's score plays on a bus of its own, so the game's sounds can be muted without muting it */
+  private scoreBus!: GainNode;
+  private scoreVoice: Voice | null = null;
   private noise!: AudioBuffer;
   private windGain!: GainNode;
   private droneGain!: GainNode;
@@ -45,6 +48,9 @@ export class Sfx {
     this.master.gain.value = this.masterLevel;
     this.master.connect(comp);
     comp.connect(ctx.destination);
+    this.scoreBus = ctx.createGain();
+    this.scoreBus.gain.value = 0.9;
+    this.scoreBus.connect(comp);
 
     this.noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -88,7 +94,14 @@ export class Sfx {
 
   /** What an outside score needs: the audio clock, the master bus, a noise buffer and the monster voices. Null until the audio has started. */
   host() {
-    return this.ctx ? { ctx: this.ctx, out: this.master as AudioNode, noise: this.noise, v: this.v } : null;
+    if (!this.ctx) return null;
+    this.scoreVoice ??= new Voice(this.ctx, this.scoreBus, this.noise);
+    return { ctx: this.ctx, out: this.scoreBus as AudioNode, noise: this.noise, v: this.scoreVoice };
+  }
+
+  /** the master volume the player chose (0 when sound is off) */
+  get level() {
+    return this.masterLevel;
   }
 
   /** The monster voices, safe to call before the audio has started. */

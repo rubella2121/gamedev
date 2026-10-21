@@ -269,6 +269,7 @@ export class CollectorBoss extends Boss3D {
   /* ---------------------------------------------------------------- */
 
   private say(line: string, ms = 2600) {
+    if (this.cut) return;
     const { env } = this;
     env.audio.v.collectorSpeak(line);
     env.ui.caption(line, ms, true);
