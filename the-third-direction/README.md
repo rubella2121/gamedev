@@ -6,7 +6,7 @@ Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design
 ## Status: the whole game is playable
 First visit: a **"tap to begin"** splash and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
 3D arena, with a score and sound effects made in code; **Skip** is always on screen, and the home page has a **▶ intro** chip to watch it again).
-Home page (Play, Gentle / Normal / Nightmare, How to play, Quick showcase, sound, best time) -> opening -> the **open forest**
+Home page (Play, Gentle / Normal / Nightmare cards with their hearts and best times, Trailer, Fight a boss, How to play, a sound switch) -> opening -> the **open forest**
 (walk in any direction; a crossroads and five zones you can do in any order) -> in each zone you reach the **heart**, which
 wakes a **guardian** in its own sealed clearing (Gloommother, Thornback King, Toll Queen, Bone Wyrm, Mimic Queen; each has its
 own attacks, phases and weak point) -> the seal on the road opens -> the Edge -> the boom -> a big floating 3D arena with a
@@ -75,6 +75,10 @@ rundot game set-public # only when ready: submits the game for review
   lit with a toon ramp, and moved with tube chains (necks, tails, bony arms). They are built a few milliseconds at a time while you play
   the forest. How a boss is made and how it plugs into the fight: [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md).
   No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`, `src/core/voice.ts`).
+- The splash and the home page (`src/ui.ts`): the title is a pixel logo built from little cubes with a red depth that sways (`src/logo.ts`,
+  drawn at the screen's own resolution so the cubes stay crisp), over a living background of fireflies and red eyes opening in the dark
+  (`src/ambient.ts`, on the forest's own 216 x 384 grid). The how-to and the boss picker are sheets over the home page, and the end card
+  uses the same pieces. The animation loop stops when the page is hidden.
 - The cinematic intro (`src/cinematic/`): `cues.ts` is the shot list (one table of times that both the picture and the music read),
   `trailer.ts` directs the real game scenes (it borrows the forest and the 3D arena through the `trailer*` methods on them), and
   `score.ts` is the music: A minor like the in-game lullaby, planned note by note on the WebAudio clock (a second of the future at a

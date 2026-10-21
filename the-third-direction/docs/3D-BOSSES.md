@@ -103,6 +103,6 @@ QS='?debug' node tools/e2e.mjs dist-standalone steps.json outDir   # play the ga
 ```
 
 In a test (`?debug`): `__tt.debugFight(phase, bossIndex)` jumps into a boss's fight (0 = X, 1 = Collector, 2 = Mash; click the
-`.btn.play` button first so the home page goes away); `__bot3.run(bossIndex, phase, speed)` plays it with the bot
+`.play` button first so the home page goes away); `__bot3.run(bossIndex, phase, speed)` plays it with the bot
 (`speed` 3-4 runs fast, `__bot3.report()` says what happened). The test machine has no GPU, so rendering is slow: the bot
 draws only every 6th frame. Read the screenshots you take; a fight that "works" but looks wrong is not done.

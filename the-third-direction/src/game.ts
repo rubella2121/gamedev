@@ -147,6 +147,7 @@ export class Game {
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
+      sound: this.audio.level > 0,
       best: () => {
         const b = bestTime(D.id);
         return b === null ? null : `${D.label.toLowerCase()} ${fmtTime(b)}`;
