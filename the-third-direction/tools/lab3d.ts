@@ -11,7 +11,8 @@ const BG = 0x120a22;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(BG);
 scene.fog = new THREE.Fog(BG, 48, 160);
-scene.add(new THREE.AmbientLight(0x8a78c8, 1.25));
+const ambient = new THREE.AmbientLight(0x8a78c8, 1.25);
+scene.add(ambient);
 const key = new THREE.DirectionalLight(0x9fe8ff, 1.9);
 key.position.set(-6, 14, 8);
 scene.add(key);
@@ -21,7 +22,8 @@ scene.add(back);
 const red = new THREE.PointLight(0xff2a40, 0, 30, 1.4);
 red.position.set(0, 14, -10);
 scene.add(red);
-const floor = new THREE.Mesh(new THREE.CircleGeometry(18.3, 48), new THREE.MeshLambertMaterial({ color: 0x2e2252 }));
+const floorMat = new THREE.MeshLambertMaterial({ color: 0x2e2252 });
+const floor = new THREE.Mesh(new THREE.CircleGeometry(18.3, 48), floorMat);
 floor.rotation.x = -Math.PI / 2;
 floor.position.y = -0.4;
 scene.add(floor);
@@ -72,6 +74,29 @@ const lab = {
   },
   light(v: number) {
     red.intensity = v;
+  },
+  /** the arena's own lighting ('arena', the default) or a night lit by the creature itself ('fire') */
+  env(name: string) {
+    const fire = name === 'fire';
+    const bg = fire ? 0x07060a : BG;
+    scene.background = new THREE.Color(bg);
+    (scene.fog as THREE.Fog).color.set(bg);
+    (scene.fog as THREE.Fog).near = fire ? 30 : 48;
+    (scene.fog as THREE.Fog).far = fire ? 90 : 160;
+    renderer.setClearColor(fire ? 0x07060a : 0x05060c, 1);
+    ambient.color.set(fire ? 0x262030 : 0x8a78c8);
+    ambient.intensity = fire ? 0.9 : 1.25;
+    key.color.set(fire ? 0x8fb8ff : 0x9fe8ff);
+    key.intensity = fire ? 1.35 : 1.9;
+    if (fire) key.position.set(-7, 9, -9);
+    else key.position.set(-6, 14, 8);
+    back.color.set(fire ? 0x7a5aa0 : 0xb060ff);
+    back.intensity = fire ? 0.55 : 1.6;
+    if (fire) back.position.set(9, 5, -7);
+    else back.position.set(6, 10, -14);
+    floorMat.color.set(fire ? 0x1a1620 : 0x2e2252);
+    // a night lit by the creature has no floor of its own: the ground is whatever its light and its effects paint
+    floor.visible = !fire;
   },
   pose(name: string, v?: number) {
     if (current && current.pose) current.pose(name, v);

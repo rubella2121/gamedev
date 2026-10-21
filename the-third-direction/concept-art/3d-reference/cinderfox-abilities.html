@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>The Cinderfox: five tails, five tricks</title>
+<style>
+  html,body{margin:0;background:#07070f;}
+  #sheet{width:1800px;height:1600px;position:relative;overflow:hidden;background:radial-gradient(1000px 800px at 50% 30%,#2a1620 0%,#150d1a 55%,#07070f 100%);font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace;color:#e8e2d0}
+  .abs{position:absolute}
+  .h{font-weight:700;letter-spacing:.2em;color:#ff9a3a}
+  .cap{color:#9a93b8;font-size:13px;letter-spacing:.14em;text-transform:uppercase}
+  .panel{position:absolute;border:2px solid #3b2e5c;border-radius:14px;background:rgba(10,7,22,.55);overflow:hidden}
+  .plate{position:absolute;mix-blend-mode:lighten;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%),linear-gradient(to bottom,transparent 0,#000 6%,#000 88%,transparent 100%);-webkit-mask-composite:source-in;mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%),linear-gradient(to bottom,transparent 0,#000 6%,#000 88%,transparent 100%);mask-composite:intersect}
+  .badge{position:absolute;left:22px;top:324px;width:46px;height:46px;border-radius:50%;border:3px solid;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:24px;background:rgba(14,8,18,.85)}
+  .title{position:absolute;left:84px;top:320px;font-size:27px;font-weight:700;letter-spacing:.07em}
+  .sub{position:absolute;left:85px;top:354px;font-size:13px;color:#9a93b8;letter-spacing:.04em}
+  .rows{position:absolute;left:22px;right:22px;top:388px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;gap:16px}
+  .row .l{flex:none;width:92px;font-size:12px;font-weight:700;letter-spacing:.12em;padding-top:3px}
+  .row .t{font-size:14px;line-height:1.46;color:#d8d2ee}
+  .eng{position:absolute;left:22px;right:22px;bottom:12px;font-size:12px;color:#8a83a8;letter-spacing:.05em;border-top:1px dashed #3b2e5c;padding-top:9px}
+  .eng b{color:#b3abd0}
+  .rule{display:flex;gap:14px;margin-bottom:10px;font-size:14px;line-height:1.45;color:#d8d2ee}
+  .rule i{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #ff9a3a;color:#ffb05a;font-style:normal;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;background:rgba(40,16,12,.7);margin-top:1px}
+  .rule b{color:#ff9a3a}
+</style></head><body><div id="sheet">
+
+<div class="abs h" style="left:40px;top:26px;font-size:40px">THE CINDERFOX</div>
+<div class="abs h" style="left:42px;top:80px;font-size:19px;color:#ffc58a;letter-spacing:.28em">FIVE TAILS · FIVE TRICKS</div>
+<div class="abs cap" style="left:42px;top:112px;font-size:12px">ability reference · v1 · every number is a first guess to tune</div>
+
+<!-- the deck -->
+<div class="abs cap" style="left:930px;top:30px;font-size:12px">the deck · all five before any repeats · never the same twice in a row</div>
+<div id="deck"></div>
+
+<div id="cards"></div>
+
+<!-- the hunt -->
+<div class="panel" style="left:1200px;top:850px;width:560px;height:700px"></div>
+<div class="abs h" style="left:1224px;top:870px;font-size:24px">THE HUNT</div>
+<div class="abs cap" style="left:1226px;top:906px;font-size:12px">the rules that make it fair</div>
+<svg class="abs" style="left:1222px;top:930px" width="520" height="150" viewBox="0 0 520 150" id="loop"></svg>
+<div class="abs" style="left:1224px;top:1092px;width:516px" id="rules"></div>
+<div class="abs" style="left:1224px;top:1516px;width:516px;border-top:1px dashed #3b2e5c;padding-top:9px;font-size:11.5px;color:#9a93b8;white-space:nowrap"><b style="color:#ff9a3a">build order</b> 1 follows+glows · 2 charge, toll · 3 veil, sweep · 4 wisp</div>
+
+<div class="abs cap" style="left:42px;top:1566px;font-size:12px;letter-spacing:.1em">concept only: nothing in this sheet is in the game yet · pictures are rendered in the lab (src/act2/models/cinderfoxFx.ts)</div>
+
+</div>
+<script>
+const CARDS=[
+ {n:1,t:'TOLL OF FLAME',s:'lavender tail · the Toll Queen\'s bell',c:'#d9b8ff',img:'fx-toll',
+  rows:[['TELL','Rears up, head back, mouth open. The lavender tail blazes and a bell tolls once. 1.2 s.'],
+        ['IT DOES','Three rings of fire spread out, a bell stroke apart. Each ring has a gap, and each gap sits 36° further round.'],
+        ['YOUR ANSWER','Step through the gaps one after another. A pillar breaks a ring: stand behind it.'],
+        ['DRIVE IT OFF','Pass all three gaps untouched: it chokes on its own smoke and backs away.']],
+  eng:'<b>engine:</b> ring Dangers, expanding (a ring with a gap is new)'},
+ {n:2,t:'SMOKE VEIL',s:'cyan tail · the Gloommother\'s fog',c:'#6ff0ff',img:'fx-veil',
+  rows:[['TELL','Head low, it breathes in: the ribs flare, then go dark. The cyan tail blazes.'],
+        ['IT DOES','A black cloud, 14 u wide, for 6 s. You see a few steps; its eyes and tails still glow. Halfway it pounces out of it.'],
+        ['YOUR ANSWER','Leave the cloud, or stand in lantern light (it will not enter). Watch the eyes: a blink is the pounce.'],
+        ['DRIVE IT OFF','Sidestep the pounce: it flies through, and the smoke vents away.']],
+  eng:'<b>engine:</b> fog and camera, plus a lane Danger for the pounce'},
+ {n:3,t:'CINDER CHARGE',s:'amber tail · the Thornback King\'s rush',c:'#ff9a3a',img:'fx-charge',
+  rows:[['TELL','Digs in, body low. The amber tail blazes and a lane of light draws itself towards you. 0.9 s.'],
+        ['IT DOES','Runs the lane at three times your speed and leaves a trail of fire that burns for 4 s.'],
+        ['YOUR ANSWER','Step out of the lane when the ribs flare. The fire splits the room: mind which side you are on.'],
+        ['DRIVE IT OFF','Make it hit a wall or a pillar: stunned for 3 s, then it trots away.']],
+  eng:'<b>engine:</b> a lane Danger for the run, disc Dangers for the fire'},
+ {n:4,t:'WILL-O\'-THE-WISP',s:'pink tail · the Mimic Queen\'s lure',c:'#ff8aa8',img:'fx-lure',
+  rows:[['TELL','The pink tail rises and beckons. Three pink wisps lift off on threads and hum your parent\'s lullaby.'],
+        ['IT DOES','The wisps drift ahead, towards the fire, and a faint pull tugs you after them. Touch one and it bursts.'],
+        ['YOUR ANSWER','Do not follow the song: your parent glows gold, never pink. Pop the wisps from afar with a strike or a lance.'],
+        ['DRIVE IT OFF','Pop all three before they reach you: it sulks for 5 s and drops a coal of light.']],
+  eng:'<b>engine:</b> Weak targets, env.pull() for the tug, a disc burst'},
+ {n:5,t:'ASH SWEEP',s:'ivory tail · the Bone Wyrm\'s scythe',c:'#e6d9b8',img:'fx-sweep',
+  rows:[['TELL','Turns side-on, drops a shoulder and winds the ivory tail back like a scythe. 0.7 s, a dry crackle.'],
+        ['IT DOES','The tail sweeps a 150° fan, 8 u deep, in 0.4 s: damage and knockback. Bone needles fly off the far edge; ash slows you.'],
+        ['YOUR ANSWER','Stay out of the fan, or dash through it: the dash dodges. Sidestep the slow needles.'],
+        ['DRIVE IT OFF','Dash through at the last instant: the tail snaps and it limps, slower, for 15 s.']],
+  eng:'<b>engine:</b> a cone Danger for the fan, lane Dangers for needles'},
+];
+const POS=[[40,130],[620,130],[1200,130],[40,850],[620,850]];
+let h='';
+CARDS.forEach((k,i)=>{
+  const [x,y]=POS[i];
+  const rows='<div class="rows">'+k.rows.map((r)=>`<div class="row"><div class="l" style="color:${k.c}">${r[0]}</div><div class="t">${r[1]}</div></div>`).join('')+'</div>';
+  h+=`<div class="panel" style="left:${x}px;top:${y}px;width:560px;height:700px">
+    <div class="abs" style="left:0;top:0;width:560px;height:312px;overflow:hidden"><img class="plate" src="cinderfox/${k.img}.jpg" style="left:0;top:-6px;width:560px"></div>
+    <div class="badge" style="border-color:${k.c};color:${k.c};box-shadow:0 0 16px ${k.c}55">${k.n}</div>
+    <div class="title" style="color:${k.c}">${k.t}</div><div class="sub">${k.s}</div>
+    ${rows}<div class="eng">${k.eng}</div></div>`;
+});
+document.getElementById('cards').innerHTML=h;
+// the deck strip
+let d='';
+CARDS.forEach((k,i)=>{
+  const x=930+i*166;
+  d+=`<div class="abs" style="left:${x}px;top:56px;width:150px;text-align:center"><svg width="34" height="40" viewBox="0 0 44 52"><defs><linearGradient id="d${i}" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="${k.c}"/><stop offset="1" stop-color="${k.c}" stop-opacity=".1"/></linearGradient></defs><path d="M22 2 C24 14 38 20 36 34 C35 44 28 50 22 50 C14 50 7 44 8 34 C9 24 20 16 22 2 Z" fill="url(#d${i})"/><path d="M22 20 C24 28 30 32 29 40 C28 46 25 48 22 48 C18 48 15 45 15 40 C15 32 21 28 22 20 Z" fill="#fff" opacity=".55"/></svg><div style="font-size:12px;letter-spacing:.06em;color:${k.c};margin-top:2px">${k.n} · ${k.t.replace('WILL-O\'-THE-WISP','WISP')}</div></div>`;
+});
+document.getElementById('deck').innerHTML=d;
+// the loop: stalk, tell, trick, cool, and the way out
+const C='#ff9a3a', G='#6ff0ff';
+const chips=[['STALK','14–20 u back'],['TELL','blaze, 0.9 s+'],['TRICK','the thing itself'],['COOL','pants, ribs dim']];
+let l='<defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="'+C+'"/></marker><marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="'+G+'"/></marker></defs>';
+chips.forEach((c,i)=>{
+  const x=2+i*130;
+  l+=`<rect x="${x}" y="36" width="116" height="56" rx="9" fill="rgba(40,16,12,.7)" stroke="${C}" stroke-width="2"/><text x="${x+58}" y="60" text-anchor="middle" font-size="15" font-weight="700" fill="#ffb05a" letter-spacing="1">${c[0]}</text><text x="${x+58}" y="79" text-anchor="middle" font-size="10.5" fill="#b3abd0">${c[1]}</text>`;
+  if(i<3) l+=`<path d="M${x+118} 64 L${x+129} 64" stroke="${C}" stroke-width="2" marker-end="url(#ar)"/>`;
+});
+l+=`<path d="M450 34 C 450 -4, 60 -4, 60 32" fill="none" stroke="${C}" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar)"/>`;
+l+=`<rect x="226" y="116" width="188" height="34" rx="9" fill="rgba(20,36,40,.7)" stroke="${G}" stroke-width="2"/><text x="320" y="138" text-anchor="middle" font-size="13" font-weight="700" fill="#9ff4ff" letter-spacing=".5">DRIVEN OFF · ~40 s</text>`;
+l+=`<path d="M320 94 L320 114" stroke="${G}" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#ag)"/>`;
+l+=`<path d="M224 133 L60 133 L60 96" fill="none" stroke="${G}" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#ag)"/>`;
+document.getElementById('loop').innerHTML=l;
+const RULES=[
+ ['always there','it shadows you from 14–20 u back; you see its glow in the fog and hear it crackle.'],
+ ['heat is distance','the ribs brighten and embers stream the closer it gets.'],
+ ['a deck, not dice','every ~20 s it draws a tail: all five before any repeats.'],
+ ['the tell is a promise','0.9 s at least from blaze to effect, never an instant hit.'],
+ ['cannot be killed','only driven off: a perfect answer sends it away for ~40 s.'],
+ ['hearths','pools of lantern light it will not enter: rest, plan the next run.'],
+ ['one hit, one heart','then it backs off 6 s: no chains.'],
+ ['the end','it stops at the parent\'s door: the boss fight is yours alone.'],
+];
+document.getElementById('rules').innerHTML=RULES.map((r,i)=>`<div class="rule"><i>${i+1}</i><div><b>${r[0]}</b> ${r[1]}</div></div>`).join('');
+Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))).then(()=>{window.__done=true});
+</script>
+</body></html>

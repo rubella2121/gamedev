@@ -85,6 +85,9 @@ rundot game set-public # only when ready: submits the game for review
   time) from the same cue sheet, so a hit lands on its cut. It reuses the monster voices (`Voice.clock` places one at an exact time).
   The game's own sounds are muted while it plays, and the score stays silent if the player turned the sound off.
   Test builds (`?debug`) skip the first-visit splash; add `&intro` to see it.
+- The Cinderfox (`src/act2/models/cinderfox*.ts`, [`docs/CINDERFOX.md`](./docs/CINDERFOX.md)) is a concept for the explorable map: a fire hound
+  that stalks you with five tails, one trick per guardian. Its model and the pictures of its tricks live in the model lab; the game does not
+  use them yet. Reference sheets are in `concept-art/3d-reference/`.
 - Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab and the concept-art gallery (`tools/`);
   `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and
   loudness per half second (it is how the score is balanced without listening). `npm run concepts`
