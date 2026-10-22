@@ -53,7 +53,7 @@ const GESTURES = [
   { pic: '<circle cx="12" cy="12" r="3.4" fill="#f2d36b"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="#9ff4ee" stroke-width="1.6" opacity=".7"/><circle cx="12" cy="12" r="10.6" fill="none" stroke="#9ff4ee" stroke-width="1" opacity=".3"/>', name: 'Tap', text: 'A pulse of light. In the 3D arena: a claw strike.' },
   { pic: '<circle cx="6" cy="12" r="3.4" fill="#f2d36b"/><path d="M11 12h10M17 8l4 4-4 4" fill="none" stroke="#9ff4ee" stroke-width="1.8"/>', name: 'Hold, let go', text: 'A Light Lance: a bolt of light that flies far.' },
   { pic: '<circle cx="12" cy="12" r="3.2" fill="#ff9ad0"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" stroke="#ffe9a0" stroke-width="1.8"/>', name: 'Hold longer', text: 'With all three light orbs full: a Nova, light all around you.' },
-  { pic: '<path d="M3 6l6 6-6 6M12 6l6 6-6 6" fill="none" stroke="#9ff4ee" stroke-width="2"/>', name: 'Double-tap', text: 'A dash. You cannot be hurt while you do it.' },
+  { pic: '<path d="M3 6l6 6-6 6M12 6l6 6-6 6" fill="none" stroke="#9ff4ee" stroke-width="2"/>', name: 'Double-tap', text: 'A dash. You cannot be hurt while you do it, but it spends a charge and charges come back slowly.' },
   { pic: '<path d="M19 8a8 8 0 1 0 1 6" fill="none" stroke="#9ff4ee" stroke-width="1.8"/><path d="M20 3v5h-5" fill="none" stroke="#9ff4ee" stroke-width="1.8"/>', name: 'Camera', text: 'In 3D: drag on the right side, or Q / E. R recentres.' },
 ];
 
@@ -80,6 +80,9 @@ export class UI {
   private captionEl: HTMLElement;
   private hintEl: HTMLElement;
   private heartsEl: HTMLElement;
+  private dashEl: HTMLElement;
+  private dashKey = '';
+  private dashTimer = 0;
   private phaseEl: HTMLElement;
   private skipEl: HTMLButtonElement;
   private titleEl: HTMLElement;
@@ -143,6 +146,7 @@ export class UI {
     this.buildHearts(3);
     this.bossEl = mk('bossbar');
     this.lightEl = mk('lightmeter');
+    this.dashEl = mk('dashmeter');
     this.speechEl = mk('speech');
     this.cardEl = mk('zonecard');
     this.fallsEl = mk('falls');
@@ -455,8 +459,29 @@ export class UI {
     this.bossEl.classList.add('show');
   }
 
+  /** Dash charges, under the light meter (they show and hide with it): `n` ready out of `max`, the next one `frac` of the way back. */
+  dashes(n: number, max: number, frac: number) {
+    const key = `${n}/${max}/${Math.round(frac * 24)}`;
+    if (key === this.dashKey) return;
+    this.dashKey = key;
+    if (this.dashEl.children.length !== max) this.dashEl.innerHTML = '<i></i>'.repeat(max);
+    Array.from(this.dashEl.children).forEach((e, i) => {
+      const f = i < n ? 1 : i === n ? frac : 0;
+      (e as HTMLElement).style.setProperty('--f', String(f));
+      e.classList.toggle('full', f >= 1);
+    });
+  }
+
+  /** The player asked for a dash and has none: the row shakes. */
+  dashEmpty() {
+    this.dashEl.classList.add('nope');
+    window.clearTimeout(this.dashTimer);
+    this.dashTimer = window.setTimeout(() => this.dashEl.classList.remove('nope'), 320);
+  }
+
   /** Light meter: three orbs that fill as you hurt things. Full means a Nova is ready. */
   light(v: number | null) {
+    this.dashEl.classList.toggle('show', v !== null);
     if (v === null) {
       this.lightEl.classList.remove('show');
       return;

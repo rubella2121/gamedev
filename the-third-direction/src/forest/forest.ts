@@ -1,3 +1,4 @@
+import { DashPool } from '../core/dash';
 import { D } from '../core/difficulty';
 import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
@@ -85,6 +86,8 @@ export class Forest implements Hub {
   private consuming: Zone | null = null;
   private sealOpen = false;
   arena: ArenaDef | null = null;
+  /** dash charges (a dash is free of danger, so it is not free to repeat) */
+  dashPool = new DashPool();
   lances: Lance[] = [];
   novas: Nova[] = [];
   /** where the guardian's body is, so the camera can keep it and the player both in view */
@@ -354,6 +357,7 @@ export class Forest implements Hub {
       pl.light = 0;
       pl.invuln = 0;
       pl.dashT = pl.dashCd = 0;
+      this.dashPool.reset();
       this.aim = { x: 0, y: -1 };
       this.slams = [];
       this.lances = [];
@@ -804,6 +808,7 @@ export class Forest implements Hub {
     this.slams = [];
     pl.dashT = 0;
     pl.dashCd = 0;
+    this.dashPool.reset();
     this.lances = [];
     this.novas = [];
     this.ui.hearts(pl.hearts, pl.maxHearts);
@@ -931,7 +936,8 @@ export class Forest implements Hub {
     pl.dashX = dx;
     pl.dashY = dy;
     pl.dashCd = 0.8;
-    pl.invuln = Math.max(pl.invuln, DASH_T + 0.12);
+    pl.invuln = Math.max(pl.invuln, DASH_T + 0.05);
+    this.dashPool.use();
     this.audio.dash();
   }
 
@@ -946,7 +952,10 @@ export class Forest implements Hub {
     }
     input.setAction('light');
     if (input.actionPressed) {
-      if (input.doubleTap && pl.dashCd <= 0) this.dash();
+      if (input.doubleTap && pl.dashCd <= 0) {
+        if (this.dashPool.can()) this.dash();
+        else this.ui.dashEmpty();
+      }
       if (pl.pulseCd <= 0 && pl.dashT <= 0) this.castPulse();
     }
     const h = input.actionDown ? input.actionHold : 0;
@@ -1013,6 +1022,8 @@ export class Forest implements Hub {
     pl.invuln = Math.max(0, pl.invuln - dt);
     pl.pulseCd = Math.max(0, pl.pulseCd - dt);
     pl.dashCd = Math.max(0, pl.dashCd - dt);
+    this.dashPool.update(dt);
+    this.ui.dashes(this.dashPool.charges, this.dashPool.max, this.dashPool.frac);
     pl.calm += dt;
     this.freezeT = Math.max(0, this.freezeT - dt);
     const fighting = this.arena !== null;

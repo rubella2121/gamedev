@@ -38,7 +38,7 @@ One thumb on a joystick and one button. The button does more the longer you hold
 - **Hold, then let go**: a **Light Lance**, a bolt of light that flies far and hits weak points from a distance.
 - **Hold longer with the three light orbs full**: a **Nova**, a burst of light all around you (it clears small monsters and shots, tears
   open weak points, and makes you untouchable for a moment). Hitting monsters fills the orbs.
-- **Double-tap**: a **dash** you cannot be hurt in.
+- **Double-tap**: a **dash** you cannot be hurt in. It spends a charge (two on Normal, three on Gentle) and a charge comes back every couple of seconds, so mashing the button runs out fast. The charges sit next to the light meter.
 - 3D arena: turn the camera with Q / E or by dragging on the right side (mouse: drag anywhere); R or the ◎ button recentres.
   The arena helps you: **wells** heal a heart and give light (they wilt, then grow back), **surge pads** throw you along the ring,
   **light crystals** burst into light when you hit them.
