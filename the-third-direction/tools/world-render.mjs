@@ -48,6 +48,13 @@ const t0 = Date.now();
 const init = await page.evaluate(([o]) => window.__world.init(o), [spec.init ?? {}]);
 console.log(`init ${init} ms`, JSON.stringify(await page.evaluate(() => window.__world.stats())));
 
+// PROBE="x,z x,z ..." prints the ground height at those points (for placing cameras)
+if (process.env.PROBE) {
+  for (const pt of process.env.PROBE.split(/\s+/)) {
+    const [x, z] = pt.split(',').map(Number);
+    console.log(`height(${x}, ${z}) =`, (await page.evaluate(([x, z]) => window.__world.height(x, z), [x, z])).toFixed(2));
+  }
+}
 // Python's PIL shrinks supersampled pictures: it is the one image tool both here and in the sheets
 const requireHere = createRequire(import.meta.url);
 void requireHere;
@@ -60,13 +67,21 @@ for (const s of spec.shots) {
   const { execFileSync } = await import('child_process');
   for (const [suffix, url] of [['', out.beauty], ['.depth', out.depth]]) {
     if (!url) continue;
-    const file = path.join(outDir, `${s.name}${suffix}.png`);
+    const file = path.join(outDir, `${s.name}${suffix || (out.depth ? '.raw' : '')}.png`);
     fs.writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
     // a picture drawn bigger is shrunk back here (smoother edges); the depth picture is shrunk with a plain box filter so distances do not smear
     if ((s.ss ?? 1) > 1) {
       const filt = suffix ? 'BOX' : 'LANCZOS';
       execFileSync('python3', ['-c', `from PIL import Image; im=Image.open(${JSON.stringify(file)}).convert('RGB'); im=im.resize((${w},${h}), Image.${filt}); im.save(${JSON.stringify(file)})`]);
     }
+  }
+  if (out.depth) fs.writeFileSync(path.join(outDir, `${s.name}.rays.json`), JSON.stringify({ rays: out.rays, post: s.post ?? {} }));
+  if (out.depth) {
+    const { execFileSync: ex, } = await import('child_process');
+    const raw = path.join(outDir, `${s.name}.raw.png`);
+    const final = path.join(outDir, `${s.name}.png`);
+    if (s.post) ex('python3', [path.join(root, 'tools', 'world-post.py'), raw, path.join(outDir, `${s.name}.depth.png`), path.join(outDir, `${s.name}.rays.json`), final], { stdio: 'inherit' });
+    else fs.copyFileSync(raw, final);
   }
   console.log(`saved ${s.name} (${w}x${h} x${s.ss ?? 1}${out.depth ? ' + depth' : ''}) in ${((Date.now() - t1) / 1000).toFixed(1)} s`);
 }

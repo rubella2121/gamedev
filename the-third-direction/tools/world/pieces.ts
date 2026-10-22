@@ -66,6 +66,6 @@ export function makeLantern(color = 0xffb05a, height = 4.2): THREE.Group {
   const l = new THREE.PointLight(color, 140, 34, 1.7);
   l.position.copy(lamp.position);
   g.add(l);
-  g.add(glowSprite(lamp.position.x, lamp.position.y, 0, 6, color, 0.85));
+  g.add(glowSprite(lamp.position.x, lamp.position.y, 0, 3.4, color, 0.55));
   return g;
 }

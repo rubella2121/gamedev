@@ -45,12 +45,12 @@ export interface DetailOpts {
   /** 0 = ground noise, 1 = streaks that run up and down (bark, bones) */
   streak?: number;
   /** holes: the surface is see-through where world noise (at `scale` cycles per unit) is below lo..hi (leaves, ragged cloth) */
-  cut?: { scale: number; lo: number; hi: number };
+  cut?: { scale: number; lo: number; hi: number; sy?: number };
   /** this material's own edge light (instead of the shot's): a colour and a strength */
   rim?: { color: number; k: number };
 }
 
-function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts | null) {
+function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts | null, additive = false) {
   for (const k of Object.keys(ATMO)) shader.uniforms[k] = (ATMO as Record<string, { value: unknown }>)[k]!;
   if (d?.rim) {
     shader.uniforms['rimColor'] = { value: new THREE.Color(d.rim.color) };
@@ -93,7 +93,7 @@ function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts 
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <color_fragment>',
       `#include <color_fragment>
-      { float cn = wFbm(vWPos * ${d.cut.scale.toFixed(3)}); diffuseColor.a = smoothstep(${d.cut.lo.toFixed(3)}, ${d.cut.hi.toFixed(3)}, cn); }`,
+      { float cn = wFbm(vWPos * vec3(${d.cut.scale.toFixed(3)}, ${(d.cut.scale * (d.cut.sy ?? 1)).toFixed(3)}, ${d.cut.scale.toFixed(3)})); diffuseColor.a = smoothstep(${d.cut.lo.toFixed(3)}, ${d.cut.hi.toFixed(3)}, cn); }`,
     );
   }
   if (d && (d.vary || d.bump)) {
@@ -138,21 +138,21 @@ function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts 
         vec3 vd = normalize(vWPos - cameraPosition);
         float sc = pow(max(dot(vd, moonDir), 0.0), 6.0) * inscatter;
         vec3 fc = mix(fogColor, fogColorFar, smoothstep(40.0, 360.0, fd)) + moonColor * sc * smoothstep(20.0, 200.0, fd);
-        gl_FragColor.rgb = mix(gl_FragColor.rgb, fc, clamp(fogFactor, 0.0, 1.0));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, ${additive ? 'vec3(0.0)' : 'fc'}, clamp(fogFactor, 0.0, 1.0));
       }
     #endif`,
   );
 }
 
 /** Give any lit material the world's fog (and optionally the noise) */
-export function fogged<T extends THREE.Material>(m: T, d: DetailOpts | null = null): T {
+export function fogged<T extends THREE.Material>(m: T, d: DetailOpts | null = null, additive = false): T {
   const prev = m.onBeforeCompile;
   m.onBeforeCompile = (shader, renderer) => {
     prev?.call(m, shader, renderer);
-    inject(shader, d);
+    inject(shader, d, additive);
   };
   const key = m.customProgramCacheKey;
-  m.customProgramCacheKey = () => `${key ? key.call(m) : ''}w${d ? JSON.stringify(d) : 'f'}`;
+  m.customProgramCacheKey = () => `${key ? key.call(m) : ''}w${d ? JSON.stringify(d) : 'f'}${additive ? 'a' : ''}`;
   (m as unknown as { fog: boolean }).fog = true;
   return m;
 }
@@ -198,4 +198,18 @@ export function emit(color: number, o: { opacity?: number; additive?: boolean; s
     side: o.side ?? THREE.FrontSide,
     fog: o.fog ?? false,
   });
+}
+
+/** A glow that haze swallows with distance: additive, drawn unlit, in vertex colours or one colour. */
+export function glowMat(o: { color?: number; vertexColors?: boolean; opacity?: number; side?: THREE.Side } = {}): THREE.MeshBasicMaterial {
+  const m = new THREE.MeshBasicMaterial({
+    color: o.color ?? 0xffffff,
+    vertexColors: o.vertexColors ?? false,
+    transparent: true,
+    opacity: o.opacity ?? 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: o.side ?? THREE.FrontSide,
+  });
+  return fogged(m, null, true);
 }

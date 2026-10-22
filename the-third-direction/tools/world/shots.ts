@@ -1,64 +1,21 @@
 import * as THREE from 'three';
-import { GLADE } from './layout';
+import { GLADE, zone3 } from './layout';
+import { dressZone, makeWater } from './zones';
+import type { ZoneId } from '../../src/forest/land';
 import { makeBlob } from './blob';
-import { scatter, type ScatterSpec } from './clutter';
 import { glowPool, glowSprite, motes } from './fx';
 import { makeFoot } from './pieces';
-import type { Plant } from './plant';
+import { makeBoneWyrm } from './guardians';
+import { makeMimicQueen } from './g-mimic';
+import { makeTollQueen } from './g-toll';
+import { makeThornbackKing } from './g-thorn';
+import { makeGloommother } from './g-gloom';
+import { bareTrees, clearTrees, cover, heroTree, num, put, type Ctx } from './ctx';
 
 /**
  * The shot builders: each adds what one picture needs (people, landmarks, light, ground cover) to a scene that already has the terrain and the forest.
  * A shot in the spec names its builder (`"build": "clearing"`) and can pass numbers (`"params"`). The camera, fog, moon and grade live in the spec.
  */
-
-export interface Ctx {
-  add: (o: THREE.Object3D, flags?: { noDepth?: boolean }) => THREE.Object3D;
-  gy: (x: number, z: number) => number;
-  /** this shot's copy of the forest's trees: push to add one, filter to take some away */
-  plants: Plant[];
-  rand: () => number;
-  p: Record<string, number | string | boolean>;
-  cam: THREE.PerspectiveCamera;
-  /** unit vector towards the moon */
-  md: THREE.Vector3;
-}
-
-export const num = (c: Ctx, k: string, d: number): number => (typeof c.p[k] === 'number' ? (c.p[k] as number) : d);
-
-/** a big tree put exactly where the picture wants it (the world's own trees are scattered by chance) */
-export function heroTree(c: Ctx, kind: Plant['kind'], x: number, z: number, s = 1, variant = 0, tilt = 0): void {
-  c.plants.push({ kind, x, y: c.gy(x, z) - 0.35, z, s, rot: variant * 1.7, variant, tilt });
-}
-
-/** take the world's trees out of a disc (to open a view or make room for a landmark) */
-export function clearTrees(c: Ctx, x: number, z: number, r: number): void {
-  for (let i = c.plants.length - 1; i >= 0; i--) {
-    const p = c.plants[i]!;
-    if (Math.hypot(p.x - x, p.z - z) < r) c.plants.splice(i, 1);
-  }
-}
-
-/** draw the trees in a disc without their leaves (opens the sky over a picture's subject) */
-export function bareTrees(c: Ctx, x: number, z: number, r: number): void {
-  for (const p of c.plants) if (Math.hypot(p.x - x, p.z - z) < r) p.bare = true;
-}
-
-/** put an object on the ground at (x, z), `up` above it */
-export function put<T extends THREE.Object3D>(c: Ctx, o: T, x: number, z: number, up = 0, ry = 0): T {
-  o.position.set(x, c.gy(x, z) + up, z);
-  o.rotation.y = ry;
-  c.add(o);
-  return o;
-}
-
-/** a pool of ground cover for the ground in a disc: grass, ferns, stones, a few glowing flowers and mushrooms */
-export function cover(c: Ctx, cx: number, cz: number, r: number, mix: Partial<Record<ScatterSpec['kind'], number>>, where?: (x: number, z: number) => number, seed = 3): void {
-  const specs: ScatterSpec[] = [];
-  for (const [kind, density] of Object.entries(mix) as [ScatterSpec['kind'], number][]) {
-    specs.push({ kind, density, where, size: kind === 'rock' ? [0.5, 1.6] : [0.8, 1.35], variants: kind === 'grass' || kind === 'fern' ? 4 : 3, shadow: kind === 'rock' });
-  }
-  c.add(scatter(cx, cz, r, c.gy, specs, seed));
-}
 
 const GOLD = 0xffc860;
 
@@ -79,7 +36,52 @@ function family(c: Ctx, o: { lightK?: number; up?: boolean } = {}): { baby: THRE
   return { baby, mother, father };
 }
 
+/** the Blob a few steps in front of the camera, a little to one side, looking at where it is going: the over-the-shoulder view */
+function blobInFront(c: Ctx, tx: number, tz: number, o: { d?: number; side?: number; turn?: number; look?: [number, number] } = {}): THREE.Group {
+  const fwd = new THREE.Vector3();
+  c.cam.getWorldDirection(fwd);
+  fwd.y = 0;
+  fwd.normalize();
+  const rx = -fwd.z;
+  const rz = fwd.x;
+  const d = o.d ?? 7.5;
+  const side = o.side ?? -2.6;
+  const bx = c.cam.position.x + fwd.x * d + rx * side;
+  const bz = c.cam.position.z + fwd.z * d + rz * side;
+  const b = makeBlob({ scale: 1, look: o.look ?? [0.1, 0.1], lightK: 2.6, glow: 0.8, haloK: 0.25 });
+  put(c, b, bx, bz, 0, Math.atan2(tx - bx, tz - bz) + (o.turn ?? 0.75));
+  c.add(glowPool(bx, c.gy(bx, bz), bz, 4.2, GOLD, 0.26), { noDepth: true });
+  return b;
+}
+
 export const SHOTS: Record<string, (c: Ctx) => void> = {
+  /** a guardian's place with the Blob walking in (params: zone, bd, bs, turn) */
+  zone(c) {
+    const id = String(c.p['zone'] ?? 'gloom') as ZoneId;
+    const zn = zone3(id);
+    dressZone(c, id, { guardian: num(c, 'guardian', 1) !== 0, lanterns: num(c, 'lanterns', 1) !== 0 });
+    if (id === 'marsh') c.add(makeWater(c, zn.x, zn.z, zn.rx * 2.4, zn.rz * 2.4));
+    if (num(c, 'blob', 1)) blobInFront(c, zn.heart.x, zn.heart.z, { d: num(c, 'bd', 8), side: num(c, 'bs', -2.1), turn: num(c, 'turn', 1.9) });
+  },
+
+  /** one guardian alone in its zone, for getting it right */
+  gtest(c) {
+    const which = String(c.p['g'] ?? 'wyrm');
+    if (!num(c, 'trees', 0)) c.plants.length = 0;
+    const make: Record<string, { z: Parameters<typeof zone3>[0]; f: () => THREE.Object3D }> = {
+      wyrm: { z: 'bones', f: makeBoneWyrm },
+      mimic: { z: 'meadow', f: makeMimicQueen },
+      toll: { z: 'marsh', f: makeTollQueen },
+      thorn: { z: 'thicket', f: makeThornbackKing },
+      gloom: { z: 'gloom', f: makeGloommother },
+    };
+    const m = make[which]!;
+    const zn = zone3(m.z);
+    const o = m.f();
+    put(c, o, zn.heart.x, zn.heart.z, 0, num(c, 'ry', 0));
+    c.add(new THREE.AmbientLight(0x000000, 0));
+  },
+
   /** the foot on its own, for getting its shape right */
   foottest(c) {
     c.plants.length = 0;

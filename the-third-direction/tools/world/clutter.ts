@@ -134,6 +134,25 @@ export interface ScatterSpec {
   variants?: number;
   /** light (the thing it is) casts shadows */
   shadow?: boolean;
+  /** recolour the glowing parts: [darkest, brightest] (a purple mushroom, an amber one) */
+  tint?: [number, number];
+}
+
+const tintCache = new Map<string, THREE.BufferGeometry>();
+function tinted(g: THREE.BufferGeometry, key: string, dark: number, light: number): THREE.BufferGeometry {
+  let out = tintCache.get(key);
+  if (out) return out;
+  out = g.clone();
+  const col = out.getAttribute('color') as THREE.BufferAttribute;
+  const a = lin(dark);
+  const b = lin(light);
+  for (let i = 0; i < col.count; i++) {
+    const t = Math.min(1, Math.max(0, (col.getX(i) * 0.2126 + col.getY(i) * 0.7152 + col.getZ(i) * 0.0722) * 1.05));
+    const c = mixRgb(a, b, t);
+    col.setXYZ(i, c[0], c[1], c[2]);
+  }
+  tintCache.set(key, out);
+  return out;
 }
 
 const litMat = std({ vertexColors: true, roughness: 0.85, vary: 0.35, bump: 0 });
@@ -163,7 +182,8 @@ export function scatter(cx: number, cz: number, radius: number, gy: (x: number, 
     lists.forEach((list, v) => {
       if (!list.length) return;
       const geo = build(sp.kind, v);
-      for (const [g, mat] of [[geo.lit, litMat], [geo.glow, glowMat]] as [THREE.BufferGeometry | undefined, THREE.Material][]) {
+      const glowGeo = geo.glow && sp.tint ? tinted(geo.glow, `${sp.kind}:${v}:${sp.tint[0]}:${sp.tint[1]}`, sp.tint[0], sp.tint[1]) : geo.glow;
+      for (const [g, mat] of [[geo.lit, litMat], [glowGeo, glowMat]] as [THREE.BufferGeometry | undefined, THREE.Material][]) {
         if (!g) continue;
         const mesh = new THREE.InstancedMesh(g, mat, list.length);
         list.forEach((it, i) => {

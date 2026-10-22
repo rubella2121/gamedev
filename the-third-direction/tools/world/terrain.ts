@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { fbm, ridge } from '../../src/act2/kit/noise';
-import { biomeWeights, CLIFF_Z, height, roadDist, walkSD, WX, ZN, ZS, type Biome } from './layout';
+import { ARENA_R, biomeWeights, CLIFF_Z, height, roadDist, walkSD, WX, ZN, ZONES3, ZS, type Biome } from './layout';
 import { std } from './shade';
 
 /** The ground of the whole world as one mesh, painted per vertex by biome, slope and road. */
@@ -114,6 +114,16 @@ export function buildTerrain(o: TerrainOpts = {}): THREE.Mesh {
         const t = 1 - Math.min(1, Math.max(0, (rd + 1.5) / 4.5));
         const wear = 0.55 + 0.45 * fbm(x * 0.3, 0, z * 0.3, 2, 14);
         c = mixc(c, mixc(ROAD, [ROAD[0] * 1.35, ROAD[1] * 1.35, ROAD[2] * 1.35], wear), t * 0.85);
+      }
+      // each guardian's arena: old flagstones, worn pale, and a little of its colour at the heart
+      for (const zn of ZONES3) {
+        const da = Math.hypot(x - zn.heart.x, z - zn.heart.z);
+        if (da < ARENA_R * 1.1) {
+          const t = 1 - Math.min(1, Math.max(0, (da - ARENA_R * 0.62) / (ARENA_R * 0.4)));
+          const flag = 0.55 + 0.45 * fbm(x * 0.5, 0, z * 0.5, 2, 61);
+          const stone = mixc(C(0x222a30), C(0x4a5660), flag);
+          c = mixc(c, mixc(stone, C(zn.hue), 0.06 * (1 - Math.min(1, da / 14))), t * 0.7);
+        }
       }
       // steep ground is bare rock, and the cliff is all rock
       const rockT = Math.min(1, Math.max(0, (slope - 0.28) * 4.5));

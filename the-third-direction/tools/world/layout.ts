@@ -231,7 +231,26 @@ export const CRATER = { k: 1 };
 export const MARSH_LEVEL = 1.2;
 export const WATER_Y = 0.55;
 
+/** every guardian fights on level ground: a flat disc round its heart, `ARENA_R` wide, that the hills melt into */
+export const ARENA_R = 30;
+const ARENA_LEVEL = new Map<string, number>();
+
 export function height(x: number, z: number): number {
+  let h = heightBase(x, z);
+  for (const zn of ZONES3) {
+    const d = Math.hypot(x - zn.heart.x, z - zn.heart.z);
+    if (d > ARENA_R * 1.9) continue;
+    let lv = ARENA_LEVEL.get(zn.id);
+    if (lv === undefined) {
+      lv = heightBase(zn.heart.x, zn.heart.z);
+      ARENA_LEVEL.set(zn.id, lv);
+    }
+    h = mixn(h, lv, 1 - sstep(ARENA_R * 0.85, ARENA_R * 1.9, d));
+  }
+  return h;
+}
+
+function heightBase(x: number, z: number): number {
   const sd = walkSD(x, z);
   const macro = (fbm(x * 0.012, 0, z * 0.012, 4, 3) - 0.5) * 7;
   const detail = (fbm(x * 0.09, 0, z * 0.09, 3, 9) - 0.5) * 1.6;
@@ -264,7 +283,10 @@ export function height(x: number, z: number): number {
   const wm = inZone('marsh', x, z);
   const pools = fbm(x * 0.03, 0, z * 0.03, 4, 51);
   h = mixn(h, MARSH_LEVEL + climb(z) * 0 + (pools - 0.5) * 3.2 + 0.6 * (fbm(x * 0.12, 0, z * 0.12, 2, 52) - 0.5), wm * 0.92);
-  void ms;
+  // a moat of black water round the Toll Queen's island, crossed by the road
+  const dmo = Math.hypot(x - ms.heart.x, z - ms.heart.z);
+  const moat = Math.exp(-Math.pow((dmo - 38) / 8.5, 2));
+  h -= wm * 3.4 * moat * sstep(1.2, 5, roadDist(x, z));
 
   const bn = zone3('bones');
   const wb = inZone('bones', x, z);
