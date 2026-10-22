@@ -88,6 +88,10 @@ rundot game set-public # only when ready: submits the game for review
 - The Cinderfox (`src/act2/models/cinderfox*.ts`, [`docs/CINDERFOX.md`](./docs/CINDERFOX.md)) is a concept for the explorable map: a fire hound
   that stalks you with five tails, one trick per guardian. Its model and the pictures of its tricks live in the model lab; the game does not
   use them yet. Reference sheets are in `concept-art/3d-reference/`.
+- Telling a new player what to do: the first time anyone plays, a card says what is happening in three plain lines (`BRIEF` in `src/ui.ts`;
+  remembered with the `tt.briefed` key, test builds skip it unless you add `&intro`). While you are out on the roads a goal line under the five
+  dots says "beat the five guardians · n of 5", then "the road is open · follow the red arrow". The move and pulse hints stay until you have
+  moved or pulsed. Hints are only taken down by whoever put them up (`ui.hintIs`): a zone used to wipe every hint each frame.
 - Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab and the concept-art gallery (`tools/`);
   `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and
   loudness per half second (it is how the score is balanced without listening). `npm run concepts`

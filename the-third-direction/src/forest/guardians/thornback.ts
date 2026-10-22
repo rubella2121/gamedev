@@ -226,7 +226,9 @@ export class ThornbackKing extends Guardian {
     if (!this.hinted && this.phase === 0) {
       this.hinted = true;
       window.setTimeout(() => this.hub.ui.hint('stand behind a tree'), 600);
-      window.setTimeout(() => this.hub.ui.hint(null), 5200);
+      window.setTimeout(() => {
+        if (this.hub.ui.hintIs('stand behind a tree')) this.hub.ui.hint(null);
+      }, 5200);
     }
     this.pickSide();
   }

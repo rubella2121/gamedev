@@ -1,4 +1,5 @@
 import { DashPool } from '../core/dash';
+import { storageGet, storageSet } from '../sdk';
 import { D } from '../core/difficulty';
 import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
@@ -29,6 +30,8 @@ const LANCE_T = 0.5;
 const NOVA_T = 1.3;
 const LANCE_SPEED = 300;
 const NOVA_R = 84;
+const BRIEF_KEY = 'tt.briefed';
+const PULSE_HINT = 'tap to pulse light';
 const DASH_T = 0.17;
 const DASH_SPEED = 235;
 const ENTRIES = [...ZONES.map((z) => z.entry), { x: 418, y: 812 }, { x: 858, y: 812 }, { x: 1034, y: 1500 }, { x: HUB.x, y: HUB.y }];
@@ -77,6 +80,10 @@ export class Forest implements Hub {
   private glitchFlash = false;
   private teased = false;
   private pulseHinted = false;
+  /** the "tap to pulse light" hint stays up until the first pulse */
+  private pulseHintOn = false;
+  /** the "move" hint stays up until the blob has gone somewhere */
+  private moveHintFrom: { x: number; y: number; t: number } | null = null;
   private tmp: HTMLCanvasElement;
   private holdReq: string | null = null;
   private chargeStage: 0 | 1 | 2 = 0;
@@ -432,6 +439,8 @@ export class Forest implements Hub {
     this.glitchT = 0;
     this.teased = false;
     this.pulseHinted = false;
+    this.pulseHintOn = false;
+    this.moveHintFrom = null;
     this.secrets = 0;
     this.ctx.stats.bonus = 0;
     this.sealOpen = false;
@@ -495,9 +504,6 @@ export class Forest implements Hub {
   private beginPlay() {
     this.mode = 'play';
     this.ui.skip(false);
-    this.input.setMoveEnabled(true);
-    this.ui.hint(window.matchMedia('(pointer: coarse)').matches ? 'drag to move' : 'wasd / arrows to move');
-    window.setTimeout(() => this.ui.hint(null), 5200);
     const pl = this.player;
     pl.x = 66 + OX;
     pl.y = 74 + OY;
@@ -506,6 +512,25 @@ export class Forest implements Hub {
     pl.hearts = pl.maxHearts;
     this.ui.hearts(pl.hearts, pl.maxHearts);
     this.onSection?.('run');
+    // the first time anyone plays, say what the game is about before anything else (test builds skip it)
+    const q = new URLSearchParams(location.search);
+    if (!storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'))) {
+      this.input.setMoveEnabled(false);
+      this.ui.briefing(() => {
+        storageSet(BRIEF_KEY, '1');
+        this.input.setMoveEnabled(true);
+        this.startMoveHint();
+      });
+    } else {
+      this.input.setMoveEnabled(true);
+      this.startMoveHint();
+    }
+  }
+
+  /** "drag to move" stays until the blob has actually gone somewhere (or a long while has passed). */
+  private startMoveHint() {
+    this.ui.hint(window.matchMedia('(pointer: coarse)').matches ? 'drag to move' : 'wasd / arrows to move');
+    this.moveHintFrom = { x: this.player.x, y: this.player.y, t: this.time };
   }
 
   /* ------------------------------------------------------------------------------------------ */
@@ -876,6 +901,10 @@ export class Forest implements Hub {
 
   private castPulse() {
     const pl = this.player;
+    if (this.pulseHintOn) {
+      this.pulseHintOn = false;
+      if (this.ui.hintIs(PULSE_HINT)) this.ui.hint(null);
+    }
     pl.pulseCd = 0.55;
     this.pulses.push({ x: pl.x, y: pl.y - 4, t: 0 });
     this.audio.pulse();
@@ -1114,12 +1143,25 @@ export class Forest implements Hub {
       for (const z of ZONES) {
         if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 0.9) {
           this.pulseHinted = true;
-          this.ui.hint('tap to pulse light');
-          window.setTimeout(() => this.ui.hint(null), 4800);
+          this.ui.hint(PULSE_HINT);
+          this.pulseHintOn = true;
+          window.setTimeout(() => {
+            if (!this.pulseHintOn) return;
+            this.pulseHintOn = false;
+            if (this.ui.hintIs(PULSE_HINT)) this.ui.hint(null);
+          }, 16000);
           break;
         }
       }
     }
+
+    // --- the move hint goes when the blob has gone somewhere; the goal is on screen while you are out on the roads
+    const mh = this.moveHintFrom;
+    if (mh && (Math.hypot(pl.x - mh.x, pl.y - mh.y) > 14 || this.time - mh.t > 45)) {
+      this.moveHintFrom = null;
+      if (this.ui.hintIs('drag to move') || this.ui.hintIs('wasd / arrows to move')) this.ui.hint(null);
+    }
+    this.ui.goal(!this.arena && !this.cinema && this.mode === 'play' && !this.trans ? this.goalText() : null);
 
     // --- the story: the crossroads, and a name card the first time you step into each zone
     if (!this.arena && !this.cinema && this.mode === 'play') {
@@ -1660,6 +1702,12 @@ export class Forest implements Hub {
     this.camX = cx0;
     this.camY = cy0;
     return p.canvas;
+  }
+
+  /** The goal, in one line: how many guardians are down, or where to go once the road is open. */
+  private goalText(): string {
+    if (this.sealOpen) return 'the road is open · follow the red arrow';
+    return `beat the five guardians · ${this.zones.filter((z) => z.cleared).length} of 5`;
   }
 
   /** Five dots at the top: one for each zone you have finished, and a red one when the road to the Edge opens. */

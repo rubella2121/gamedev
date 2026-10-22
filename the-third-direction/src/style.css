@@ -70,6 +70,14 @@ body {
 .hearts.show { opacity: 1; }
 .heart { width: calc(var(--u) * 6.4); height: calc(var(--u) * 5.6); fill: #e02b3a; filter: drop-shadow(0 0 3px rgba(224, 43, 58, 0.6)); transition: transform 200ms, opacity 200ms, fill 200ms; shape-rendering: crispEdges; }
 .heart.lost { fill: #2a1020; opacity: 0.55; transform: scale(0.8); filter: none; }
+.goal { position: absolute; left: 0; right: 0; top: calc(var(--u) * 11.5 + env(safe-area-inset-top, 0px)); text-align: center; z-index: 9; pointer-events: none; font-size: calc(var(--u) * 2.7); letter-spacing: 0.14em; text-transform: uppercase; color: rgba(232, 255, 251, 0.86); text-shadow: 0 1px 0 #000, 0 0 calc(var(--u) * 1.6) #000; opacity: 0; transition: opacity 500ms; }
+.goal.show { opacity: 1; }
+.brief { position: absolute; inset: 0; z-index: 13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 8); background: rgba(2, 4, 8, 0.8); transition: opacity 400ms; }
+.brief.gone { opacity: 0; pointer-events: none; }
+.brief .bh { font-size: calc(var(--u) * 3.4); font-weight: 900; letter-spacing: 0.26em; text-indent: 0.26em; text-transform: uppercase; color: #f2d36b; text-shadow: 0 0 calc(var(--u) * 3) rgba(242, 211, 107, 0.35); }
+.brief .bl { display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
+.brief .bl p { margin: 0; font-size: calc(var(--u) * 3.9); line-height: 1.5; text-align: center; text-wrap: balance; color: #e8fffb; text-shadow: 0 1px 0 #000; }
+.sheet .hgoal { font-size: calc(var(--u) * 2.9); line-height: 1.55; text-align: center; text-wrap: balance; color: #e8fffb; padding: 0 calc(var(--u) * 2); }
 .phase {
   position: absolute; left: 0; right: 0; top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); text-align: center; z-index: 10; pointer-events: none;
   font-size: calc(var(--u) * 2.8); letter-spacing: 0.3em; text-transform: uppercase; color: rgba(232, 255, 251, 0.75); text-shadow: 0 2px 0 #000; opacity: 0; transition: opacity 300ms;
@@ -248,7 +256,7 @@ body {
 .bosstitle.show { animation: slam 3.1s ease-out forwards; }
 
 /* ------------------------------ the cinematic intro ------------------------------ */
-.cinematic .hearts, .cinematic .lightmeter, .cinematic .dashmeter, .cinematic .falls, .cinematic .hint, .cinematic .bossbar, .cinematic .recenter, .cinematic .phase, .cinematic .touch-layer, .cinematic .abtn, .cinematic .joy-base { display: none !important; }
+.cinematic .hearts, .cinematic .goal, .cinematic .brief, .cinematic .lightmeter, .cinematic .dashmeter, .cinematic .falls, .cinematic .hint, .cinematic .bossbar, .cinematic .recenter, .cinematic .phase, .cinematic .touch-layer, .cinematic .abtn, .cinematic .joy-base { display: none !important; }
 .cine { position: absolute; inset: 0; z-index: 15; pointer-events: none; opacity: 0; transition: opacity 600ms; }
 .cine.on { opacity: 1; }
 .cvig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0) 38%, rgba(2, 3, 10, 0.55) 78%, rgba(0, 0, 0, 0.92) 100%); }
