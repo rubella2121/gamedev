@@ -1,0 +1,6 @@
+[
+ {"wait": 2500},
+ {"click": ".splash .sk"},
+ {"wait": 1500},
+ {"eval": "JSON.stringify({ afterSkipIntro: __tt.state, trailerRunning: __tt.trailer.running, home: !!document.querySelector('.home'), remembered: window.name })"}
+]

@@ -109,13 +109,26 @@ export class Game {
   /** "tap to begin": the first visit. The tap also unlocks the sound for the trailer. */
   private showSplash() {
     this.state = 'splash';
-    this.ui.showSplash(() => this.playTrailer());
+    this.ui.showSplash(
+      () => this.playTrailer(),
+      () => this.skipIntro(),
+    );
+  }
+
+  /** "skip intro" on the splash: straight to the home page. The tap that skipped it also unlocks the sound. */
+  private skipIntro() {
+    this.audio.start();
+    storageSet(INTRO_KEY, '1');
+    this.state = 'menu';
+    this.showHome();
   }
 
   /** the cinematic intro (from the splash, or from the home page) */
   private playTrailer() {
     this.audio.start();
     this.trailerSound = this.audio.level > 0;
+    // the intro plays by itself once: someone who leaves halfway does not get it forced on them again (the home page can replay it)
+    storageSet(INTRO_KEY, '1');
     track('intro');
     this.state = 'trailer';
     this.act1.previewMode = false;
@@ -123,7 +136,6 @@ export class Game {
   }
 
   private finishTrailer() {
-    storageSet(INTRO_KEY, '1');
     this.setZoom(1);
     this.act1.start();
     this.act1.previewMode = true;

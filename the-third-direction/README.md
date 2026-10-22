@@ -4,7 +4,7 @@ A baby blob loses its family, crosses a forest of strange monsters, and discover
 Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design lives in [`GAME_SCRIPT.md`](./GAME_SCRIPT.md).
 
 ## Status: the whole game is playable
-First visit: a **"tap to begin"** splash and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
+First visit: a **"tap to begin"** splash (with a **skip intro** button) and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
 3D arena, with a score and sound effects made in code; **Skip** is always on screen, and the home page has a **▶ intro** chip to watch it again).
 Home page (Play, Gentle / Normal / Nightmare cards with their hearts and best times, Trailer, Fight a boss, How to play, a sound switch) -> opening -> the **open forest**
 (walk in any direction; a crossroads and five zones you can do in any order) -> in each zone you reach the **heart**, which
@@ -64,7 +64,8 @@ npm run build
 rundot deploy          # private + unlisted by default; prints a share link
 rundot game set-public # only when ready: submits the game for review
 ```
-`public/thumbnail.jpg` (512x512) is the required store thumbnail.
+`public/thumbnail.jpg` (512x512) is the required store thumbnail. It is made from the game itself by `node tools/thumbnail.mjs` (the title, the family with
+Mother's bow, a pair of eyes in the dark and the hero's name card; the header of that script says how to run it).
 
 ## How it is built
 - One Three.js renderer: the 2D forest is 216x384, the 3D world is drawn at twice that, both scaled up with nearest-neighbour filtering.
@@ -85,18 +86,24 @@ rundot game set-public # only when ready: submits the game for review
   time) from the same cue sheet, so a hit lands on its cut. It reuses the monster voices (`Voice.clock` places one at an exact time).
   The game's own sounds are muted while it plays, and the score stays silent if the player turned the sound off.
   Test builds (`?debug`) skip the first-visit splash; add `&intro` to see it.
+  Getting past it: the splash has a **skip intro** button (and Escape), the trailer has a **Skip** button in its black top bar (and Escape, Enter or
+  Space), and the intro plays by itself only once: leaving halfway does not bring it back (the home page has a Trailer button). The Skip button used
+  to sit under the trailer's black bars (z-index) and could not be seen. The hero gets a name card in the trailer while the shadow creeps (`CUE.heroCard`).
 - The Cinderfox (`src/act2/models/cinderfox*.ts`, [`docs/CINDERFOX.md`](./docs/CINDERFOX.md)) is a concept for the explorable map: a fire hound
   that stalks you with five tails, one trick per guardian. Its model and the pictures of its tricks live in the model lab; the game does not
   use them yet. Reference sheets are in `concept-art/3d-reference/`.
 - Mother wears a small pink bow (`bow: true` in `drawBlob`, `drawBow` in `src/core/art.ts`: a hand-drawn 9 x 5 pixel sprite, 11 x 6 on the big
   pinned portrait). She is the left one of the family: in the opening, on the splash and the home page, and on the left of the two big
   blobs on the arena wall. Her pressed bow is beside her smudge after the slam.
-- Telling a new player what to do: the first time anyone plays, a card says what is happening in three plain lines (`BRIEF` in `src/ui.ts`;
+- The hero is named the way every monster is, a name and a line under it: **The Blob, the last small light** (`STORY.hero` in `src/core/story.ts`; the first-time
+  card, the trailer and the store thumbnail all read it).
+- Telling a new player what to do: the first time anyone plays, a card (the hero's name card, then what is happening in three plain lines, `STORY.brief`;
   remembered with the `tt.briefed` key, test builds skip it unless you add `&intro`). It is shown only when the opening of a run that began with
   the Play button ends (`Forest.briefNext`), never in the trailer, the preview behind the home page or the boss showcase. While you are out on the roads a goal line under the five
   dots says "beat the five guardians · n of 5", then "the road is open · follow the red arrow". The move and pulse hints stay until you have
   moved or pulsed. Hints are only taken down by whoever put them up (`ui.hintIs`): a zone used to wipe every hint each frame.
 - Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab and the concept-art gallery (`tools/`);
+  `node tools/thumbnail.mjs` makes `public/thumbnail.jpg` (after `npm run build:standalone` and `npm run gallery`);
   `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and
   loudness per half second (it is how the score is balanced without listening). `npm run concepts`
   renders the boss cards into `concept-art/`, `npm run build:standalone` builds a test version with playing bots

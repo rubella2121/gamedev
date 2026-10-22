@@ -74,7 +74,9 @@ body {
 .goal.show { opacity: 1; }
 .brief { position: absolute; inset: 0; z-index: 13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 8); background: rgba(2, 4, 8, 0.8); transition: opacity 400ms; }
 .brief.gone { opacity: 0; pointer-events: none; }
-.brief .bh { font-size: calc(var(--u) * 3.4); font-weight: 900; letter-spacing: 0.26em; text-indent: 0.26em; text-transform: uppercase; color: #f2d36b; text-shadow: 0 0 calc(var(--u) * 3) rgba(242, 211, 107, 0.35); }
+.brief .bn { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.4); }
+.brief .bn b { font-size: calc(var(--u) * 5.4); letter-spacing: 0.32em; padding-left: 0.32em; text-transform: uppercase; color: #ffe9a0; text-shadow: 0 0 calc(var(--u) * 3) rgba(255, 214, 110, 0.6), 0 2px 0 #000; }
+.brief .bn i { font-size: calc(var(--u) * 3.8); letter-spacing: 0.06em; color: #e8fffb; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(159, 244, 238, 0.5), 0 2px 0 #000; }
 .brief .bl { display: flex; flex-direction: column; gap: calc(var(--u) * 3); }
 .brief .bl p { margin: 0; font-size: calc(var(--u) * 3.9); line-height: 1.5; text-align: center; text-wrap: balance; color: #e8fffb; text-shadow: 0 1px 0 #000; }
 .sheet .hgoal { font-size: calc(var(--u) * 2.9); line-height: 1.55; text-align: center; text-wrap: balance; color: #e8fffb; padding: 0 calc(var(--u) * 2); }
@@ -84,9 +86,10 @@ body {
 }
 .phase.show { opacity: 1; }
 .skip {
-  position: absolute; right: calc(var(--u) * 4); top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); z-index: 14; pointer-events: auto;
-  font: inherit; font-size: calc(var(--u) * 2.8); letter-spacing: 0.2em; text-transform: uppercase; color: rgba(232, 255, 251, 0.8);
-  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 3px; padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4);
+  /* above the trailer's letterbox bars (z-index 15), which used to cover it: it sits inside the top bar */
+  position: absolute; right: calc(var(--u) * 4); top: calc(var(--u) * 2.2 + env(safe-area-inset-top, 0px)); z-index: 16; pointer-events: auto;
+  font: inherit; font-size: calc(var(--u) * 3.2); letter-spacing: 0.2em; text-transform: uppercase; color: rgba(232, 255, 251, 0.95);
+  background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(232, 255, 251, 0.4); border-radius: 3px; padding: calc(var(--u) * 2.2) calc(var(--u) * 3.4);
   opacity: 0; visibility: hidden; transition: opacity 300ms;
 }
 .skip.show { opacity: 1; visibility: visible; }
@@ -291,6 +294,8 @@ body {
 .splash .family { width: calc(var(--u) * 48); height: auto; image-rendering: pixelated; filter: drop-shadow(0 0 calc(var(--u) * 5) rgba(255, 214, 110, 0.4)); animation: breathe 3.2s ease-in-out infinite; }
 .splash .sb { font-size: calc(var(--u) * 3.4); letter-spacing: 0.42em; text-transform: uppercase; color: #ffe9a0; animation: blinkslow 2.2s ease-in-out infinite; padding-left: 0.42em; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 214, 110, 0.5); }
 .splash .ss { display: flex; align-items: center; gap: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.2); letter-spacing: 0.3em; text-transform: uppercase; color: rgba(232, 255, 251, 0.45); }
+.splash .sk { margin-top: calc(var(--u) * -1); font: inherit; font-size: calc(var(--u) * 2.7); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(232, 255, 251, 0.85); background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(232, 255, 251, 0.35); border-radius: 3px; padding: calc(var(--u) * 2.2) calc(var(--u) * 4); cursor: pointer; }
+.splash .sk:hover, .splash .sk:focus-visible { color: #fff; border-color: rgba(255, 233, 160, 0.8); outline: none; }
 .splash .ss .pi { width: calc(var(--u) * 3.2); height: auto; }
 @keyframes breathe { 0%, 100% { transform: scale(0.98); } 50% { transform: scale(1.03); } }
 @keyframes blinkslow { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }

@@ -1,0 +1,10 @@
+[
+ {"wait": 2500},
+ {"eval": "JSON.stringify({ splash: __tt.state, skipIntro: document.querySelector('.splash .sk')?.textContent })"},
+ {"click": ".splash"},
+ {"wait": 7800},
+ {"eval": "JSON.stringify({ trailer: __tt.state, T: +__tt.trailer.T.toFixed(1), heroCard: document.querySelector('.zonecard')?.textContent, whatIsOnTopOfSkip: (() => { const r = document.querySelector('.skip').getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).className; })() })"},
+ {"press": "Escape"},
+ {"wait": 2000},
+ {"eval": "JSON.stringify({ afterEscape: __tt.state, running: __tt.trailer.running, home: !!document.querySelector('.home'), card: !!document.querySelector('.brief') })"}
+]

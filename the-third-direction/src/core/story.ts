@@ -50,6 +50,15 @@ export function playTimed(ui: Narrator, fired: Set<string>, prefix: string, t: n
 }
 
 export const STORY = {
+  /**
+   * The hero, named the way every monster is: a name and one line under it. The first-time card, the trailer and the store thumbnail use it.
+   * "small light" is the game's own word for the family ("three small lights, curled up in the dark wood"), and light is what the blob fights with.
+   */
+  hero: { name: 'The Blob', sub: 'the last small light' },
+
+  /** What the game is about, in plain words: the first-time card, and the top of How to play. */
+  brief: ['Something huge took your family.', 'Five guardians hold the paths of this forest. Beat them all.', 'Then the road opens. Follow the arrow.'] as readonly string[],
+
   /* ------------------------------ ACT I: the forest ------------------------------ */
 
   /** The opening, in the order it happens. The forest decides when (see OP in forest.ts). */

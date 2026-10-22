@@ -23,6 +23,12 @@ Monsters speak in lower case with their own glow and never use "I" to the blob u
 
 The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some version of "stay" -> "Look up." (Mother, at the end) -> "I can look up now." (you).
 
+## The hero
+**${STORY.hero.name}**, ${STORY.hero.sub}. Shown on the first-time card, in the trailer while the shadow creeps, and on the store thumbnail.
+
+**What the game is about** (the first-time card, and the top of How to play)
+${STORY.brief.map((l) => `- ${l}`).join('\n')}
+
 ## Act I: the forest
 **Opening** (the clearing, then the slam)
 - ${q(o.wake)}

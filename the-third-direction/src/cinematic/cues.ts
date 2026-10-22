@@ -16,6 +16,8 @@ export const CUE = {
   dontLookUp: 3.4,
   /** the shadow starts to creep over the clearing: the lullaby begins to sag, the heartbeat starts */
   shadowCreep: 6.3,
+  /** the hero's name card ("The Blob / the last small light") while the shadow creeps: every monster gets one, so does the one you play */
+  heroCard: 6.7,
   /** a riser peaks and the picture jumps to the instant before the foot lands */
   jumpCut: 9.2,
   /** the foot lands: a white flash, then almost silence (a ringing tone) */
