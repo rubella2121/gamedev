@@ -38,7 +38,15 @@ Design references for a new 3D hero and a new 3D arena. Reference only: nothing 
 |---|---|
 | 3d-reference/blob-character-sheet.png | The Blob, 3D hero: turnaround, actions, faces, palette, scale and silhouette test |
 | 3d-reference/arena-map-sheet.png | The Pressed Garden, 3D arena: plan, hero views, per-boss moods, profile, coordinates |
+| 3d-reference/cinderfox-sheet.png | The Cinderfox, a fire hound that stalks you through the explorable map: turnaround, poses, the five tails, palette, scale |
+| 3d-reference/cinderfox-abilities.png | The Cinderfox's five tricks (one per tail), the rules of the hunt, and how each maps onto the engine |
 
 Regenerate with `node concept-art/3d-reference/render.mjs character.html blob-character-sheet.png 1800 1240` and
 `node concept-art/3d-reference/render.mjs map.html arena-map-sheet.png 1800 2000` (the sources are the `.html` files next to them;
 the map one uses three.js from `node_modules` for a throwaway mock-up).
+
+The Cinderfox sheets are built from real renders of its model in the model lab (`src/act2/models/cinderfox*.ts`; the idea and its rules are in
+[`docs/CINDERFOX.md`](../docs/CINDERFOX.md)). Regenerate: `npm run gallery`, then
+`node tools/lab-render.mjs concept-art/3d-reference/cinderfox/plates.json out/plates` (save the PNGs as JPEG, quality 90, over the ones in
+`3d-reference/cinderfox/`), then `node concept-art/3d-reference/render.mjs cinderfox.html cinderfox-sheet.png 1800 1240` and
+`node concept-art/3d-reference/render.mjs cinderfox-abilities.html cinderfox-abilities.png 1800 1600`.

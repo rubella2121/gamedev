@@ -1,5 +1,6 @@
 import type * as THREE from 'three';
 import type { Slicer } from '../src/act2/kit/sdf';
+import { labCinderfox } from '../src/act2/models/cinderfoxLab';
 import { labCollector } from '../src/act2/models/collector';
 import { labMash } from '../src/act2/models/mash';
 import { labX } from '../src/act2/models/x';
@@ -11,4 +12,5 @@ export function registerModels(lab: { register: (name: string, b: Builder) => vo
   lab.register('x', labX);
   lab.register('collector', labCollector);
   lab.register('mash', labMash);
+  lab.register('cinderfox', labCinderfox);
 }

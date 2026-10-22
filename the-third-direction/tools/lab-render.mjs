@@ -1,7 +1,7 @@
 // Renders views of a 3D monster from the lab into PNG files.
 //   npm run gallery            (builds dist-gallery, including the lab)
 //   node tools/lab-render.mjs <spec.json> <outDir>
-// spec: { "model": "x", "shots": [ { "name": "front", "cam": { "pos": [0,10,12], "look": [0,8,-29], "fov": 50 }, "w": 432, "h": 768,
+// spec: { "model": "x", "shots": [ { "name": "front", "env": "fire" (optional lighting), "cam": { "pos": [0,10,12], "look": [0,8,-29], "fov": 50 }, "w": 432, "h": 768,
 //         "poses": [["foot", 1]], "step": 0.5, "light": 80 } ] }
 import { chromium } from 'playwright-core';
 import http from 'http';
@@ -58,6 +58,7 @@ console.log(`built ${spec.model} in ${ms} ms`, st);
 for (const s of spec.shots) {
   await page.evaluate((s) => {
     const L = window.__lab;
+    if (s.env) L.env(s.env);
     if (s.light !== undefined) L.light(s.light);
     for (const [n, v] of s.poses ?? []) L.pose(n, v);
     if (s.step) L.step(1 / 30, Math.round(s.step * 30));

@@ -1,6 +1,6 @@
 [
  {"wait": 1500},
- {"click": ".btn.play"},
+ {"click": ".play"},
  {"wait": 600},
  {"eval": "__tt.debugFight(0, 0); 'ok'"},
  {"until": "__tt.act2.boss.state === 'fight' && __tt.act2.control", "timeout": 60000},

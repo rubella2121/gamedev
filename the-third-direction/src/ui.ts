@@ -1,4 +1,9 @@
-import { PRESETS, type DiffId } from './core/difficulty';
+import { Ambient } from './ambient';
+import { drawBlob } from './core/art';
+import { bestTime, PRESETS, type DiffId } from './core/difficulty';
+import { makeSprite, type Pix } from './core/pix';
+import { fmtTime } from './core/util';
+import { Logo } from './logo';
 
 export interface HomeOptions {
   onPlay: () => void;
@@ -10,7 +15,47 @@ export interface HomeOptions {
   onDifficulty: (id: DiffId) => void;
   difficulty: DiffId;
   best: () => string | null;
+  /** is the sound on right now (the switch starts there) */
+  sound?: boolean;
 }
+
+/** a tiny pixel icon from rows of '#', as an inline SVG: crisp, and it takes the text colour */
+function icon(rows: string[]): string {
+  let d = '';
+  rows.forEach((r, y) => {
+    for (const m of r.matchAll(/#+/g)) d += `M${m.index} ${y}h${m[0].length}v1h-${m[0].length}z`;
+  });
+  return `<svg class="pi" viewBox="0 0 ${rows[0]!.length} ${rows.length}" shape-rendering="crispEdges" fill="currentColor"><path d="${d}"/></svg>`;
+}
+
+const ICON = {
+  play: ['##......', '####....', '######..', '########', '######..', '####....', '##......'],
+  speaker: ['...#.....', '..##.#...', '###.#.#..', '###.#.#..', '###.#.#..', '..##.#...', '...#.....'],
+  muted: ['...#.....', '..##.#.#.', '###..#...', '###.#.#..', '###..#...', '..##.#.#.', '...#.....'],
+  skull: ['.#####.', '#######', '##.#.##', '##.#.##', '#######', '.#####.', '.#.#.#.', '.#####.'],
+  help: ['.#####.', '##...##', '.....##', '...###.', '..##...', '.......', '..##...'],
+  share: ['...#...', '..###..', '.#.#.#.', '...#...', '#..#..#', '#.....#', '#######'],
+  menu: ['#######', '.......', '#######', '.......', '#######'],
+};
+
+const HEART_SVG = '<svg class="heart" viewBox="0 0 7 6"><path d="M1 0h2v1H1z M4 0h2v1H4z M0 1h7v2H0z M1 3h5v1H1z M2 4h3v1H2z M3 5h1v1H3z"/></svg>';
+
+/** The three bosses of the 3D act, for the picker on the home page (names and colours match the fights). */
+const BOSSES = [
+  { name: 'X, the Hollow', sub: 'it fell in from the third dimension', colour: '#ff3a4a' },
+  { name: 'The Collector', sub: 'he wanted you on his wall', colour: '#ffcf5a' },
+  { name: 'The Mash', sub: 'every guardian, stitched back together', colour: '#ff8aa8' },
+];
+
+/** The how-to rows: a little picture of the gesture, what it is called, what it does. */
+const GESTURES = [
+  { pic: '<circle cx="12" cy="12" r="10" fill="none" stroke="#9ff4ee" stroke-width="1.6" opacity=".55"/><circle cx="15.5" cy="8.5" r="4.2" fill="#f2d36b"/>', name: 'Move', text: 'Drag on the left side of the screen. Or WASD / arrow keys.' },
+  { pic: '<circle cx="12" cy="12" r="3.4" fill="#f2d36b"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="#9ff4ee" stroke-width="1.6" opacity=".7"/><circle cx="12" cy="12" r="10.6" fill="none" stroke="#9ff4ee" stroke-width="1" opacity=".3"/>', name: 'Tap', text: 'A pulse of light. In the 3D arena: a claw strike.' },
+  { pic: '<circle cx="6" cy="12" r="3.4" fill="#f2d36b"/><path d="M11 12h10M17 8l4 4-4 4" fill="none" stroke="#9ff4ee" stroke-width="1.8"/>', name: 'Hold, let go', text: 'A Light Lance: a bolt of light that flies far.' },
+  { pic: '<circle cx="12" cy="12" r="3.2" fill="#ff9ad0"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" stroke="#ffe9a0" stroke-width="1.8"/>', name: 'Hold longer', text: 'With all three light orbs full: a Nova, light all around you.' },
+  { pic: '<path d="M3 6l6 6-6 6M12 6l6 6-6 6" fill="none" stroke="#9ff4ee" stroke-width="2"/>', name: 'Double-tap', text: 'A dash. You cannot be hurt while you do it.' },
+  { pic: '<path d="M19 8a8 8 0 1 0 1 6" fill="none" stroke="#9ff4ee" stroke-width="1.8"/><path d="M20 3v5h-5" fill="none" stroke="#9ff4ee" stroke-width="1.8"/>', name: 'Camera', text: 'In 3D: drag on the right side, or Q / E. R recentres.' },
+];
 
 /** All DOM overlays: captions, hints, hearts, title card, start and end screens. */
 /** Who is speaking: the blob's own thoughts, its family's voices, or the world itself (see src/core/story.ts). */
@@ -69,6 +114,9 @@ export class UI {
   private recenterEl: HTMLButtonElement;
   private onRecenter: (() => void) | null = null;
   private onSkip: (() => void) | null = null;
+  /** the animation loop of the splash and the home page (logo, fireflies, eyes), and what to do when the stage is resized */
+  private fxRaf = 0;
+  private onFit: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.stage = document.createElement('div');
@@ -127,7 +175,10 @@ export class UI {
     this.startEl = mk('start hide');
     this.endEl = mk('endcard hide');
 
-    const fit = () => this.stage.style.setProperty('--u', `${this.stage.clientWidth / 100}px`);
+    const fit = () => {
+      this.stage.style.setProperty('--u', `${this.stage.clientWidth / 100}px`);
+      this.onFit?.();
+    };
     fit();
     new ResizeObserver(fit).observe(this.stage);
   }
@@ -308,7 +359,22 @@ export class UI {
   /** the "tap to begin" screen before the trailer (browsers need a tap before they play sound) */
   showSplash(onTap: () => void) {
     const el = this.splashEl;
-    el.innerHTML = '<div class="sp"><div class="sg"></div><div class="st">The Third<br>Direction</div><div class="sb">tap to begin</div><div class="ss">best with sound on</div></div>';
+    el.innerHTML = '';
+    const mk = (cls: string, text = '') => {
+      const e = document.createElement('div');
+      e.className = cls;
+      if (text) e.textContent = text;
+      return e;
+    };
+    const amb = new Ambient();
+    const logo = new Logo();
+    const fam = new Family();
+    const sp = mk('sp');
+    const hint = mk('sb', 'tap to begin');
+    const snd = mk('ss');
+    snd.innerHTML = `${icon(ICON.speaker)}best with sound on`;
+    sp.append(logo.canvas, fam.canvas, hint, snd);
+    el.append(amb.canvas, sp);
     el.classList.remove('hide');
     const go = (e: Event) => {
       e.stopPropagation();
@@ -321,6 +387,7 @@ export class UI {
       onTap();
     };
     el.addEventListener('pointerdown', go);
+    this.runFx(el, logo, amb, 0.9, fam);
   }
 
   /** A place name with one line under it, when you first step into somewhere new. */
@@ -469,7 +536,7 @@ export class UI {
     this.moonEl.classList.add('blink');
   }
 
-  /** The home page: title, Play, difficulty, how to play, showcase and a sound switch. */
+  /** The home page: the logo, Play, the three difficulties, and the trailer, the boss picker and the how-to. */
   showStart(o: HomeOptions) {
     const el = this.startEl;
     el.innerHTML = '';
@@ -479,93 +546,140 @@ export class UI {
       if (text) e.textContent = text;
       return e;
     };
+    const amb = new Ambient();
+    const logo = new Logo();
     const home = mk('home');
-    const eyebrow = mk('eyebrow', 'RUN October Jam · Monster Mash');
-    const logo = mk('logo');
-    logo.innerHTML = 'The Third<br><span>Direction</span>';
+
+    // the sound switch lives in the corner, where thumbs expect it
+    const snd = mk('snd', '', 'button');
+    snd.setAttribute('aria-label', 'sound');
+    let on = o.sound ?? true;
+    const paint = () => {
+      snd.innerHTML = icon(on ? ICON.speaker : ICON.muted);
+      snd.classList.toggle('off', !on);
+    };
+    paint();
+    snd.addEventListener('click', () => {
+      on = !on;
+      paint();
+      o.onSound(on);
+    });
+
     const tag = mk('tag', "don't look up");
+    const premise = mk('premise', 'a baby blob. a forest of monsters. a third dimension.');
     const spacer = mk('spacer');
 
-    const play = mk('btn play', 'Play', 'button');
+    const wrap = mk('playwrap');
+    const play = mk('play', '', 'button');
+    play.innerHTML = `<span>${icon(ICON.play)}Play</span>`;
     play.addEventListener('click', () => {
       el.classList.add('hide');
       o.onPlay();
     });
+    wrap.append(play);
 
-    const diff = mk('diff');
-    const seg = mk('seg');
-    const blurb = mk('blurb');
+    // three cards, one per difficulty: hearts are what you get, the last line is what it is for (or your best time)
     const ids: DiffId[] = ['gentle', 'normal', 'nightmare'];
+    const diffs = mk('diffs');
+    const blurb = mk('blurb');
+    const tiles = ids.map((id) => {
+      const d = PRESETS[id];
+      const best = bestTime(id);
+      const t = mk('dtile', '', 'button');
+      t.innerHTML = `<b>${d.label}</b><span class="pips">${HEART_SVG.repeat(d.hearts)}</span><i>${best !== null ? `best ${fmtTime(best)}` : d.ranked ? 'ranked' : 'for the story'}</i>`;
+      diffs.append(t);
+      return t;
+    });
     const refresh = (id: DiffId) => {
-      Array.from(seg.children).forEach((c, i) => c.classList.toggle('on', ids[i] === id));
+      tiles.forEach((t, i) => t.classList.toggle('on', ids[i] === id));
       blurb.textContent = PRESETS[id].blurb;
     };
-    ids.forEach((id) => {
-      const b = mk('segbtn', PRESETS[id].label, 'button');
-      b.addEventListener('click', () => {
-        o.onDifficulty(id);
-        refresh(id);
-      });
-      seg.append(b);
-    });
+    tiles.forEach((t, i) =>
+      t.addEventListener('click', () => {
+        o.onDifficulty(ids[i]!);
+        refresh(ids[i]!);
+      }),
+    );
     refresh(o.difficulty);
-    diff.append(seg, blurb);
 
     const row = mk('row');
-    const how = mk('btn ghost', 'How to play', 'button');
-    how.addEventListener('click', () => this.showHowTo());
-    const show = mk('btn ghost', 'Quick showcase', 'button');
-    show.addEventListener('click', () => this.showShowcase(o));
-    row.append(how, show);
-
-    const foot = mk('foot');
-    const best = mk('small', o.best() ? `best ${o.best()}` : 'best with sound on');
-    const sound = mk('chip', 'sound on', 'button');
-    let on = true;
-    sound.addEventListener('click', () => {
-      on = !on;
-      sound.textContent = on ? 'sound on' : 'sound off';
-      o.onSound(on);
-    });
+    const pill = (label: string, rows: string[], fn: () => void) => {
+      const b = mk('pill', '', 'button');
+      b.innerHTML = `${icon(rows)}<span>${label}</span>`;
+      b.addEventListener('click', fn);
+      row.append(b);
+    };
     if (o.onIntro) {
-      const intro = mk('chip', '▶ intro', 'button');
-      intro.addEventListener('click', () => {
+      pill('Trailer', ICON.play, () => {
         el.classList.add('hide');
         o.onIntro!();
       });
-      foot.append(best, intro, sound);
-    } else foot.append(best, sound);
+    }
+    pill('Fight a boss', ICON.skull, () => this.showShowcase(o));
+    pill('How to play', ICON.help, () => this.showHowTo());
 
-    home.append(eyebrow, logo, tag, spacer, play, diff, row, foot);
+    const foot = mk('foot', 'RUN October Jam · Monster Mash');
+    home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, diffs, blurb, row, foot);
     el.append(home);
     el.classList.remove('hide');
+    this.runFx(el, logo, amb, 0.92);
+  }
+
+  /** The animation of the splash and the home page: the logo's depth sways, the fireflies drift, eyes open in the dark. */
+  private runFx(el: HTMLElement, logo: Logo, amb: Ambient, width: number, fam?: Family) {
+    this.stopFx();
+    const size = () => logo.resize(this.stage.clientWidth * width);
+    this.onFit = size;
+    size();
+    // (a property, so showing the page again replaces the old handler instead of stacking another)
+    el.onpointermove = (e) => {
+      const r = this.stage.getBoundingClientRect();
+      logo.tilt = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2));
+    };
+    const t0 = performance.now();
+    let drawn = 0;
+    const tick = (now: number) => {
+      if (!el.isConnected || el.classList.contains('hide')) {
+        this.fxRaf = 0;
+        return;
+      }
+      this.fxRaf = requestAnimationFrame(tick);
+      // thirty frames a second is plenty for something this slow
+      if (now - drawn < 32) return;
+      drawn = now;
+      const t = (now - t0) / 1000;
+      logo.draw(t);
+      amb.draw(t);
+      fam?.draw(t);
+    };
+    this.fxRaf = requestAnimationFrame(tick);
+  }
+
+  private stopFx() {
+    if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
+    this.fxRaf = 0;
+    this.onFit = null;
   }
 
   /** Pick a boss to fight right now, skipping the story (these runs are never ranked). */
   private showShowcase(o: HomeOptions) {
     const card = document.createElement('div');
-    card.className = 'howto';
-    const h = document.createElement('div');
-    h.className = 'hh';
-    h.textContent = 'Quick showcase';
-    const t = document.createElement('div');
-    t.className = 'htip';
-    t.innerHTML = 'Skip the forest and fight a boss now.<br>The next one follows if you win.';
-    card.append(h, t);
-    const names = ['X, the Hollow', 'The Collector', 'The Mash'];
-    names.forEach((n, i) => {
-      const b = document.createElement('button');
-      b.className = 'btn play';
-      b.textContent = n;
-      b.addEventListener('click', () => {
+    card.className = 'sheet';
+    card.innerHTML = '<div class="sh">Fight a boss</div><div class="ssub">Skip the forest. The next boss follows if you win.<br>These runs are not ranked.</div>';
+    BOSSES.forEach((b, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'bcard';
+      btn.style.setProperty('--bc', b.colour);
+      btn.innerHTML = `<b>${b.name}</b><i>${b.sub}</i>`;
+      btn.addEventListener('click', () => {
         this.startEl.classList.add('hide');
         card.remove();
         o.onShowcase(i);
       });
-      card.append(b);
+      card.append(btn);
     });
     const close = document.createElement('button');
-    close.className = 'btn ghost';
+    close.className = 'sclose';
     close.textContent = 'Back';
     close.addEventListener('click', () => card.remove());
     card.append(close);
@@ -575,60 +689,52 @@ export class UI {
   /** Controls and tips, shown over the home page. */
   private showHowTo() {
     const card = document.createElement('div');
-    card.className = 'howto';
-    card.innerHTML = `
-      <div class="hh">How to play</div>
-      <div class="hrow"><b>Move</b><span>drag on the left side of the screen<br>or WASD / arrow keys</span></div>
-      <div class="hrow"><b>Act</b><span>the glowing button, or Space.<br>Tap: pulse of light, or a strike in 3D.</span></div>
-      <div class="hrow"><b>Lance</b><span>hold it, then let go:<br>a bolt of light that flies far.</span></div>
-      <div class="hrow"><b>Nova</b><span>three orbs full? hold longer:<br>a burst of light all around you.</span></div>
-      <div class="hrow"><b>Dash</b><span>double-tap: a quick dodge<br>you cannot be hurt in.</span></div>
-      <div class="hrow"><b>Camera</b><span>in 3D, drag on the right side<br>or Q / E. R recentres.</span></div>
-      <div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
+    card.className = 'sheet';
+    const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
+    card.innerHTML = `<div class="sh">How to play</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
     const close = document.createElement('button');
-    close.className = 'btn ghost';
-    close.textContent = 'Close';
+    close.className = 'sclose';
+    close.textContent = 'Got it';
     close.addEventListener('click', () => card.remove());
     card.append(close);
     this.startEl.append(card);
   }
 
   showEnd(line: string, time: string, deaths: number, mode: string, newBest: boolean, onAgain: () => void, onShare: () => Promise<boolean>, onMenu: () => void): HTMLElement {
+    const mk = (cls: string, tag = 'div') => {
+      const e = document.createElement(tag);
+      e.className = cls;
+      return e;
+    };
     this.endEl.innerHTML = '';
-    const big = document.createElement('div');
-    big.className = 'big';
+    const big = mk('big');
     big.textContent = line;
-    const t = document.createElement('div');
-    t.className = 'stat';
-    t.innerHTML = `time <b>${time}</b>${newBest ? ' <i>new best</i>' : ''}`;
-    const d = document.createElement('div');
-    d.className = 'stat';
-    d.innerHTML = `deaths <b>${deaths}</b>`;
-    const m = document.createElement('div');
-    m.className = 'small';
+    const stats = mk('stats');
+    stats.innerHTML = `<div><i>time</i><b>${time}</b>${newBest ? '<em>new best</em>' : ''}</div><div><i>deaths</i><b>${deaths}</b></div>`;
+    const m = mk('small');
     m.textContent = mode;
-    const b = document.createElement('button');
-    b.className = 'btn';
-    b.textContent = 'Play again';
-    b.addEventListener('click', () => {
+    const rank = mk('stat rank');
+    const wrap = mk('playwrap');
+    const again = mk('play', 'button');
+    again.innerHTML = `<span>${icon(ICON.play)}Play again</span>`;
+    again.addEventListener('click', () => {
       this.endEl.classList.add('hide');
       onAgain();
     });
-    const share = document.createElement('button');
-    share.className = 'btn ghost';
-    share.textContent = 'Share';
+    wrap.append(again);
+    const row = mk('row');
+    const share = mk('pill', 'button');
+    share.innerHTML = `${icon(ICON.share)}<span>Share</span>`;
     share.addEventListener('click', () => {
       void onShare().then((ok) => {
-        share.textContent = ok ? 'Shared' : 'Share';
+        share.querySelector('span')!.textContent = ok ? 'Shared' : 'Share';
       });
     });
-    const menu = document.createElement('button');
-    menu.className = 'btn ghost';
-    menu.textContent = 'Menu';
+    const menu = mk('pill', 'button');
+    menu.innerHTML = `${icon(ICON.menu)}<span>Menu</span>`;
     menu.addEventListener('click', onMenu);
-    const rank = document.createElement('div');
-    rank.className = 'stat rank';
-    this.endEl.append(big, t, d, m, rank, b, share, menu);
+    row.append(share, menu);
+    this.endEl.append(big, stats, m, rank, wrap, row);
     this.endEl.classList.remove('hide');
     return rank;
   }
@@ -642,5 +748,25 @@ export class UI {
     e.className = 'nogl';
     e.textContent = 'This game needs WebGL. Please try another browser or device.';
     this.stage.appendChild(e);
+  }
+}
+
+/** Two big lights and a small one, curled up together: the opening's picture, as a small breathing sprite. */
+class Family {
+  private p: Pix = makeSprite(76, 36);
+  readonly canvas = this.p.canvas;
+
+  constructor() {
+    this.canvas.className = 'family';
+    this.draw(0);
+  }
+
+  draw(t: number) {
+    const p = this.p;
+    p.ctx.clearRect(0, 0, 76, 36);
+    const blink = (k: number) => (Math.sin(t * 0.9 + k * 2.4) > 0.97 ? 1 : 0);
+    drawBlob(p, 21, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9), blink: blink(0) });
+    drawBlob(p, 55, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9 + 1.3), blink: blink(1) });
+    drawBlob(p, 38, 34, { s: 0.95, squash: 1 + 0.05 * Math.sin(t * 2.6 + 0.6), blink: blink(2) });
   }
 }

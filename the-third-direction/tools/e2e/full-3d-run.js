@@ -1,7 +1,7 @@
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const g = __tt, a = g.act2;
-  const out = { diff: document.querySelector('.segbtn.on')?.textContent, bosses: [] };
+  const out = { diff: document.querySelector('.dtile.on b')?.textContent, bosses: [] };
   const log = [];
   let lastBi = -1, t0 = performance.now(), lastHearts = null, lost = 0;
   __bot3.run(0, 0, 3);

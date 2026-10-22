@@ -1,6 +1,6 @@
 [
  {"wait": 1500},
- {"click": ".btn.play"},
+ {"click": ".play"},
  {"wait": 800},
  {"eval": "__tt.act1.debugArena('thicket'); 'ok'"},
  {"until": "(() => { const z = __tt.act1.zones.find((q) => q.guardian); return z && z.guardian.state === 'fight'; })()", "timeout": 60000},
