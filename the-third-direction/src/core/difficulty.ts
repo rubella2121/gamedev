@@ -19,14 +19,17 @@ export interface Diff {
   window: number;
   /** multiplier on every boss's health */
   boss: number;
+  /** dash charges you carry, and the seconds one takes to come back (see core/dash.ts) */
+  dashes: number;
+  dashRefill: number;
   /** only Normal and Nightmare times go on the leaderboard */
   ranked: boolean;
 }
 
 export const PRESETS: Record<DiffId, Diff> = {
-  gentle: { id: 'gentle', label: 'Gentle', blurb: 'More time, more hearts. For the story.', hearts: 5, tele: 1.4, speed: 0.85, vision: 0.8, window: 1.35, boss: 0.7, ranked: false },
-  normal: { id: 'normal', label: 'Normal', blurb: 'The game as designed.', hearts: 3, tele: 1, speed: 1, vision: 1, window: 1, boss: 1, ranked: true },
-  nightmare: { id: 'nightmare', label: 'Nightmare', blurb: 'Fast, watchful, 2 hearts. No mercy.', hearts: 2, tele: 0.78, speed: 1.18, vision: 1.2, window: 0.78, boss: 1.3, ranked: true },
+  gentle: { id: 'gentle', label: 'Gentle', blurb: 'More time, more hearts. For the story.', hearts: 5, tele: 1.4, speed: 0.85, vision: 0.8, window: 1.35, boss: 0.7, dashes: 3, dashRefill: 1.6, ranked: false },
+  normal: { id: 'normal', label: 'Normal', blurb: 'The game as designed.', hearts: 3, tele: 1, speed: 1, vision: 1, window: 1, boss: 1, dashes: 2, dashRefill: 2.2, ranked: true },
+  nightmare: { id: 'nightmare', label: 'Nightmare', blurb: 'Fast, watchful, 2 hearts. No mercy.', hearts: 2, tele: 0.78, speed: 1.18, vision: 1.2, window: 0.78, boss: 1.3, dashes: 2, dashRefill: 2.8, ranked: true },
 };
 
 export const D: Diff = { ...PRESETS.normal };

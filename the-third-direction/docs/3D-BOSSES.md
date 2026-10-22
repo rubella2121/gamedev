@@ -65,7 +65,7 @@ A boss is a class extending `Boss3D` with a model it builds in `build(slicer)`:
   `env.pull(vx, vz)` pushes the player this frame (wind, a maw); `env.addLight(n)` fills the light meter.
 * Player powers a boss must make sense of: **strike** (tap; `onPlayerStrike(x, z, fx, fz)`, plus `weak()`), **lance**
   (hold 0.5 s, let go: a bolt, `onLance(l)` returns true if you stop it), **nova** (full meter, hold 1.3 s: a ring of light
-  of radius 9.5 that grows over 0.5 s, `onNova(n)`; `n.R` is the current radius), **dash** (double-tap: 0.22 s, untouchable).
+  of radius 9.5 that grows over 0.5 s, `onNova(n)`; `n.R` is the current radius), **dash** (double-tap: 0.22 s, untouchable for about 0.27 s; it spends a charge, `core/dash.ts`: Normal carries 2 and gets one back every 2.2 s, see `dashes` and `dashRefill` in `core/difficulty.ts`; a boss must never need more dashes than that in a row).
   Everything that is a "monster" in your fight (minions) should die to a strike, a lance or a nova, and give a little light.
 * The arena also has healing wells, surge pads and light crystals (`features.ts`); do not rely on or fight them.
 * Voice and words: `env.audio.v.<yourVoice>()` and a caption through `env.ui.caption(line, ms, true)`. Lines are

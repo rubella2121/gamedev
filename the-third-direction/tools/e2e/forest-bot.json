@@ -1,0 +1,8 @@
+[
+  { "wait": 2500 },
+  { "click": ".dtile:nth-child(2)" },
+  { "click": ".play" },
+  { "wait": 800 },
+  { "eval": "window.__id = 'gloom'; 'ok'" },
+  { "evalFile": "tools/e2e/forest-bot-run.js" }
+]

@@ -6,6 +6,7 @@ import { XBoss } from './bosses/xboss';
 import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
+import { DashPool } from '../core/dash';
 import { D } from '../core/difficulty';
 import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
@@ -80,6 +81,8 @@ export class Act2 {
   private light = 0;
   private dashT = 0;
   private dashCd = 0;
+  /** dash charges (a dash is free of danger, so it is not free to repeat) */
+  dashPool = new DashPool();
   private dashX = 0;
   private dashZ = 1;
   private launchT = 0;
@@ -240,6 +243,7 @@ export class Act2 {
     this.lances = [];
     this.nova = null;
     this.dashT = this.dashCd = this.launchT = 0;
+    this.dashPool.reset();
     this.hud = false;
     a.player.visible = false;
     a.setRise(0);
@@ -548,6 +552,7 @@ export class Act2 {
     this.trapped = false;
     this.light = 0;
     this.dashT = this.dashCd = this.launchT = 0;
+    this.dashPool.reset();
     this.resetCamera();
     a.hideShadow();
     a.marks.hideAll();
@@ -677,7 +682,8 @@ export class Act2 {
     this.dashZ = dz;
     this.dashT = DASH_T;
     this.dashCd = DASH_CD;
-    pl.invuln = Math.max(pl.invuln, DASH_T + 0.14);
+    this.dashPool.use();
+    pl.invuln = Math.max(pl.invuln, DASH_T + 0.05);
     this.lastFace = Math.atan2(dx, dz);
     audio.dash();
     this.arena.burst3(pl.x, 0.5, pl.z, 8, [0xf2d36b, 0xfff1a6, 0xffffff], 4);
@@ -811,6 +817,8 @@ export class Act2 {
     this.pl.invuln = Math.max(0, pl.invuln - dt);
     this.strikeCd = Math.max(0, this.strikeCd - dt);
     this.dashCd = Math.max(0, this.dashCd - dt);
+    this.dashPool.update(dt);
+    this.ctx.ui.dashes(this.dashPool.charges, this.dashPool.max, this.dashPool.frac);
     const dashing = this.dashT > 0;
     if (this.trapped) {
       pl.vx = pl.vz = 0;
@@ -829,8 +837,9 @@ export class Act2 {
       }
       // one button: tap strikes, double-tap dashes, hold then let go throws a lance, hold longer with a full meter bursts a nova
       if (input.actionPressed) {
-        if (input.doubleTap && this.dashCd <= 0 && !this.trapped) this.startDash();
+        if (input.doubleTap && this.dashCd <= 0 && !this.trapped && this.dashPool.can()) this.startDash();
         else if (this.strikeCd <= 0 && this.dashT <= 0) {
+          if (input.doubleTap && this.dashCd <= 0 && !this.trapped) this.ctx.ui.dashEmpty();
           this.strikeT = 0.3;
           this.strikeCd = 0.42;
           this.pending = 0.14;

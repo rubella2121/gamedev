@@ -185,7 +185,7 @@ export function installBots(game: Game) {
 
   function dash() {
     const p = P();
-    if (p.dashCd <= 0 && p.dead <= 0 && f.freezeT <= 0) {
+    if (p.dashCd <= 0 && f.dashPool.can() && p.dead <= 0 && f.freezeT <= 0) {
       f.dash();
       stats.dashes++;
     }

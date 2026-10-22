@@ -147,7 +147,7 @@ export function installBots3d(game: Game) {
     setMove(best[0], best[1]);
     const now = performance.now() / 1000;
     // cornered: dash
-    if (hereC >= 10 && bestRisk >= 10 && a2.dashCd <= 0 && a2.dashT <= 0) {
+    if (hereC >= 10 && bestRisk >= 10 && a2.dashCd <= 0 && a2.dashT <= 0 && a2.dashPool.can()) {
       a2.startDash();
       stats.dashes++;
     }

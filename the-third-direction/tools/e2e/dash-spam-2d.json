@@ -1,0 +1,21 @@
+[
+ {
+  "wait": 1500
+ },
+ {
+  "click": ".play"
+ },
+ {
+  "wait": 800
+ },
+ {
+  "eval": "__tt.act1.debugArena('thicket'); 'ok'"
+ },
+ {
+  "until": "(() => { const z = __tt.act1.zones.find((q) => q.guardian); return z && z.guardian.state === 'fight'; })()",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => { const g = __tt, f = g.act1, a = f, i = g.input; const out = { start: f.dashPool.charges, max: f.dashPool.max }; let prev = 0, dashes = 0, t = 0; const stamps = [];\n const step = (n) => { for (let k = 0; k < n; k++) { f.player.hearts = f.player.maxHearts; i.update(1 / 60); f.update(1 / 60); t += 1 / 60; if (f.player.dashT > 0 && prev <= 0) { dashes++; stamps.push(+t.toFixed(1)); } prev = f.player.dashT; } };\n step(6); for (let p = 0; p < 80; p++) { i.btnId = 7; i.latchT = 0.07; step(3); i.btnId = -1; step(3); }\n out.mashed8s = { dashes, at: stamps, charges: +f.dashPool.charges.toFixed(2) };\n step(240); out.after4sRest = { charges: +f.dashPool.charges.toFixed(2) };\n return JSON.stringify(out); })()"
+ }
+]
