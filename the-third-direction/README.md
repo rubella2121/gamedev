@@ -88,8 +88,12 @@ rundot game set-public # only when ready: submits the game for review
 - The Cinderfox (`src/act2/models/cinderfox*.ts`, [`docs/CINDERFOX.md`](./docs/CINDERFOX.md)) is a concept for the explorable map: a fire hound
   that stalks you with five tails, one trick per guardian. Its model and the pictures of its tricks live in the model lab; the game does not
   use them yet. Reference sheets are in `concept-art/3d-reference/`.
+- Mother wears a small pink bow (`bow: true` in `drawBlob`, `drawBow` in `src/core/art.ts`: a hand-drawn 9 x 5 pixel sprite, 11 x 6 on the big
+  pinned portrait). She is the left one of the family: in the opening, on the splash and the home page, and on the left of the two big
+  blobs on the arena wall. Her pressed bow is beside her smudge after the slam.
 - Telling a new player what to do: the first time anyone plays, a card says what is happening in three plain lines (`BRIEF` in `src/ui.ts`;
-  remembered with the `tt.briefed` key, test builds skip it unless you add `&intro`). While you are out on the roads a goal line under the five
+  remembered with the `tt.briefed` key, test builds skip it unless you add `&intro`). It is shown only when the opening of a run that began with
+  the Play button ends (`Forest.briefNext`), never in the trailer, the preview behind the home page or the boss showcase. While you are out on the roads a goal line under the five
   dots says "beat the five guardians · n of 5", then "the road is open · follow the red arrow". The move and pulse hints stay until you have
   moved or pulsed. Hints are only taken down by whoever put them up (`ui.hintIs`): a zone used to wipe every hint each frame.
 - Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab and the concept-art gallery (`tools/`);

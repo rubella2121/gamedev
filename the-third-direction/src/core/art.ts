@@ -314,6 +314,29 @@ export interface BlobOpts {
   third?: boolean;
   shadow?: boolean;
   alpha?: number;
+  /** a little pink bow on the head (Mother wears one) */
+  bow?: boolean;
+}
+
+/** The colours of Mother's bow: the only pink in the game, so she can always be told from Father. */
+export const BOW = { pink: '#ff8cc0', light: '#ffe0f0', shade: '#d6568f', knot: '#b03470', line: '#8a2a5e' } as const;
+
+/** The bow, drawn by hand: O outline, P pink, L light, S shade, K knot. A small one for most blobs, a bigger one for the pinned portrait. */
+const BOW_SMALL = ['.OO...OO.', 'OPPO.OPPO', 'OLPPKPPPO', 'OPPSKSPPO', '.OOO.OOO.'];
+const BOW_BIG = ['..OO...OO..', '.OPPO.OPPO.', 'OPLPPKPPPPO', 'OPPPSKSPPPO', '.OSSO.OSSO.', '..OO...OO..'];
+const BOW_COL: Record<string, string> = { O: BOW.line, P: BOW.pink, L: BOW.light, S: BOW.shade, K: BOW.knot };
+
+/** A little pink bow. (x, y) is the middle of its bottom edge; `s` is the scale of the blob wearing it. */
+export function drawBow(p: Pix, x: number, y: number, s: number) {
+  const bm = s >= 1.9 ? BOW_BIG : BOW_SMALL;
+  const left = Math.round(x - bm[0]!.length / 2);
+  const top = Math.round(y - bm.length);
+  bm.forEach((row, j) => {
+    for (let i = 0; i < row.length; i++) {
+      const c = BOW_COL[row[i]!];
+      if (c) p.px(left + i, top + j, c);
+    }
+  });
 }
 
 /** The yellow blob. (x, y) is the ground-contact point at its bottom centre. */
@@ -347,6 +370,10 @@ export function drawBlob(p: Pix, x: number, y: number, o: BlobOpts = {}) {
   if (o.third) {
     p.ellipse(x, cy - ry * 0.55, 1.8 * s, 1.8 * s, C.red);
     p.px(x - 0.5, cy - ry * 0.55 - 0.5, C.redGlow);
+  }
+  if (o.bow) {
+    // on the upper right of the head, where the curve of the egg starts to turn; its bottom edge sits a little way into the head
+    drawBow(p, x + rx * 0.5, cy - ry * Math.sqrt(1 - 0.25) + 2.4, s);
   }
   if (o.alpha !== undefined) p.alpha(1);
 }

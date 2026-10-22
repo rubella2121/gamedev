@@ -7,7 +7,7 @@ import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../c
 import { playTimed, say, STORY } from '../core/story';
 import { MothMood, MothShield } from '../core/mothbond';
 import { Falls } from '../core/falls';
-import { burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
+import { BOW, burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
 import { arenaDef, CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, type ArenaDef, type ZoneId } from './land';
@@ -111,6 +111,8 @@ export class Forest implements Hub {
   private ghosts: { x: number; y: number; t: number }[] = [];
   private aim = { x: 0, y: -1 };
   previewMode = false;
+  /** set by the game when the player pressed Play: the first-time card may show when the opening ends (never in the trailer, the showcase or the preview) */
+  briefNext = false;
   /** the trailer is filming: no zone rings or compass arrow over the picture */
   cinema = false;
   onBoom: (() => void) | null = null;
@@ -441,6 +443,7 @@ export class Forest implements Hub {
     this.pulseHinted = false;
     this.pulseHintOn = false;
     this.moveHintFrom = null;
+    this.briefNext = false;
     this.secrets = 0;
     this.ctx.stats.bonus = 0;
     this.sealOpen = false;
@@ -514,7 +517,9 @@ export class Forest implements Hub {
     this.onSection?.('run');
     // the first time anyone plays, say what the game is about before anything else (test builds skip it)
     const q = new URLSearchParams(location.search);
-    if (!storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'))) {
+    const show = this.briefNext && !this.previewMode && !this.cinema && !storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'));
+    this.briefNext = false;
+    if (show) {
       this.input.setMoveEnabled(false);
       this.ui.briefing(() => {
         storageSet(BRIEF_KEY, '1');
@@ -1873,7 +1878,7 @@ export class Forest implements Hub {
     });
     if (!slammed) {
       const nudge = ot > OP.nudge && ot < OP.nudge + 0.7 ? Math.sin(((ot - OP.nudge) / 0.7) * Math.PI) * 5 : 0;
-      list.push({ y: 4 + OY, fn: () => drawBlob(p, 90 + nudge, 4 - cam, { s: 1.5, squash: br(1), lookY: alarm ? -1 : 0.4, lookX: 0.3 }) });
+      list.push({ y: 4 + OY, fn: () => drawBlob(p, 90 + nudge, 4 - cam, { s: 1.5, squash: br(1), lookY: alarm ? -1 : 0.4, lookX: 0.3, bow: true }) });
       const lean = ot > OP.shove && ot < OP.shove + 0.8 ? -Math.sin(((ot - OP.shove) / 0.8) * Math.PI) * 4 : 0;
       list.push({ y: 6 + OY, fn: () => drawBlob(p, 127 + lean, 6 - cam, { s: 1.62, squash: br(2), lookY: alarm ? -1 : 0.4, lookX: -0.3 }) });
     } else {
@@ -1881,6 +1886,10 @@ export class Forest implements Hub {
       if (a > 0) {
         p.alpha(a);
         p.ellipse(90, 4 - cam, 11, 2.2, C.blob);
+        // her bow, pressed flat with her
+        p.ellipse(93.5, 3 - cam, 2.4, 1, BOW.pink);
+        p.ellipse(98.5, 3 - cam, 2.4, 1, BOW.pink);
+        p.px(96, 3 - cam, BOW.knot);
         p.ellipse(127, 6 - cam, 12, 2.4, C.blobShade);
         p.alpha(1);
       }
