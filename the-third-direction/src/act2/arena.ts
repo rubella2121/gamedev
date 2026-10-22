@@ -46,9 +46,12 @@ function specimen(kind: number): THREE.CanvasTexture {
   return tex(p.canvas);
 }
 
-function bigBlob(): THREE.CanvasTexture {
-  const p = makeSprite(34, 26);
-  drawBlob(p, 17, 24, { s: 2.2, shadow: false });
+/** The big pinned blobs on the wall are the family. Mother wears her bow, which needs a taller picture. */
+const BIG_H = { plain: 26, bow: 34 };
+function bigBlob(bow: boolean): THREE.CanvasTexture {
+  const h = bow ? BIG_H.bow : BIG_H.plain;
+  const p = makeSprite(34, h);
+  drawBlob(p, 17, h - 2, { s: 2.2, shadow: false, bow });
   return tex(p.canvas);
 }
 
@@ -333,10 +336,14 @@ export class Arena {
         this.world.add(m);
       }
     }
-    const big = bigBlob();
+    // the two big ones are Mother (on the left, as the camera sees it) and Father; both stand on the same line, 0.325 units to a pixel
+    const bigs = { mother: bigBlob(true), father: bigBlob(false) };
     for (const sx of [-1, 1]) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(11, 8.5), new THREE.MeshBasicMaterial({ map: big, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
-      m.position.set(sx * 27, 38, -62);
+      const mother = sx < 0;
+      const hPx = mother ? BIG_H.bow : BIG_H.plain;
+      const h = (8.5 * hPx) / BIG_H.plain;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(11, h), new THREE.MeshBasicMaterial({ map: mother ? bigs.mother : bigs.father, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+      m.position.set(sx * 27, 38 - 4.25 + h / 2, -62);
       m.lookAt(0, 38, 0);
       this.pinned.push(m);
       this.world.add(m);

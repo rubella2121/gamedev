@@ -178,6 +178,8 @@ export class Game {
     this.runStart = performance.now();
     this.act1.previewMode = false;
     this.act1.start();
+    // the first-time card is for a run that began here, with the Play button (not the trailer, not the showcase)
+    this.act1.briefNext = true;
     this.ui.moon(false);
     this.state = 'act1';
   }

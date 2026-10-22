@@ -834,7 +834,7 @@ class Family {
     const p = this.p;
     p.ctx.clearRect(0, 0, 76, 36);
     const blink = (k: number) => (Math.sin(t * 0.9 + k * 2.4) > 0.97 ? 1 : 0);
-    drawBlob(p, 21, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9), blink: blink(0) });
+    drawBlob(p, 21, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9), blink: blink(0), bow: true });
     drawBlob(p, 55, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9 + 1.3), blink: blink(1) });
     drawBlob(p, 38, 34, { s: 0.95, squash: 1 + 0.05 * Math.sin(t * 2.6 + 0.6), blink: blink(2) });
   }
