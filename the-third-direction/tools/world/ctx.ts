@@ -68,3 +68,8 @@ export function cover(c: Ctx, cx: number, cz: number, r: number, mix: Partial<Re
   c.add(scatter(cx, cz, r, c.gy, specs, seed));
 }
 
+
+/** a `where` function for `cover` that leaves a hole of bare ground round the camera, so the foreground is not a wall of grass */
+export function holeAround(c: Ctx, r: number, then?: (x: number, z: number) => number): (x: number, z: number) => number {
+  return (x, z) => Math.min(1, Math.max(0, (Math.hypot(x - c.cam.position.x, z - c.cam.position.z) - r) / (r * 0.8))) * (then ? then(x, z) : 1);
+}

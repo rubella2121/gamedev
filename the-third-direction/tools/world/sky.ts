@@ -68,7 +68,7 @@ export function makeSky(): { mesh: THREE.Mesh; set: (o: SkyOpts) => void } {
         float limb = 0.82 + 0.18 * (1.0 - smoothstep(0.0, uMoonSize, md));
         col = mix(col, uMoonColor * surf * limb * 1.5, disc);
         float halo = exp(-md * (6.0 / max(uMoonSize * 6.0, 0.05)));
-        col += uMoonColor * (halo * 0.35 + exp(-md * 3.0) * 0.12) * (1.0 - disc * 0.5) * (1.0 - cm * 0.6);
+        col += uMoonColor * (halo * 0.35 + exp(-md * 3.0) * 0.05) * (1.0 - disc * 0.5) * (1.0 - cm * 0.6);
         gl_FragColor = vec4(col, 1.0);
       }`,
   });

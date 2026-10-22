@@ -10,7 +10,7 @@ import { V } from './g-common';
  * The Toll Queen (lavender light): a bell of old gold as big as a house, hung from a gallows of two dead trunks over the marsh, with a great winged eye on its face.
  * When it tolls the marsh rings. Local origin: the ground in the middle of the arena, under the bell; the eye faces +z.
  */
-export function makeTollQueen(): THREE.Group {
+export function makeTollQueen(swing = 0): THREE.Group {
   const g = new THREE.Group();
   const r = rng(53);
   const wood = (t: number, a: number, p: THREE.Vector3): Rgb => {
@@ -127,5 +127,16 @@ export function makeTollQueen(): THREE.Group {
   g.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== undefined && !((o as THREE.Mesh).material as THREE.Material).transparent) (o as THREE.Mesh).castShadow = true;
   });
+  if (swing) {
+    // everything but the gallows hangs from the beam and swings with the bell
+    const pivot = new THREE.Group();
+    pivot.position.set(0, 25.9, 0);
+    const inner = new THREE.Group();
+    inner.position.set(0, -25.9, 0);
+    pivot.add(inner);
+    for (const ch of g.children.slice(1)) inner.add(ch);
+    g.add(pivot);
+    pivot.rotation.x = swing;
+  }
   return g;
 }

@@ -67,7 +67,7 @@ export function glowSprite(x: number, y: number, z: number, size: number, color:
 }
 
 /** Fireflies and spores: points of light in a box, in a few colours. */
-export function motes(center: THREE.Vector3, half: THREE.Vector3, n: number, colors: number[], size = 0.22, seed = 11, yMin?: number): THREE.Points {
+export function motes(center: THREE.Vector3, half: THREE.Vector3, n: number, colors: number[], size = 0.22, seed = 11, yMin?: number, avoid?: { p: THREE.Vector3; r: number }): THREE.Points {
   const r = rng(seed);
   const pos = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
@@ -76,6 +76,10 @@ export function motes(center: THREE.Vector3, half: THREE.Vector3, n: number, col
     pos[i * 3] = center.x + (r() - 0.5) * 2 * half.x;
     pos[i * 3 + 1] = Math.max(yMin ?? -1e9, center.y + (r() - 0.5) * 2 * half.y);
     pos[i * 3 + 2] = center.z + (r() - 0.5) * 2 * half.z;
+    // a light right in front of the lens would fill the picture, so none are let that close
+    if (avoid && Math.hypot(pos[i * 3]! - avoid.p.x, pos[i * 3 + 1]! - avoid.p.y, pos[i * 3 + 2]! - avoid.p.z) < avoid.r) {
+      pos[i * 3 + 1] = -1e4;
+    }
     c.setHex(colors[Math.floor(r() * colors.length)]!);
     const k = 0.5 + r() * 0.9;
     col[i * 3] = c.r * k;

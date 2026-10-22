@@ -23,6 +23,8 @@ export interface ShotSpec {
     fov?: number;
     roll?: number;
     rel?: boolean;
+    /** `look` is an absolute height even when `rel` is set (to look out over a drop) */
+    absLook?: boolean;
     /** or: stand on the road into a zone, `back` units from its heart (and `side` to the side), `up` above the ground, looking at the heart (`lookUp` above it, moved `lookBack` along the road) */
     zone?: ZoneId;
     back?: number;
@@ -162,7 +164,7 @@ const world = {
     }
     camera.position.set(px, py + (rel ? height(px, pz) : 0), pz);
     camera.up.set(0, 1, 0);
-    camera.lookAt(lx, ly + (rel ? height(lx, lz) : 0), lz);
+    camera.lookAt(lx, ly + (rel && !s.cam.absLook ? height(lx, lz) : 0), lz);
     if (s.cam.roll) camera.rotateZ(s.cam.roll);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
@@ -174,7 +176,7 @@ const world = {
     fill.color.setHex(s.fill?.color ?? 0x6a8ac0);
     fill.intensity = s.fill?.k ?? 0;
     fill.position.copy(camera.position).add(new THREE.Vector3(8, 14, 6));
-    fill.target.position.set(lx, ly + (rel ? height(lx, lz) : 0), lz);
+    fill.target.position.set(lx, ly + (rel && !s.cam.absLook ? height(lx, lz) : 0), lz);
     // the moon: a low cool light that throws long shadows
     const md = new THREE.Vector3(...(s.moon?.dir ?? [-0.5, 0.55, -0.7])).normalize();
     if (s.moon?.rel) {
@@ -263,7 +265,7 @@ const world = {
       if (!b) throw new Error(`no shot builder "${s.build}"`);
       b(ctx);
     }
-    dynamic.add(treeMeshes(shotPlants, camera, { lod0: s.detail?.lod0 ?? 70, lod1: s.detail?.lod1 ?? 190, maxDist: s.detail?.maxDist ?? 700 }));
+    dynamic.add(treeMeshes(ctx.plants, camera, { lod0: s.detail?.lod0 ?? 70, lod1: s.detail?.lod1 ?? 190, maxDist: s.detail?.maxDist ?? 700 }));
     content.add(dynamic);
 
     const key = `${w}x${h}`;

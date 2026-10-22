@@ -86,7 +86,8 @@ function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts 
       vec3 R1 = cross(vSigmaY, vN); vec3 R2 = cross(vN, vSigmaX);
       float fDet = dot(vSigmaX, R1) * faceDirection;
       vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2);
-      return normalize(abs(fDet) * surf_norm - vGrad);
+      vec3 pn = abs(fDet) * surf_norm - vGrad;
+      return dot(pn, pn) > 1e-10 ? normalize(pn) : surf_norm;
     }`;
   shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\n' + frag);
   if (d?.cut) {
@@ -136,11 +137,14 @@ function inject(shader: THREE.WebGLProgramParametersWithUniforms, d: DetailOpts 
         }
         float fogFactor = 1.0 - exp(-dens * dens * fd * fd);
         vec3 vd = normalize(vWPos - cameraPosition);
-        float sc = pow(max(dot(vd, moonDir), 0.0), 6.0) * inscatter;
+        float sc = pow(max(dot(vd, moonDir), 0.0), 14.0) * inscatter;
         vec3 fc = mix(fogColor, fogColorFar, smoothstep(40.0, 360.0, fd)) + moonColor * sc * smoothstep(20.0, 200.0, fd);
         gl_FragColor.rgb = mix(gl_FragColor.rgb, ${additive ? 'vec3(0.0)' : 'fc'}, clamp(fogFactor, 0.0, 1.0));
       }
-    #endif`,
+    #endif
+    // one bad pixel in a bright pass becomes a screen-wide glow in the bloom, so never let one through
+    if (any(isnan(gl_FragColor.rgb)) || any(isinf(gl_FragColor.rgb))) gl_FragColor.rgb = vec3(0.0);
+    gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(48.0));`,
   );
 }
 

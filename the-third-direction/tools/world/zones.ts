@@ -205,8 +205,8 @@ export function dressZone(c: Ctx, id: ZoneId, o: { guardian?: boolean; lanterns?
   cover(c, zn.heart.x, zn.heart.z, R, cfg.mix, off, 5 + zn.hue % 7, cfg.tint);
   const camNear = c.cam.position;
   cover(c, camNear.x, camNear.z, 22, { grass: id === 'bones' || id === 'marsh' ? 0.4 : 1.2, ...(id === 'meadow' ? { bloom: 0.35 } : {}) }, off, 9, cfg.tint);
-  c.add(motes(new THREE.Vector3(zn.heart.x, 8, zn.heart.z), new THREE.Vector3(40, 9, 40), cfg.moteCount, cfg.motes, 0.26, 21, 0.5), { noDepth: true });
-  c.add(motes(new THREE.Vector3(camNear.x, 3, camNear.z), new THREE.Vector3(14, 3, 14), 50, cfg.motes, 0.34, 22, 0.4), { noDepth: true });
+  c.add(motes(new THREE.Vector3(zn.heart.x, 8, zn.heart.z), new THREE.Vector3(40, 9, 40), cfg.moteCount, cfg.motes, 0.26, 21, 0.5, { p: c.cam.position, r: 6 }), { noDepth: true });
+  c.add(motes(new THREE.Vector3(camNear.x, 3, camNear.z), new THREE.Vector3(14, 3, 14), 50, cfg.motes, 0.34, 22, 0.4, { p: c.cam.position, r: 5 }), { noDepth: true });
   if (o.lanterns !== false) {
     const L = Math.hypot(ex, ez) || 1;
     const ux = ex / L;
