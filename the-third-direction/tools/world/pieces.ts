@@ -1,53 +1,16 @@
 import * as THREE from 'three';
-import { blob, lin, mixRgb, tube } from './geo';
-import { fogged } from './shade';
+import { rng } from '../../src/core/util';
+import { lin, mixRgb, tube } from './geo';
+import { fogged, glowMat } from './shade';
 import { glowSprite } from './fx';
+import { V } from './g-common';
 
-/** Big set pieces: X's foot, lanterns, and the like. Local coordinates, origin on the ground. */
+/** Small set pieces shared by the shots: a hearth lantern, the marks a fight paints on the floor, the crack in the sky. */
 
-/**
- * X's foot, seen from below: a wide black sole, five toes that end in long pale talons, and a leg like a tower going up out of the picture.
- * It is lit from behind by the moon, so what you see is a silhouette with a red edge. Local coordinates: the sole faces down (-y), the toes point +z.
- */
-export function makeFoot(redK = 1): THREE.Group {
-  const g = new THREE.Group();
-  const dark = (t: number, a: number, p: THREE.Vector3): [number, number, number] => {
-    const scale = Math.abs(Math.sin(p.x * 0.55 + Math.sin(p.z * 0.4 + p.y * 0.2) * 2.1) * Math.sin(p.z * 0.6 + p.y * 0.3)) < 0.06 ? 0.45 : 0;
-    return mixRgb(mixRgb(lin(0x07040c), lin(0x1e1232), a * 0.9 * t), lin(0x8a2030), scale);
-  };
-  const skin = (rimK = 1.0) => fogged(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.15, emissive: 0x24060c, emissiveIntensity: 0.6 }), { rim: { color: 0xff2a3a, k: rimK * redK }, vary: 0.4, bump: 1.2, scale: [0.25, 0.25] });
-  // the sole: a wide, flat, rounded oval
-  const sole = new THREE.Mesh(blob(new THREE.Vector3(0, 0, 0), 1, 3, (t, a, p) => dark(t, a, p.clone().multiplyScalar(30)), 2.2, 0.12, 0.3), skin());
-  sole.scale.set(31, 9, 25);
-  sole.position.set(0, 0, -3);
-  g.add(sole);
-  // five toes, each a fat pad with a talon that hooks down and out
-  for (let i = 0; i < 5; i++) {
-    const t = (i - 2) / 2;
-    const a = t * 0.66;
-    const reach = 25.5 - Math.abs(t) * 7;
-    const base = new THREE.Vector3(Math.sin(a) * 33, -1.5, Math.cos(a) * reach - 3);
-    const r = 8.6 - Math.abs(t) * 1.8;
-    const toe = new THREE.Mesh(blob(new THREE.Vector3(0, 0, 0), 1, 2, (tt, aa, p) => dark(tt, aa, p.clone().multiplyScalar(9)), 5 + i, 0.1, 0.75), skin());
-    toe.scale.set(r, r * 0.8, r * 1.2);
-    toe.position.copy(base);
-    g.add(toe);
-    const dir = new THREE.Vector3(Math.sin(a) * 0.8, 0, Math.cos(a)).normalize();
-    const start = base.clone().addScaledVector(dir, r * 0.95).add(new THREE.Vector3(0, -2.5, 0));
-    const len = 21 - Math.abs(t) * 3.5;
-    const path = [0, 0.22, 0.46, 0.72, 1].map((u) => start.clone().addScaledVector(dir, u * len * 0.8).add(new THREE.Vector3(0, -Math.pow(u, 1.8) * len * 0.62, 0)));
-    g.add(new THREE.Mesh(tube(path, [3.6 - Math.abs(t) * 0.5, 3.0, 2.2, 1.2, 0.05], 8, (u) => mixRgb(lin(0x160c20), lin(0xcfc8e0), Math.pow(u, 1.5))), skin()));
-  }
-  // the leg: a tower of dark scaled flesh, leaning back and away
-  const leg = [0, 1, 2, 3, 4, 5].map((k) => new THREE.Vector3(0, 6 + k * 52, -8 - k * 9));
-  g.add(new THREE.Mesh(tube(leg, [15, 15.5, 17, 19, 21, 23], 18, (u, a, p) => dark(u, a, p.clone().multiplyScalar(2.4))), skin(0.45)));
-  return g;
-}
-
-/** A hearth: a post with a lantern, a pool of warm light round it (the places the Cinderfox does not enter). */
+/** A hearth: a post with a lantern and a pool of warm light round it (the places the Cinderfox does not enter). Local coordinates, origin on the ground. */
 export function makeLantern(color = 0xffb05a, height = 4.2): THREE.Group {
   const g = new THREE.Group();
-  const iron = fogged(new THREE.MeshStandardMaterial({ color: 0x1a1820, roughness: 0.6, metalness: 0.7 }));
+  const iron = fogged(new THREE.MeshStandardMaterial({ color: 0x1a1820, roughness: 0.6, metalness: 0.7 }), { rim: { color: 0xffb05a, k: 0.4 } });
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, height, 8), iron);
   post.position.y = height / 2;
   g.add(post);
@@ -63,9 +26,60 @@ export function makeLantern(color = 0xffb05a, height = 4.2): THREE.Group {
   cage.scale.set(0.8, 1.2, 0.8);
   cage.position.copy(lamp.position);
   g.add(cage);
-  const l = new THREE.PointLight(color, 140, 34, 1.7);
+  const l = new THREE.PointLight(color, 45, 16, 1.7);
   l.position.copy(lamp.position);
   g.add(l);
   g.add(glowSprite(lamp.position.x, lamp.position.y, 0, 3.4, color, 0.55));
   return g;
 }
+
+/** what a boss's attack looks like on the floor before it lands: a ring with a gap you can step through, a lane, or a cone */
+export function telegraph(kind: 'ring' | 'lane' | 'cone', hue: number, a: number, b: number, o: { gap?: number; gapAt?: number; len?: number; op?: number } = {}): THREE.Mesh {
+  let geo: THREE.BufferGeometry;
+  if (kind === 'ring') {
+    const gap = o.gap ?? 0;
+    geo = new THREE.RingGeometry(a, b, 96, 1, (o.gapAt ?? 0) + gap / 2, Math.PI * 2 - gap);
+  } else if (kind === 'lane') {
+    geo = new THREE.PlaneGeometry(a, o.len ?? 40);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, 0, -(o.len ?? 40) / 2);
+  } else {
+    geo = new THREE.CircleGeometry(b, 48, -Math.PI / 2 - a / 2, a);
+    geo.rotateX(-Math.PI / 2);
+  }
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: hue, transparent: true, opacity: o.op ?? 0.7, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  if (kind === 'ring') m.rotation.x = -Math.PI / 2;
+  m.renderOrder = 4;
+  return m;
+}
+
+/** a crack in the sky: a jagged line of white light, with the world coming apart into cubes along it (the way you came in) */
+export function skyCrack(center: THREE.Vector3, from: THREE.Vector3, to: THREE.Vector3, seed = 5, R = 1100, cubes = 90): THREE.Group {
+  const g = new THREE.Group();
+  const r = rng(seed);
+  const pts: THREE.Vector3[] = [];
+  const N = 26;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const p = from.clone().lerp(to, t);
+    const jit = (1 - Math.abs(t - 0.5) * 1.2) * 0.085;
+    p.add(V((r() - 0.5) * jit, (r() - 0.5) * jit * 0.7, (r() - 0.5) * jit));
+    pts.push(p);
+  }
+  const world = pts.map((p) => center.clone().add(p.clone().normalize().multiplyScalar(R)));
+  g.add(new THREE.Mesh(tube(world, world.map((_, i) => R * 0.0013 * (1.4 + 1.8 * Math.sin((i / N) * Math.PI))), 5, () => lin(0xffffff), false), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false })));
+  g.add(new THREE.Mesh(tube(world, world.map((_, i) => R * 0.0013 * (9 + 12 * Math.sin((i / N) * Math.PI))), 6, () => lin(0x9a8aff), false), new THREE.MeshBasicMaterial({ color: 0x4a3aa8, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })));
+  for (const w of world.filter((_, i) => i % 3 === 0)) g.add(glowSprite(w.x, w.y, w.z, R * 0.11, 0xb8a8ff, 0.35));
+  for (let i = 0; i < cubes; i++) {
+    const w = world[Math.floor(r() * world.length)]!;
+    const s = R * 0.0018 * (2 + r() * r() * 14);
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.62 + r() * 0.1, 0.5, 0.75 + r() * 0.2), fog: false, transparent: true, opacity: 0.9 }));
+    cube.position.copy(w).add(V((r() - 0.5) * R * 0.15, (r() - 0.5) * R * 0.15 - R * 0.02, (r() - 0.5) * R * 0.15));
+    cube.rotation.set(r() * 3, r() * 3, r() * 3);
+    g.add(cube);
+  }
+  return g;
+}
+
+void glowMat;
+void mixRgb;

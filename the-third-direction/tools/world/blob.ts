@@ -26,6 +26,8 @@ export interface BlobOpts {
   lightK?: number;
   /** multiplies the soft halo round it (1 is a lab picture; the world's close shots want much less) */
   haloK?: number;
+  /** the shell on its back with the three light sockets (the hero reference sheet: the view you play from) */
+  shell?: boolean;
 }
 
 const matGold = (emit = 0.55) =>
@@ -142,6 +144,30 @@ export function makeBlob(o: BlobOpts = {}): THREE.Group {
   }
   tuft.position.set(0, 1.68 * sq + 0.05, 0);
   body.add(tuft);
+  if (o.shell) {
+    // the back shell: a darker gold plate with a spiral groove and three light sockets (the meter you read from behind)
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), fogged(new THREE.MeshStandardMaterial({ color: 0xc98a2a, roughness: 0.4, emissive: 0x6a3a08, emissiveIntensity: 0.5 })));
+    shell.scale.set(0.78, 0.8 * sq, 0.5);
+    shell.position.set(0, 0.8 * sq + 0.1, -0.5);
+    body.add(shell);
+    const sp: THREE.Vector3[] = [];
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const a = t * Math.PI * 3.2;
+      const rr = 0.08 + 0.55 * t;
+      const x = Math.cos(a) * rr * 0.9;
+      const y = Math.sin(a) * rr * 0.9;
+      sp.push(new THREE.Vector3(x, (0.8 * sq + 0.1) + y, -0.5 - 0.5 * Math.sqrt(Math.max(0, 1 - (x / 0.78) ** 2 - (y / (0.8 * sq)) ** 2)) - 0.01));
+    }
+    const groove = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sp), 60, 0.03, 5, false), fogged(new THREE.MeshStandardMaterial({ color: 0xffe9a0, roughness: 0.5, emissive: 0xffd070, emissiveIntensity: 0.7 })));
+    body.add(groove);
+    for (const [ox, oy] of [[0, 0.32], [-0.3, -0.08], [0.3, -0.08]] as [number, number][]) {
+      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      const zz = -0.5 - 0.5 * Math.sqrt(Math.max(0, 1 - (ox / 0.78) ** 2 - (oy / (0.8 * sq)) ** 2)) - 0.03;
+      orb.position.set(ox, 0.8 * sq + 0.1 + oy, zz);
+      body.add(orb);
+    }
+  }
   if (o.bow) {
     const bow = makeBow();
     bow.position.set(0.52, 1.55 * sq, 0.12);

@@ -1,14 +1,17 @@
-// Renders pictures of the 3D world mock-up (tools/world3d.ts) with headless Chromium.
-//   npm run gallery
+// Renders the pictures of the Pressed World concept (docs/3D-WORLD.md) with headless Chromium, using the in-engine renderer page tools/world3d.ts.
+//   npm run gallery                                       (builds dist-gallery/world3d.html)
+//   python3 tools/world-shots.py specs.json [shotName ...]   (writes a spec; or write one by hand)
 //   node tools/world-render.mjs <spec.json> <outDir> [shotName ...]
-// spec: { "shots": [ { "name": "overview", "w": 1280, "h": 720, "ss": 1, "cam": { "pos": [0,300,380], "look": [0,0,0], "fov": 40 }, "fog": {...}, "moon": {...}, ... } ] }
-// (see ShotSpec in tools/world3d.ts). With `ss` > 1 the page draws bigger and this script shrinks the picture back (smoother edges).
+// spec: { "init": { "cast": ["x", "collector", "mash", "fox"] }, "shots": [ { "name": "x", "build": "garden", "params": {...}, "w": 1280, "h": 720, "ss": 1,
+//   "cam": { "pos": [0,8,25], "look": [0,4,0], "fov": 64 }, "fog": {...}, "key": {...}, "grade": {...}, "depth": true, "post": { "rays": {...}, "dof": {...}, "glow": 0.3 } } ] }
+// (see ShotSpec in tools/world3d.ts and the builders in tools/world/shots.ts). With `ss` > 1 the page draws bigger and this script shrinks the picture back (smoother edges).
+// A shot with `depth` also saves <name>.depth.png, and with `post` tools/world-post.py (python3 with numpy and PIL) adds god rays, depth of field and glow from it.
 import { chromium } from 'playwright-core';
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import { execFileSync } from 'child_process';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dist = path.join(root, 'dist-gallery');
@@ -48,23 +51,12 @@ const t0 = Date.now();
 const init = await page.evaluate(([o]) => window.__world.init(o), [spec.init ?? {}]);
 console.log(`init ${init} ms`, JSON.stringify(await page.evaluate(() => window.__world.stats())));
 
-// PROBE="x,z x,z ..." prints the ground height at those points (for placing cameras)
-if (process.env.PROBE) {
-  for (const pt of process.env.PROBE.split(/\s+/)) {
-    const [x, z] = pt.split(',').map(Number);
-    console.log(`height(${x}, ${z}) =`, (await page.evaluate(([x, z]) => window.__world.height(x, z), [x, z])).toFixed(2));
-  }
-}
-// Python's PIL shrinks supersampled pictures: it is the one image tool both here and in the sheets
-const requireHere = createRequire(import.meta.url);
-void requireHere;
 for (const s of spec.shots) {
   if (only.length && !only.includes(s.name)) continue;
   const t1 = Date.now();
   const out = await page.evaluate((s) => window.__world.render(s), s);
   const w = s.w ?? 1280;
   const h = s.h ?? 720;
-  const { execFileSync } = await import('child_process');
   for (const [suffix, url] of [['', out.beauty], ['.depth', out.depth]]) {
     if (!url) continue;
     const file = path.join(outDir, `${s.name}${suffix || (out.depth ? '.raw' : '')}.png`);
@@ -75,9 +67,9 @@ for (const s of spec.shots) {
       execFileSync('python3', ['-c', `from PIL import Image; im=Image.open(${JSON.stringify(file)}).convert('RGB'); im=im.resize((${w},${h}), Image.${filt}); im.save(${JSON.stringify(file)})`]);
     }
   }
-  if (out.depth) fs.writeFileSync(path.join(outDir, `${s.name}.rays.json`), JSON.stringify({ rays: out.rays, post: s.post ?? {} }));
+  fs.writeFileSync(path.join(outDir, `${s.name}.rays.json`), JSON.stringify({ rays: out.rays, anchors: out.anchors, post: s.post ?? {} }));
   if (out.depth) {
-    const { execFileSync: ex, } = await import('child_process');
+    const ex = execFileSync;
     const raw = path.join(outDir, `${s.name}.raw.png`);
     const final = path.join(outDir, `${s.name}.png`);
     if (s.post) ex('python3', [path.join(root, 'tools', 'world-post.py'), raw, path.join(outDir, `${s.name}.depth.png`), path.join(outDir, `${s.name}.rays.json`), final], { stdio: 'inherit' });
