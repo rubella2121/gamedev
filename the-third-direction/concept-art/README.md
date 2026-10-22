@@ -50,3 +50,19 @@ The Cinderfox sheets are built from real renders of its model in the model lab (
 `node tools/lab-render.mjs concept-art/3d-reference/cinderfox/plates.json out/plates` (save the PNGs as JPEG, quality 90, over the ones in
 `3d-reference/cinderfox/`), then `node concept-art/3d-reference/render.mjs cinderfox.html cinderfox-sheet.png 1800 1240` and
 `node concept-art/3d-reference/render.mjs cinderfox-abilities.html cinderfox-abilities.png 1800 1600`.
+
+## The Pressed World (3D map concept, not in the game)
+
+The 3D part as one explorable map: the Pressed Garden at the bottom of a drum whose wall is the Specimen Wall, one island per boss climbing it (X, The Collector, The Mash, exactly as they are),
+pinned gates, hearths, the Cinderfox on the long walks, and the two yellow smudges (Mother and Father) near the top as the goal. Design and numbers: [`docs/3D-WORLD.md`](../docs/3D-WORLD.md). The 2D forest is untouched.
+
+| File | What |
+|---|---|
+| 3d-world/01-pressed-world-map.png | the map: a cutaway of the whole wall, the route in five stops, what you find on the way |
+| 3d-world/02-player-view.png | eight moments on the game's 9:16 screen, with the game's own HUD over them |
+| 3d-world/03-route-and-rules.png | plan, profile, the numbers, seven rules, what it would take |
+| 3d-world/shots/*.jpg | seven 1920 x 1080 pictures: landing, X, the Archive, the Remix, the long span, the summit, a hearth |
+| 3d-world/portrait/*.jpg, cast/*.jpg, map.jpg | the pictures the sheets are made from (the bosses are the game's own models, untouched) |
+
+They are drawn in code by the in-engine renderer `tools/world-render.mjs` (`npm run gallery` first; the shot list is `tools/world-shots.py`; the sheets are the `.html` files in `3d-world/`).
+Regenerate a sheet with `node concept-art/3d-reference/render.mjs ../3d-world/world-map.html ../3d-world/01-pressed-world-map.png 1800 2400` (and `player-view.html` 1800 x 1880, `route-and-rules.html` 1800 x 2200).
