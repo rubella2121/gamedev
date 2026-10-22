@@ -11,6 +11,10 @@ QS='?debug' node tools/e2e.mjs dist-standalone tools/e2e/gestures-3d.json /tmp/o
   Expected: tap = pulse/strike, hold = one lance, long hold = a nova that empties the meter, double-tap = a dash.
 * `dash-spam-2d.json`, `dash-spam-3d.json`: mash the button for 8 s in a guardian arena / a 3D fight and count the dashes. Normal: 5 (0.2, 1.0, 2.5, 4.7, 6.9 s),
   where an unlimited dash gave 10; the charges are full again after 4 s of rest.
+* `intro-skip.json`, `intro-trailer.json` (run with `QS='?debug&intro'`, which shows the first-visit splash): the ways past the intro. `intro-skip.json`: the
+  splash's "skip intro" goes straight to the home page (`menu`, no trailer running) and remembers it. `intro-trailer.json`: at about 8 s the trailer is
+  showing the hero's name card ("The Blob" / "the last small light"), the Skip button is on top of the trailer's black bar (`skip show`; it used to be
+  under it), and Escape ends the trailer and shows the home page.
 * `forest-bot.json` (+ `forest-bot-run.js`): the bot plays one forest guardian at 3x speed and prints deaths, the fewest hearts it had, and its dashes. Change
   `'gloom'` on the `window.__id` line to `thicket`, `marsh`, `bones` or `meadow`. One guardian per page load: a second arena in the same run does not start.
 * `full-3d.json` (+ `full-3d-run.js`): the bot plays all three 3D bosses back to back (X, The Collector, The Mash) at 3x speed and prints

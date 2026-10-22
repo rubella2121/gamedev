@@ -14,6 +14,14 @@ Monsters speak in lower case with their own glow and never use "I" to the blob u
 
 The arc: "Don't look up." (Mother keeps you safe) -> everyone you meet says some version of "stay" -> "Look up." (Mother, at the end) -> "I can look up now." (you).
 
+## The hero
+**The Blob**, the last small light. Shown on the first-time card, in the trailer while the shadow creeps, and on the store thumbnail.
+
+**What the game is about** (the first-time card, and the top of How to play)
+- Something huge took your family.
+- Five guardians hold the paths of this forest. Beat them all.
+- Then the road opens. Follow the arrow.
+
 ## Act I: the forest
 **Opening** (the clearing, then the slam)
 - **three small lights, curled up in the dark wood.**  _(world)_

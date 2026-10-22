@@ -11,6 +11,7 @@
 import type { Act2 } from '../act2/act2';
 import type { Sfx } from '../core/audio';
 import type { Pix } from '../core/pix';
+import { STORY } from '../core/story';
 import { clamp, lerp, smooth, unlerp } from '../core/util';
 import type { Forest } from '../forest/forest';
 import type { UI } from '../ui';
@@ -80,6 +81,13 @@ export class Trailer {
   private savedMaster = 0.9;
 
   private skipCb = () => this.skip();
+  /** Escape, Enter or Space skips it too (a keyboard has no Skip button to aim at) */
+  private keyCb = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.skip();
+    }
+  };
 
   constructor(private d: TrailerDeps) {}
 
@@ -101,6 +109,7 @@ export class Trailer {
     this.bossIndex = -1;
     ui.cinematic(true);
     ui.skip(true, this.skipCb);
+    window.addEventListener('keydown', this.keyCb);
     // the game's own sounds go quiet: the trailer has its own score on a bus of its own
     this.savedMaster = audio.level;
     audio.setMaster(0, 0.05);
@@ -123,6 +132,7 @@ export class Trailer {
   private end() {
     if (!this.running) return;
     this.running = false;
+    window.removeEventListener('keydown', this.keyCb);
     const { ui, audio, act1, act2 } = this.d;
     act1.onBoom = this.savedBoom;
     act2.trailerCutAway();
@@ -173,6 +183,7 @@ export class Trailer {
       at(CUE.openingStart - 0.15, 'opening', () => act1.trailerOpening(2.9));
       this.layer = T >= CUE.openingStart ? '2d' : 'black';
       at(CUE.dontLookUp, 'mother', () => ui.caption("Don't look up.", 2500, false, 'warm'));
+      at(CUE.heroCard, 'hero', () => ui.zoneCard(STORY.hero.name, STORY.hero.sub, (CUE.jumpCut - CUE.heroCard - 0.3) * 1000));
       at(CUE.jumpCut, 'jump', () => {
         act1.trailerSeek(12.4);
         this.glitch = 1;

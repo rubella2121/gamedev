@@ -2,6 +2,7 @@ import { Ambient } from './ambient';
 import { drawBlob } from './core/art';
 import { bestTime, PRESETS, type DiffId } from './core/difficulty';
 import { makeSprite, type Pix } from './core/pix';
+import { STORY } from './core/story';
 import { fmtTime } from './core/util';
 import { Logo } from './logo';
 
@@ -46,9 +47,6 @@ const BOSSES = [
   { name: 'The Collector', sub: 'he wanted you on his wall', colour: '#ffcf5a' },
   { name: 'The Mash', sub: 'every guardian, stitched back together', colour: '#ff8aa8' },
 ];
-
-/** What the game is about, in plain words (shown once at the start, and at the top of How to play). */
-const BRIEF = ['Something huge took your family.', 'Five guardians hold the paths of this forest. Beat them all.', 'Then the road opens. Follow the arrow.'];
 
 /** The how-to rows: a little picture of the gesture, what it is called, what it does. */
 const GESTURES = [
@@ -366,8 +364,11 @@ export class UI {
     this.cineEl.classList.add('flare');
   }
 
-  /** the "tap to begin" screen before the trailer (browsers need a tap before they play sound) */
-  showSplash(onTap: () => void) {
+  /**
+   * The "tap to begin" screen before the trailer (browsers need a tap before they play sound). "skip intro" (or Escape) goes straight to
+   * the home page instead; Enter or Space begins like a tap.
+   */
+  showSplash(onTap: () => void, onSkip: () => void) {
     const el = this.splashEl;
     el.innerHTML = '';
     const mk = (cls: string, text = '') => {
@@ -383,20 +384,45 @@ export class UI {
     const hint = mk('sb', 'tap to begin');
     const snd = mk('ss');
     snd.innerHTML = `${icon(ICON.speaker)}best with sound on`;
-    sp.append(logo.canvas, fam.canvas, hint, snd);
+    const skip = document.createElement('button');
+    skip.className = 'sk';
+    skip.textContent = 'skip intro ▸';
+    sp.append(logo.canvas, fam.canvas, hint, snd, skip);
     el.append(amb.canvas, sp);
     el.classList.remove('hide');
-    const go = (e: Event) => {
-      e.stopPropagation();
+    const leave = () => {
       el.removeEventListener('pointerdown', go);
+      window.removeEventListener('keydown', key);
       el.classList.add('out');
       window.setTimeout(() => {
         el.classList.add('hide');
         el.classList.remove('out');
       }, 450);
+    };
+    const go = (e: Event) => {
+      e.stopPropagation();
+      leave();
       onTap();
     };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        leave();
+        onSkip();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        leave();
+        onTap();
+      }
+    };
     el.addEventListener('pointerdown', go);
+    window.addEventListener('keydown', key);
+    // the button must not start the intro: it is the way out of it
+    skip.addEventListener('pointerdown', (e) => e.stopPropagation());
+    skip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      leave();
+      onSkip();
+    });
     this.runFx(el, logo, amb, 0.9, fam);
   }
 
@@ -440,7 +466,7 @@ export class UI {
   briefing(onDone: () => void) {
     const card = document.createElement('div');
     card.className = 'brief';
-    card.innerHTML = `<div class="bh">what is happening</div><div class="bl">${BRIEF.map((l) => `<p>${l}</p>`).join('')}</div>`;
+    card.innerHTML = `<div class="bn"><b>${STORY.hero.name}</b><i>${STORY.hero.sub}</i></div><div class="bl">${STORY.brief.map((l) => `<p>${l}</p>`).join('')}</div>`;
     const ok = document.createElement('button');
     ok.className = 'sclose';
     ok.textContent = 'Got it';
@@ -760,7 +786,7 @@ export class UI {
     const card = document.createElement('div');
     card.className = 'sheet';
     const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
-    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${BRIEF.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
+    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Got it';
