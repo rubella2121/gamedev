@@ -47,6 +47,9 @@ const BOSSES = [
   { name: 'The Mash', sub: 'every guardian, stitched back together', colour: '#ff8aa8' },
 ];
 
+/** What the game is about, in plain words (shown once at the start, and at the top of How to play). */
+const BRIEF = ['Something huge took your family.', 'Five guardians hold the paths of this forest. Beat them all.', 'Then the road opens. Follow the arrow.'];
+
 /** The how-to rows: a little picture of the gesture, what it is called, what it does. */
 const GESTURES = [
   { pic: '<circle cx="12" cy="12" r="10" fill="none" stroke="#9ff4ee" stroke-width="1.6" opacity=".55"/><circle cx="15.5" cy="8.5" r="4.2" fill="#f2d36b"/>', name: 'Move', text: 'Drag on the left side of the screen. Or WASD / arrow keys.' },
@@ -81,6 +84,8 @@ export class UI {
   private hintEl: HTMLElement;
   private heartsEl: HTMLElement;
   private dashEl: HTMLElement;
+  private goalEl: HTMLElement;
+  private goalKey: string | null = null;
   private dashKey = '';
   private dashTimer = 0;
   private phaseEl: HTMLElement;
@@ -141,6 +146,7 @@ export class UI {
     this.flashEl = mk('layer flash');
     this.captionEl = mk('caption');
     this.hintEl = mk('hint');
+    this.goalEl = mk('goal');
     this.phaseEl = mk('phase');
     this.heartsEl = mk('hearts');
     this.buildHearts(3);
@@ -410,6 +416,43 @@ export class UI {
     this.cardTimer = window.setTimeout(() => this.cardEl.classList.remove('show'), holdMs + 200);
   }
 
+  /** Is this the hint on screen right now? (so a timer can take down its own hint and nobody else's) */
+  hintIs(text: string): boolean {
+    return this.hintEl.classList.contains('show') && this.hintEl.textContent === text;
+  }
+
+  /** The goal in one line, under the five dots, while you are out on the roads (null hides it). It also hides with the hearts. */
+  goal(text: string | null) {
+    if (text === this.goalKey) return;
+    this.goalKey = text;
+    if (text === null) {
+      this.goalEl.classList.remove('show');
+    } else {
+      this.goalEl.textContent = text;
+      this.goalEl.classList.add('show');
+    }
+  }
+
+  /**
+   * The first time anyone plays: what is happening, in plain words, over the forest. `onDone` runs when they tap Got it.
+   * The same words are at the top of How to play.
+   */
+  briefing(onDone: () => void) {
+    const card = document.createElement('div');
+    card.className = 'brief';
+    card.innerHTML = `<div class="bh">what is happening</div><div class="bl">${BRIEF.map((l) => `<p>${l}</p>`).join('')}</div>`;
+    const ok = document.createElement('button');
+    ok.className = 'sclose';
+    ok.textContent = 'Got it';
+    ok.addEventListener('click', () => {
+      card.classList.add('gone');
+      window.setTimeout(() => card.remove(), 400);
+      onDone();
+    });
+    card.append(ok);
+    this.stage.appendChild(card);
+  }
+
   hint(text: string | null) {
     if (this.mute && text !== null) return;
     if (text === null) {
@@ -435,6 +478,7 @@ export class UI {
   hearts(n: number | null, max?: number) {
     if (n === null) {
       this.heartsEl.classList.remove('show');
+      this.goal(null);
       return;
     }
     if (max !== undefined && max !== this.heartMax) this.buildHearts(max);
@@ -591,7 +635,7 @@ export class UI {
     });
 
     const tag = mk('tag', "don't look up");
-    const premise = mk('premise', 'a baby blob. a forest of monsters. a third dimension.');
+    const premise = mk('premise', 'a baby blob, lost in a forest of monsters. beat five guardians. find the third dimension.');
     const spacer = mk('spacer');
 
     const wrap = mk('playwrap');
@@ -716,7 +760,7 @@ export class UI {
     const card = document.createElement('div');
     card.className = 'sheet';
     const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
-    card.innerHTML = `<div class="sh">How to play</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
+    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${BRIEF.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Got it';

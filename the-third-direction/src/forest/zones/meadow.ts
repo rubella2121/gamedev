@@ -251,7 +251,8 @@ export class MeadowZone implements Zone {
         }
       } else {
         this.hold = Math.max(0, this.hold - dt * 2);
-        hub.ui.hint(null);
+        // only take down our own hint: this runs every frame, and it used to wipe "drag to move" and "tap to pulse light" too
+        if (hub.ui.hintIs('hold to free it')) hub.ui.hint(null);
       }
     }
 
