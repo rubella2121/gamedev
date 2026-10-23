@@ -156,6 +156,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
+      onWorld: () => this.world(),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -196,10 +197,11 @@ export class Game {
     this.state = 'act1';
   }
 
-  private beginBoom(boss = 0) {
+  /** `explore`: land on the explorable 3D map (a story run); without it the boss's fight starts at once (the boss picker) */
+  private beginBoom(boss = 0, explore = true) {
     this.state = 'boom';
     track('boom');
-    this.act2.begin(this.act1.p.canvas, boss);
+    this.act2.begin(this.act1.p.canvas, boss, explore);
   }
 
   private onEnd() {
@@ -217,12 +219,12 @@ export class Game {
   }
 
   /** Debug: jump to the boom (builds a fake edge frame first). */
-  debugBoom() {
+  debugBoom(explore = false) {
     this.begin();
     this.act1.skipOpening();
     this.act1.warp('edge');
     this.act1.render();
-    this.beginBoom();
+    this.beginBoom(0, explore);
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
@@ -238,7 +240,23 @@ export class Game {
     this.act1.prepareShowcase();
     this.act1.render();
     this.ui.fade(0, 0);
-    this.beginBoom(boss);
+    this.beginBoom(boss, false);
+  }
+
+  /** The 3D world from the home page: skip the forest, fall through, and land on the map (never ranked). */
+  world() {
+    this.audio.start();
+    this.showcaseRun = true;
+    track('world');
+    this.stats.deaths = 0;
+    this.runStart = performance.now();
+    this.act1.previewMode = false;
+    this.act1.start();
+    this.act1.skipOpening();
+    this.act1.prepareShowcase();
+    this.act1.render();
+    this.ui.fade(0, 0);
+    this.beginBoom(0, true);
   }
 
   debugFight(phase = 0, boss = 0) {
@@ -291,7 +309,7 @@ export class Game {
       this.audio.update(dt);
       if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
         this.act2.update(dt);
-        if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
+        if (this.state === 'boom' && (this.act2.state === 'fight' || this.act2.state === 'explore')) this.state = 'arena';
         if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
       } else if (this.state === 'act1') this.act1.update(dt);
       else if (this.state === 'trailer') this.trailer.update(dt);

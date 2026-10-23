@@ -139,6 +139,12 @@ export class Arena {
   private mothWings: THREE.Mesh[] = [];
   private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
+  /** the scene lights, so the explorable map can make the dark darker */
+  private ambient!: THREE.AmbientLight;
+  private keyLight!: THREE.DirectionalLight;
+  private backLight!: THREE.DirectionalLight;
+  /** everything that is the fight's floor and its surroundings (hidden while you explore the map) */
+  private stageParts: THREE.Object3D[] = [];
 
   constructor() {
     this.scene.background = new THREE.Color(BG);
@@ -146,13 +152,16 @@ export class Arena {
     this.scene.add(this.world);
 
     // lights (three r170 uses physical units, so intensities carry a PI factor)
-    this.world.add(new THREE.AmbientLight(0x8a78c8, 1.25));
+    this.ambient = new THREE.AmbientLight(0x8a78c8, 1.25);
+    this.world.add(this.ambient);
     const key = new THREE.DirectionalLight(0x9fe8ff, 1.9);
     key.position.set(-6, 14, 8);
     this.world.add(key);
+    this.keyLight = key;
     const back = new THREE.DirectionalLight(0xb060ff, 1.6);
     back.position.set(6, 10, -14);
     this.world.add(back);
+    this.backLight = back;
     this.glow = new THREE.PointLight(0xffd878, 28, 11, 1.6);
     this.world.add(this.glow);
     this.redLight = new THREE.PointLight(0xff2a40, 0, 30, 1.4);
@@ -227,6 +236,7 @@ export class Arena {
       this.platform.setColorAt(i, base);
     });
     this.world.add(this.platform);
+    this.stageParts.push(this.platform);
     this.setRise(1);
 
     // stone pillars: a near ring and a far ring, cover from the Watcher's gaze
@@ -250,6 +260,7 @@ export class Arena {
       this.pillars.push(g);
       this.pillarData.push({ x: px, z: pz, r: 0.9, hp: 0.85, alive: true, g });
       this.world.add(g);
+      this.stageParts.push(g);
     }
   }
 
@@ -273,6 +284,7 @@ export class Arena {
       rocks.setColorAt(i, c.setHex([0x2a2048, 0x34285a, 0x1b3a4a, 0x46346f][Math.floor(r() * 4)]!));
     }
     this.world.add(rocks);
+    this.stageParts.push(rocks);
   }
 
   setRise(u: number) {
@@ -628,6 +640,7 @@ export class Arena {
     mk(1, -14, -9);
     this.clearing.visible = false;
     this.world.add(this.clearing);
+    this.stageParts.push(this.clearing);
   }
 
   /** Recolour the platform from violet void-stone to forest ground (u: 0 to 1). */
@@ -705,6 +718,8 @@ export class Arena {
     frame.rotation.x = -Math.PI / 2;
     frame.position.set(0, -60.05, -6);
     this.world.add(frame);
+    this.stageParts.push(m, frame);
+    m.visible = frame.visible = this.stageOn;
   }
 
   setShadow(x: number, z: number, R: number, u: number, hot: boolean) {
@@ -737,6 +752,27 @@ export class Arena {
       this.debrisData.push({ x, y, z, vx: Math.cos(a) * s, vy: 2 + Math.random() * speed, vz: Math.sin(a) * s, life: 0.8 + Math.random() * 0.9, rot: Math.random() * 6 });
       this.debris.setColorAt(this.debrisData.length - 1, this.tmpC.setHex(colors[Math.floor(Math.random() * colors.length)]!));
     }
+  }
+
+  private stageOn = true;
+
+  /**
+   * The fight's floor and everything around it (platform, pillars, rocks, the wall of specimens, the clearing, the forest far below).
+   * The explorable map hides it and brings it back for a fight; the lights, the player, the moth and the effects stay.
+   */
+  stage(on: boolean) {
+    this.stageOn = on;
+    for (const o of this.stageParts) o.visible = on;
+    for (const p of this.pinned) p.visible = on;
+    if (on) this.pillarData.forEach((pd) => (pd.g.visible = pd.alive));
+  }
+
+  /** How bright the place is: the explorable map is darker than the fight (1, 1, 1 is the fight's own light). */
+  mood(ambient: number, key: number, back: number, ambientColor = 0x8a78c8) {
+    this.ambient.intensity = 1.25 * ambient;
+    this.ambient.color.setHex(ambientColor);
+    this.keyLight.intensity = 1.9 * key;
+    this.backLight.intensity = 1.6 * back;
   }
 
   update(dt: number, _time: number) {

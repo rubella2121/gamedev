@@ -149,3 +149,19 @@ Notes for B, from reading the director:
 * **The Cinderfox: in or out?** The world works without it. It is the one thing here that is not the game's own.
 * **What happens at 0 hearts on a walk?** A proposal: back to the last hearth with the hearts full (on a boss island the arena's own restart rules apply).
 * **Does the first stair need landings?** At 57° it is a ladder of cubes. Moving the Archive about 25 units further out in x makes it 40°.
+
+## The playable map (branch `claude/happy-planck-8x287j`, not merged)
+
+A first playable version of the explorable 3D part lives in `src/act2/explore/` and is wired into `src/act2/act2.ts`. After the boom you land on the map instead of in X's arena;
+the home page has a **3D world** button that skips the forest and lands you there directly. The boss picker still goes straight to a fight.
+
+| place | what you do | then |
+| --- | --- | --- |
+| **The Clearing** (middle) | land, look around: flowers, root arches, the crater, a hearth. X's shadow slides over you now and then | the north bridge is open |
+| **Gloom Hollow** (north) | very dark. Gloomlings creep after you and bite; light comes apart them. Strike the four lanterns to light them | the Stage opens: X, the Hollow |
+| **Echo Marsh** (east, after X) | strike the listening stone: it rings the four bells in an order. Ring them in that order; a wrong bell sends a ring of noise at you and starts the order over | the Archive opens: The Collector |
+| **Bone Wastes** (west, after The Collector) | skitters guard three vertebrae (an ambush at each). Carry them to the altar | the Remix opens: The Mash, then the ending |
+
+Every bridge out of the Clearing is pinned shut ("NOT FOR REMOVAL") until the boss before it falls. A goal line and a gold arrow on the floor point the way. A fall on the map puts you back at the last
+island you stepped onto (hearts full; what you solved stays solved). The fights themselves are the game's own and unchanged (`Act2.startBoss`); between the map and a fight the screen fades and the arena's floor
+takes the map's place (`Arena.stage`). The dread: fog and darkness per place, red eyes that close as you come near, a heartbeat when something is close, whispers, distant bells, bone rattles.
