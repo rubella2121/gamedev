@@ -92,9 +92,6 @@ Mother's bow, a pair of eyes in the dark and the hero's name card; the header of
 - The Cinderfox (`src/act2/models/cinderfox*.ts`, [`docs/CINDERFOX.md`](./docs/CINDERFOX.md)) is a concept for the explorable map: a fire hound
   that stalks you with five tails, one trick per guardian. Its model and the pictures of its tricks live in the model lab; the game does not
   use them yet. Reference sheets are in `concept-art/3d-reference/`.
-- The Pressed World ([`docs/3D-WORLD.md`](./docs/3D-WORLD.md), pictures in `concept-art/3d-world/`) is a concept for the 3D part as one explorable map: the three boss arenas as islands
-  climbing one wall to the parents, joined by pinned stair-bridges, with hearths and (optionally) the Cinderfox. The bosses are the game's own models, untouched; nothing in `src/` uses it and the
-  2D forest is not touched. The pictures are drawn in code by `tools/world-render.mjs` (shot list `tools/world-shots.py`, the kit in `tools/world/`).
 - Mother wears a small pink bow (`bow: true` in `drawBlob`, `drawBow` in `src/core/art.ts`: a hand-drawn 9 x 5 pixel sprite, 11 x 6 on the big
   pinned portrait). She is the left one of the family: in the opening, on the splash and the home page, and on the left of the two big
   blobs on the arena wall. Her pressed bow is beside her smudge after the slam.
@@ -105,7 +102,7 @@ Mother's bow, a pair of eyes in the dark and the hero's name card; the header of
   the Play button ends (`Forest.briefNext`), never in the trailer, the preview behind the home page or the boss showcase. While you are out on the roads a goal line under the five
   dots says "beat the five guardians · n of 5", then "the road is open · follow the red arrow". The move and pulse hints stay until you have
   moved or pulsed. Hints are only taken down by whoever put them up (`ui.hintIs`): a zone used to wipe every hint each frame.
-- Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab, the concept-art gallery and the Pressed World renderer (`tools/`);
+- Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab, and the concept-art gallery (`tools/`);
   `node tools/thumbnail.mjs` makes `public/thumbnail.jpg` (after `npm run build:standalone` and `npm run gallery`);
   `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and
   loudness per half second (it is how the score is balanced without listening). `npm run concepts`
