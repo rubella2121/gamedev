@@ -6,11 +6,13 @@ import { XBoss } from './bosses/xboss';
 import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
+import { Cut, type CamKey } from './cut';
+import { animateParent } from './family';
 import { DashPool } from '../core/dash';
 import { D } from '../core/difficulty';
 import type { Ctx } from '../ctx';
 import { H, W } from '../core/pix';
-import { playTimed, say, STORY } from '../core/story';
+import { playTimed, say, STORY, type SubLine } from '../core/story';
 import { MothMood, MothShield } from '../core/mothbond';
 import { Falls, type Verdict } from '../core/falls';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
@@ -122,6 +124,12 @@ export class Act2 {
 
   onEnd: (() => void) | null = null;
 
+  /** the cutscene playing now (it owns the camera, the letterbox and the subtitles) */
+  private cut: Cut | null = null;
+  private cutCam = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+  /** this run opens with the cinematic way into 3D (the trailer and the boss picker keep the short boom) */
+  private cineIntro = false;
+
   /** what a boss sees of the fight */
   private env: Env;
   private fenv: FeatureEnv;
@@ -219,9 +227,14 @@ export class Act2 {
   /* the boom                                                          */
   /* ---------------------------------------------------------------- */
 
-  begin(frame: HTMLCanvasElement, boss = 0) {
+  begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
     const a = this.arena;
     this.state = 'boom';
+    this.cineIntro = cinematic;
+    if (this.cut) this.endCut(false);
+    a.cage.reset();
+    a.cage.auto = true;
+    this.cubeGroup.position.set(0, 0, 0);
     this.t = 0;
     this.fired.clear();
     this.arenaStory = false;
@@ -312,6 +325,7 @@ export class Act2 {
     this.ctx.ui.hearts(null);
     this.ctx.ui.light(null);
     this.ctx.ui.bossBar(null);
+    if (cinematic) this.startIntro();
   }
 
   private layoutCubes(tt: number) {
@@ -397,7 +411,7 @@ export class Act2 {
       audio.hit();
       audio.strike();
       this.shake = 0.8;
-      a.burst3(0.2, 1.1, START_Z + 0.2, 16, [0xf4efe0, 0x120a1c, 0xff2a40], 6);
+      a.burst3(0.2, 1.1, START_Z + 0.2, 10, [0xf4efe0, 0x120a1c, 0xff2a40], 3);
     });
     if (t >= 4.3) a.showPlayerClaw(easeOutBack((t - 4.3) / 0.7));
     this.fire('reveal', t >= 5.1, () => {
@@ -1002,8 +1016,8 @@ export class Act2 {
     const pl = this.pl;
     const { audio } = this.ctx;
     // the ending: the moth goes home to the moon
-    if (this.state === 'ending' && this.et >= 12.4) {
-      const k = unlerp(12.4, 16.7, this.et);
+    if (this.state === 'ending' && this.et >= 19.8) {
+      const k = unlerp(19.8, 24.0, this.et);
       const e = smooth(k);
       // in the camera's own frame: from the bottom of the picture up to where the moon hangs, and further away as it goes
       const cam = a.camera;
@@ -1014,6 +1028,13 @@ export class Act2 {
       const s = lerp(-0.8, 0.7, e);
       this.mothP.copy(cam.position).addScaledVector(fwd, d).addScaledVector(up, d * 0.62 * s).addScaledVector(right, Math.sin(this.et * 2.4) * d * 0.06);
       a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, k < 0.985, 0, 1.4 + 1.2 * e, 0);
+      a.setShield(0, 0, this.time);
+      return;
+    }
+    // the ending, before that: it hangs over the family's heads
+    if (this.state === 'ending') {
+      this.mothP.lerp(this.tmpV.set(0.3 + Math.sin(this.time * 0.9) * 0.4, 4.4 + Math.sin(this.time * 1.7) * 0.15, 1.0), 1 - Math.exp(-2 * dt));
+      a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true, 0.6, 1, 0);
       a.setShield(0, 0, this.time);
       return;
     }
@@ -1067,9 +1088,12 @@ export class Act2 {
     this.control = true;
     this.resetSolids();
     ui.bossBar(null);
+    // the boss's lock on the cage breaks
+    this.lockCut(this.bi - 1);
   }
 
   private updateInterlude(dt: number) {
+    if (this.cut) return;
     this.it += dt;
     const { ui } = this.ctx;
     playTimed(ui, this.fired, `int${this.bi}-`, this.it, STORY.interlude[this.bi - 1] ?? []);
@@ -1085,10 +1109,290 @@ export class Act2 {
     if (this.it >= 5.2) this.startBoss();
   }
 
+
+  /* ---------------------------------------------------------------- */
+  /* cutscenes                                                         */
+  /* ---------------------------------------------------------------- */
+
+  /** play a cutscene: the letterbox comes in, the HUD goes, the Skip button appears */
+  private playCut(c: Cut) {
+    const { ui, input } = this.ctx;
+    this.cut = c;
+    this.control = false;
+    ui.cinematic(true);
+    ui.widescreen(true);
+    ui.recenter(false);
+    input.setAction(null);
+    input.setCharge(0, 0);
+    ui.skip(true, () => {
+      if (this.cut === c) {
+        c.skip();
+        this.endCut(true);
+      }
+    });
+  }
+
+  /** the scene is over (or skipped): the letterbox goes and whatever comes next takes over */
+  private endCut(run: boolean) {
+    const c = this.cut;
+    if (!c) return;
+    this.cut = null;
+    const { ui } = this.ctx;
+    ui.skip(false);
+    ui.sub(null, null);
+    ui.widescreen(false);
+    ui.cinematic(false);
+    const cam = this.arena.camera;
+    cam.fov = 64;
+    cam.updateProjectionMatrix();
+    if (run) c.onEnd();
+  }
+
+  /** a subtitled line, and a soft voice for it (the family speak gently; the world has no voice) */
+  private line(l: SubLine, skipping = false) {
+    if (skipping) return;
+    const colour = l.who === 'Mother' ? '#ffb0d8' : l.who === 'Father' ? '#ffd27a' : l.who === 'The Blob' ? '#fff1a6' : '#cfeee8';
+    this.ctx.ui.sub(l.who, l.text, l.ms, colour);
+    const v = this.ctx.audio.v;
+    if (l.who === 'Mother') v.speak(l.text, { f0: 232, rate: 1.0, breath: 0.65, rough: 0.05, gain: 0.16, wet: 0.7, fall: 0.15 });
+    else if (l.who === 'Father') v.speak(l.text, { f0: 132, rate: 0.95, breath: 0.5, rough: 0.12, gain: 0.18, wet: 0.65, fall: 0.2 });
+    else if (l.who === 'The Blob') v.speak(l.text, { f0: 330, rate: 1.15, breath: 0.55, gain: 0.12, wet: 0.6, fall: 0.1 });
+  }
+
+  /** where the cage's people are, for the camera (the middle of the cage, at their height) */
+  private cageLook(): THREE.Vector3 {
+    return this.arena.cage.world.add(new THREE.Vector3(0, 1.8, 0));
+  }
+
+  /**
+   * The way into 3D, as a film: the last frame of the forest hangs in the dark as a flat sheet; the camera swings round until it is a
+   * line ("everything has a back now"); it tears, the Blob drops through the void, the arena builds itself under the fall, a hard
+   * landing, the claw tip swallowed, and then a look up: Mother and Father, in a cage. Mother shouts a warning. X.
+   */
+  private startIntro() {
+    const a = this.arena;
+    const { ui, audio } = this.ctx;
+    const Y = 46;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    this.cubeGroup.position.set(0, Y, 0);
+    a.player.visible = false;
+    a.setRise(0);
+    const orbit = (ang: number, r: number, up: number) => V(Math.sin(ang) * r, Y + up, Math.cos(ang) * r);
+    const blob = () => a.player.position.clone();
+    const L = STORY.cut.intro;
+    const cage = () => this.cageLook();
+    const keys: CamKey[] = [
+      { t: 0, pos: V(0, Y, 15.36), look: V(0, Y, 0), fov: 64 },
+      { t: 0.7, pos: V(0, Y, 15.36), look: V(0, Y, 0), fov: 64 },
+      { t: 2.0, pos: orbit(0.7, 19, 1.5), look: V(0, Y, 0), fov: 58 },
+      { t: 3.3, pos: orbit(1.5, 23, 2.2), look: V(0, Y, 0), fov: 54 },
+      // the fall: the camera falls with the Blob
+      { t: 3.45, cut: true, pos: () => blob().add(V(4.2, 2.6, 7.5)), look: blob, fov: 62 },
+      { t: 5.95, pos: () => blob().add(V(6.5, 5.0, 9.5)), look: blob, fov: 66 },
+      // the landing: low, close, then easing in
+      { t: 6.0, cut: true, pos: V(2.8, 0.55, START_Z + 4.4), look: V(0, 0.95, START_Z), fov: 58 },
+      { t: 8.0, pos: V(1.7, 0.9, START_Z + 3.7), look: V(0, 1.05, START_Z), fov: 52 },
+      // over the shoulder, up at something hanging in the dark
+      { t: 8.05, cut: true, pos: V(-1.7, 1.7, START_Z + 4.6), look: cage, fov: 52 },
+      { t: 9.6, pos: V(-1.3, 1.45, START_Z + 3.9), look: cage, fov: 40 },
+      // close on the cage
+      { t: 9.65, cut: true, pos: () => cage().add(V(-5.2, -0.6, 13.5)), look: cage, fov: 44 },
+      { t: 11.2, pos: () => cage().add(V(-4.2, -0.2, 11.2)), look: cage, fov: 42 },
+    ];
+    let landed = false;
+    const c = new Cut(
+      11.2,
+      keys,
+      [
+        { at: 0.25, fn: (s) => !s && audio.rumble() },
+        {
+          at: 0.6,
+          fn: (s) => {
+            if (s) return;
+            audio.boom();
+            ui.flash(0.5, 450);
+            this.shake = 0.8;
+          },
+        },
+        { at: 0.95, fn: (s) => this.line(L.apart, s) },
+        { at: 2.6, fn: (s) => this.line(L.back, s) },
+        {
+          at: 3.4,
+          fn: (s) => {
+            // it tears: the picture flies apart and the Blob drops through it
+            if (!s) {
+              audio.slam();
+              audio.crumble();
+              this.shake = 0.6;
+            }
+            for (const d of this.cubeData) {
+              const r = Math.hypot(d.x, d.y) || 1;
+              const sp = 30 + Math.random() * 90;
+              d.vx = (d.x / r) * sp + (Math.random() - 0.5) * 40;
+              d.vy = (d.y / r) * sp * 0.7 + Math.random() * 60;
+              d.vz = (Math.random() - 0.5) * 260;
+            }
+            a.player.visible = true;
+          },
+        },
+        {
+          at: 6.0,
+          fn: (s) => {
+            landed = true;
+            if (s) return;
+            a.burst3(0, 0.2, START_Z, 18, [0x3a2a62, 0x46346f, 0xf2d36b], 6);
+            audio.hit();
+            audio.thump(1);
+            ui.flash(0.25, 250);
+            this.shake = 0.9;
+          },
+        },
+        {
+          at: 7.4,
+          fn: (s) => {
+            this.shard.visible = false;
+            if (s) return;
+            ui.flash(0.5, 300);
+            audio.hit();
+            audio.strike();
+            this.shake = 0.7;
+            a.burst3(0.2, 1.1, START_Z + 0.2, 10, [0xf4efe0, 0x120a1c, 0xff2a40], 3);
+          },
+        },
+        { at: 7.7, fn: (s) => this.line(L.swallow, s) },
+        { at: 8.5, fn: (s) => this.line(L.see, s) },
+        { at: 9.9, fn: (s) => this.line(L.warn, s) },
+        { at: 10.4, fn: (s) => !s && audio.rumble() },
+      ],
+      () => {
+        // X: the boss's own entrance takes it from here
+        this.cubeGroup.visible = false;
+        this.shard.visible = false;
+        a.setRise(1);
+        a.player.position.set(0, 0, START_Z);
+        a.showPlayerClaw(1);
+        this.camPos.copy(BOOM_POS);
+        this.camLook.copy(BOOM_LOOK);
+        ui.flash(0.95, 700);
+        audio.sting();
+        this.startBoss(2600);
+        this.shake = 1.2;
+        window.setTimeout(() => {
+          ui.title();
+          audio.setDrone(0.22, 2);
+        }, 400);
+      },
+      (t, dt) => {
+        // the sheet trembles, then flies apart and shrinks away
+        if (t < 3.4) {
+          const k = t > 0.6 ? 0.06 : 0.02;
+          this.cubeGroup.position.set((Math.random() - 0.5) * k, Y + (Math.random() - 0.5) * k, 0);
+        } else {
+          this.layoutCubes(dt);
+          const fade = unlerp(4.6, 6.2, t);
+          if (fade > 0) for (const d of this.cubeData) d.s = Math.max(0.001, 1 - fade);
+          if (t > 6.3) this.cubeGroup.visible = false;
+        }
+        // the fall: from the hole in the sheet down onto the floor that builds itself under it
+        a.setRise(smooth(unlerp(4.0, 5.9, t)));
+        const p = a.player;
+        if (t >= 3.4 && !landed) {
+          const u = Math.min(1, (t - 3.4) / 2.6);
+          p.position.set(0, (Y - 1) * (1 - u * u), lerp(1.2, START_Z, smooth(u)));
+          p.rotation.set(u * 7.5, Math.PI * 0.2, u * 2);
+        } else if (landed) {
+          p.position.set(0, 0, START_Z);
+          // it faces us, then turns to the thing in the sky
+          const turn = smooth(unlerp(7.9, 8.4, t));
+          p.rotation.set(0, lerp(0, Math.atan2(a.cage.hang.x, a.cage.hang.z - START_Z), turn), 0);
+          const squash = t < 6.5 ? 1 - (6.5 - t) * 0.6 : 1;
+          p.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+        }
+        if (t >= 6.6) p.scale.setScalar(1);
+        a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+        // the claw tip comes flying in, and is swallowed
+        if (t >= 6.7 && t < 7.4) {
+          this.shard.visible = true;
+          const u2 = unlerp(6.7, 7.4, t);
+          this.shard.position.set(lerp(0, 0.2, u2), lerp(14, 1.1, u2 * u2), lerp(BOSS_Z + 4, START_Z + 0.2, u2));
+          this.shard.rotation.set(u2 * 9, u2 * 5, 0);
+        }
+        a.showPlayerClaw(t >= 7.4 ? easeOutBack(Math.min(1, (t - 7.4) / 0.7)) : 0);
+        // the moth finds you after the landing
+        if (t >= 7.9) {
+          this.mothP.lerp(new THREE.Vector3(1.5, 2.4, START_Z - 0.8), 1 - Math.exp(-4 * dt));
+          a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true);
+        }
+      },
+    );
+    this.mothP.set(-6, 9, START_Z - 6);
+    this.playCut(c);
+  }
+
+  /** a boss has fallen: its lock on the cage breaks, and the family speaks (i = 0 after X, 1 after The Collector) */
+  private lockCut(i: number) {
+    const a = this.arena;
+    const { ui, audio } = this.ctx;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const cage = () => this.cageLook();
+    const pl = () => V(this.pl.x, 0, this.pl.z);
+    const L = STORY.cut.locks[i]!;
+    const keys: CamKey[] = [
+      { t: 0, pos: this.camPos.clone(), look: this.camLook.clone(), fov: 64 },
+      { t: 1.6, pos: () => cage().add(V(-6, -1.2, 13)), look: cage, fov: 46 },
+      { t: 3.9, pos: () => cage().add(V(-4.2, -0.3, 9.4)), look: cage, fov: 40 },
+      { t: 3.95, cut: true, pos: () => pl().add(V(2.8, 1.5, 6.2)), look: () => pl().add(V(0, 1.2, 0)), fov: 50 },
+      { t: 6.0, pos: () => pl().add(V(2.1, 1.4, 5.4)), look: () => pl().add(V(0, 1.25, 0)), fov: 48 },
+    ];
+    const c = new Cut(
+      6.2,
+      keys,
+      [
+        {
+          at: 2.0,
+          fn: (s) => {
+            const p = a.cage.breakLock(i);
+            if (s) return;
+            a.burst3(p.x, p.y, p.z, 22, [0xff3a4a, 0xffcf5a, 0xff8aa8][i] !== undefined ? [[0xff3a4a, 0xffcf5a, 0xff8aa8][i]!, 0xfff1a6, 0xffffff] : [0xffffff], 7);
+            audio.v.glassBreak();
+            audio.unlock();
+            ui.flash(0.35, 300);
+            this.shake = 0.5;
+          },
+        },
+        { at: 2.6, fn: (s) => this.line(L[0]!, s) },
+        { at: 4.3, fn: (s) => this.line(L[1]!, s) },
+      ],
+      () => {
+        this.control = true;
+        this.it = 0;
+        this.ctx.input.setAction('strike');
+        ui.hearts(this.hearts, this.maxHearts);
+        ui.light(this.light);
+        ui.recenter(true, () => this.resetCamera());
+      },
+      (t, dt) => {
+        // the Blob looks up at the cage, then at us
+        const p = a.player;
+        p.position.set(this.pl.x, 0, this.pl.z);
+        const toCage = Math.atan2(a.cage.hang.x - this.pl.x, a.cage.hang.z - this.pl.z);
+        p.rotation.set(0, lerp(toCage, 0.4, smooth(unlerp(3.9, 4.4, t))), 0);
+        a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+        this.updateMoth(dt);
+      },
+    );
+    this.playCut(c);
+  }
+
   /* ---------------------------------------------------------------- */
   /* the ending                                                        */
   /* ---------------------------------------------------------------- */
 
+  /**
+   * The ending, as a film: the last lock breaks, the chain snaps, the cage comes down onto the floor, the door lifts and Mother and
+   * Father step out to the Blob. The camera goes round the three of them while the pinned things flicker out and drift home, the
+   * clearing grows back, and then, from behind the family, it tilts up: the moon blinks and the moth goes home.
+   */
   private beginEnding() {
     this.state = 'ending';
     this.et = 0;
@@ -1109,79 +1413,179 @@ export class Act2 {
     audio.setLullaby(0.9, 0);
     this.arena.setRedLight(0);
     this.features.show(false);
-    // each pinned specimen will flicker out at its own moment
+    // each pinned specimen flickers out at its own moment, and drifts home
     const rnd = rng(9);
-    this.warmData = this.arena.pinned.map((m, i) => ({
-      x: m.position.x,
-      y: m.position.y,
-      z: m.position.z,
-      at: 3.2 + rnd() * 3.6,
-      mine: i >= this.arena.pinned.length - 2,
-      tx: i === this.arena.pinned.length - 2 ? -2.6 : 2.6,
-      tz: 7.4,
-    }));
+    this.warmData = this.arena.pinned.map((m) => ({ x: m.position.x, y: m.position.y, z: m.position.z, at: 10 + rnd() * 2.6, mine: false, tx: 0, tz: 0 }));
     this.warm.visible = true;
-  }
+    this.lights.forEach((l) => (l.visible = false));
 
-  private updateEnding(dt: number) {
-    this.et += dt;
-    const t = this.et;
-    const { ui, audio } = this.ctx;
     const a = this.arena;
-    const pl = this.pl;
-    // you walk back to the middle of the clearing
-    const gx = 0 - pl.x;
-    const gz = 5.6 - pl.z;
-    pl.vx = gx * 1.4;
-    pl.vz = gz * 1.4;
-    pl.x += pl.vx * dt;
-    pl.z += pl.vz * dt;
-    // the pinned flicker out into warm lights
-    this.fire('warm', t >= 3.2, () => audio.warm());
-    const pos = this.warm.geometry.getAttribute('position') as THREE.BufferAttribute;
-    this.warmData.forEach((w, i) => {
-      const sprite = a.pinned[i]!;
-      if (t < w.at) {
-        pos.setXYZ(i, 0, -999, 0);
-        if (t > w.at - 0.5 && Math.floor(t * 18) % 2 === 0) sprite.visible = !sprite.visible;
-        return;
-      }
-      sprite.visible = false;
-      const u = t - w.at;
-      if (w.mine) {
-        const e = smooth(unlerp(0, 3.0, u));
-        const x = lerp(w.x, w.tx, e);
-        const y = lerp(w.y, 1.3, e);
-        const z = lerp(w.z, w.tz, e);
-        pos.setXYZ(i, x, y, z);
-        const idx = i === a.pinned.length - 2 ? 0 : 1;
-        const light = this.lights[idx]!;
-        light.visible = e > 0.98;
-        light.position.set(w.tx, 1.2 + Math.sin(t * 2 + idx) * 0.08, w.tz);
-        pos.setXYZ(i, e > 0.98 ? 0 : x, e > 0.98 ? -999 : y, z);
-      } else {
-        pos.setXYZ(i, w.x + Math.sin(u * 2 + i) * 0.6, w.y + u * 2.2, w.z + u * 0.8);
-      }
-    });
-    pos.needsUpdate = true;
-    // the clearing is rebuilt around you
-    const rb = smooth(unlerp(4.6, 9.0, t));
-    a.tint(rb);
-    a.setClearing(rb);
-    // the camera rises and looks up
-    const rise = smooth(unlerp(6.8, 12.8, t));
-    const k = 1 - Math.exp(-2.6 * dt);
-    this.camPos.lerp(new THREE.Vector3(0, lerp(9, 40, rise), lerp(20, 30, rise)), k);
-    this.camLook.lerp(new THREE.Vector3(0, lerp(3, 70, rise), lerp(-2, -120, rise)), k);
-    if (t >= 10.2) ui.moon(true);
-    playTimed(ui, this.fired, 'end-', t, STORY.ending);
-    this.fire('blink', t >= 14.4, () => ui.moonBlink());
-    this.fire('end', t >= 17.2, () => {
-      this.state = 'end';
-      this.onEnd?.();
-    });
-    this.updateRig(dt);
-    this.updateMoth(dt);
+    const cg = a.cage;
+    cg.auto = false;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const L = STORY.cut.ending;
+    const cage = () => this.cageLook();
+    const BLOB = V(0, 0, 3.4);
+    const MEET = V(0, 0, 2.2);
+    const MUM = V(-1.3, 0, 0.4);
+    const DAD = V(1.3, 0, 0.2);
+    let T = 0;
+    // round the three of them, slowly
+    const orbit = () => {
+      const ang = lerp(0.7, 1.7, unlerp(9.7, 14, T));
+      return V(Math.sin(ang) * 5, 2.9 - 0.5 * unlerp(9.7, 14, T), 1.2 + Math.cos(ang) * 5);
+    };
+    const keys: CamKey[] = [
+      { t: 0, pos: this.camPos.clone(), look: this.camLook.clone(), fov: 64 },
+      { t: 1.8, pos: () => cage().add(V(-5, -1.0, 11)), look: cage, fov: 44 },
+      { t: 3.1, pos: () => cage().add(V(-3.8, -0.4, 8.6)), look: cage, fov: 40 },
+      // the fall, from the floor
+      { t: 3.15, cut: true, pos: V(7, 2.4, 9), look: cage, fov: 58 },
+      { t: 4.7, pos: V(7, 2.4, 9), look: cage, fov: 56 },
+      { t: 5.4, pos: V(4, 2.2, 6), look: V(0, 1.6, -4), fov: 50 },
+      // over the Blob's shoulder: the door lifts and they step out
+      { t: 5.45, cut: true, pos: V(2.2, 2.7, 9.0), look: V(0, 1.2, -3), fov: 46 },
+      { t: 8.25, pos: V(1.7, 2.4, 8.0), look: V(0, 1.1, -0.5), fov: 46 },
+      // the other way: the Blob, from between them
+      { t: 8.3, cut: true, pos: V(3.3, 3.1, -0.7), look: V(0, 0.8, 2.2), fov: 46 },
+      { t: 9.65, pos: V(3.0, 2.8, -0.2), look: V(0, 0.85, 2.2), fov: 42 },
+      // round the family
+      { t: 9.7, cut: true, pos: orbit, look: V(0, 1.1, 1.2), fov: 50 },
+      { t: 14, pos: orbit, look: V(0, 1.1, 1.2), fov: 50 },
+      // the clearing grows back
+      { t: 14.05, cut: true, pos: V(0, 7, 16), look: V(0, 1, 0), fov: 60 },
+      { t: 17.95, pos: V(0, 9.5, 19.5), look: V(0, 2, -3), fov: 58 },
+      // from behind the three of them, it tilts up to the sky
+      { t: 18, cut: true, pos: V(0, 2.2, 10.5), look: V(0, 1.4, 1), fov: 54 },
+      { t: 18.6, pos: V(0, 2.2, 10.5), look: V(0, 1.6, 0.8), fov: 54 },
+      { t: 21.6, pos: V(0, 1.6, 11.5), look: V(0, 40, -70), fov: 62 },
+      { t: 25, pos: V(0, 1.5, 11.9), look: V(0, 44, -72), fov: 62 },
+    ];
+    let mFrom: THREE.Vector3 | null = null;
+    let fFrom: THREE.Vector3 | null = null;
+    let bFrom = V(this.pl.x, 0, this.pl.z);
+    const c = new Cut(
+      25,
+      keys,
+      [
+        {
+          at: 2.2,
+          fn: (s) => {
+            const p = cg.breakLock(2);
+            if (s) return;
+            a.burst3(p.x, p.y, p.z, 24, [0xff8aa8, 0xfff1a6, 0xffffff], 7);
+            audio.v.glassBreak();
+            audio.unlock();
+            ui.flash(0.35, 300);
+          },
+        },
+        { at: 2.4, fn: (s) => this.line(L.last, s) },
+        {
+          at: 3.15,
+          fn: (s) => {
+            // the Blob stands back in the middle of the floor (the next shots look past it)
+            bFrom = BLOB.clone();
+            if (s) return;
+            audio.snap();
+            audio.rumble();
+          },
+        },
+        {
+          at: 4.6,
+          fn: (s) => {
+            if (s) return;
+            const g = cg.ground;
+            a.burst3(g.x, 0.3, g.z, 30, [0x3a2a62, 0xc9a24a, 0xf2d36b], 8);
+            audio.slam();
+            audio.thump(1);
+            ui.flash(0.4, 300);
+            this.shake = 1.1;
+          },
+        },
+        { at: 5.8, fn: (s) => !s && audio.creak() },
+        {
+          at: 6.6,
+          fn: () => {
+            cg.release(a.world);
+            mFrom = cg.mother.g.position.clone().setY(0);
+            fFrom = cg.father.g.position.clone().setY(0);
+          },
+        },
+        { at: 7.2, fn: (s) => this.line(L.mother, s) },
+        { at: 8.6, fn: (s) => this.line(L.blob, s) },
+        { at: 9.7, fn: (s) => !s && audio.chime() },
+        { at: 10.0, fn: (s) => this.line(L.flicker, s) },
+        { at: 10.0, fn: (s) => !s && audio.warm() },
+        { at: 11.8, fn: (s) => this.line(L.home, s) },
+        { at: 13.2, fn: (s) => this.line(L.touch, s) },
+        { at: 15.0, fn: (s) => this.line(L.grows, s) },
+        { at: 18.2, fn: (s) => this.line(L.look, s) },
+        { at: 19.0, fn: () => ui.moon(true) },
+        { at: 19.6, fn: (s) => this.line(L.can, s) },
+        { at: 21.6, fn: (s) => !s && ui.moonBlink() },
+        { at: 22.2, fn: (s) => this.line(L.moon, s) },
+      ],
+      () => {
+        this.state = 'end';
+        this.onEnd?.();
+      },
+      (t, dt) => {
+        T = t;
+        this.et = t;
+        // the cage: it falls, it lands, the door lifts
+        cg.drop = clamp((t - 3.2) / 1.4, 0, 1);
+        cg.doorOpen = smooth(unlerp(5.8, 6.6, t));
+        // the Blob: it stands where the fight ended, then in the middle, then takes a step to meet them
+        const p = a.player;
+        const bp = t < 3.15 ? bFrom : new THREE.Vector3().lerpVectors(BLOB, MEET, smooth(unlerp(6.8, 8.6, t)));
+        this.pl.x = bp.x;
+        this.pl.z = bp.z;
+        this.pl.vx = this.pl.vz = 0;
+        p.position.set(bp.x, 0, bp.z);
+        const toCage = Math.atan2(cg.world.x - bp.x, cg.world.z - bp.z);
+        // it turns to us for the hug, and looks up at the end
+        p.rotation.set(0, t < 9.7 ? toCage : Math.PI, 0);
+        const bWalk = t > 6.8 && t < 8.6 ? 1 : 0;
+        this.bob += dt * (5 + bWalk * 6);
+        a.animatePlayer(dt, this.time, bWalk, this.bob, 0, false);
+        if (t > 9.7 && t < 14) p.position.y = Math.abs(Math.sin(this.time * 6)) * 0.12;
+        // Mother and Father: in the cage they wait; out of it they walk to the Blob and hold on
+        const wk = smooth(unlerp(6.6, 8.8, t));
+        if (mFrom && fFrom) {
+          cg.mother.g.position.lerpVectors(mFrom, MUM, wk);
+          cg.father.g.position.lerpVectors(fFrom, DAD, wk);
+          for (const r of [cg.mother, cg.father]) {
+            const q = r.g.position;
+            r.g.rotation.y = Math.atan2(bp.x - q.x, bp.z - q.z);
+          }
+        }
+        const walking = wk > 0 && wk < 1 ? 1 : 0;
+        const hug = t > 8.6 ? smooth(unlerp(8.6, 9.6, t)) : 0;
+        const hop = t > 9.7 && t < 14 ? 1 : 0;
+        animateParent(cg.mother, this.time, walking, t < 6.6 ? 0.2 + (t > 5.8 ? 0.6 : 0) : hug, hop * 0.4, 1);
+        animateParent(cg.father, this.time, walking, t < 6.6 ? 0.1 + (t > 5.8 ? 0.5 : 0) : hug * 0.8, hop * 0.3, 2.7);
+        // the pinned flicker out into warm lights and drift up and away
+        const pos = this.warm.geometry.getAttribute('position') as THREE.BufferAttribute;
+        this.warmData.forEach((w, i) => {
+          const sprite = a.pinned[i]!;
+          if (t < w.at) {
+            pos.setXYZ(i, 0, -999, 0);
+            if (t > w.at - 0.5 && Math.floor(t * 18) % 2 === 0) sprite.visible = !sprite.visible;
+            return;
+          }
+          sprite.visible = false;
+          const u = t - w.at;
+          pos.setXYZ(i, w.x + Math.sin(u * 2 + i) * 0.6, w.y + u * 2.2, w.z + u * 0.8);
+        });
+        pos.needsUpdate = true;
+        // the clearing is rebuilt around them
+        const rb = smooth(unlerp(14, 17, t));
+        a.tint(rb);
+        a.setClearing(rb);
+        this.updateMoth(dt);
+      },
+    );
+    this.playCut(c);
   }
 
   /* ---------------------------------------------------------------- */
@@ -1191,10 +1595,11 @@ export class Act2 {
     this.t += dtReal;
     const a = this.arena;
     const dt = dtReal;
-    if (this.state === 'boom') this.updateBoom(dt);
-    else if (this.state === 'fight') this.updateFight(dt);
+    if (this.cut && !this.cut.step(dt)) this.endCut(true);
+    if (this.state === 'boom') {
+      if (!this.cineIntro) this.updateBoom(dt);
+    } else if (this.state === 'fight') this.updateFight(dt);
     else if (this.state === 'interlude') this.updateInterlude(dt);
-    else if (this.state === 'ending') this.updateEnding(dt);
     a.update(dt, this.time);
 
     // camera
@@ -1217,6 +1622,19 @@ export class Act2 {
       } else {
         this.camPos.lerp(target, 1 - Math.exp(-14 * dt));
         this.camLook.set(pl.x + f.x * 5, 1.2, pl.z + f.z * 5);
+      }
+    }
+    // a cutscene holds the camera
+    if (this.cut) {
+      // a shot's fov is written for a wide screen; on a tall one it opens up so the same width of the scene still fits
+      const asp = Math.min(1, a.camera.aspect);
+      const f0 = this.cut.camera(this.cutCam);
+      const fov = Math.min(92, (2 * Math.atan(Math.tan((f0 * Math.PI) / 360) / Math.pow(asp, 0.85)) * 180) / Math.PI);
+      this.camPos.copy(this.cutCam.pos);
+      this.camLook.copy(this.cutCam.look);
+      if (a.camera.fov !== fov) {
+        a.camera.fov = fov;
+        a.camera.updateProjectionMatrix();
       }
     }
     this.shake = Math.max(0, this.shake - dtReal * 2.5);
@@ -1246,6 +1664,7 @@ export class Act2 {
   /** Debug / showcase: skip straight to the start of a boss's fight (and a phase of it). */
   /** The trailer: the arena stands risen and the boss's entrance begins, `skip` seconds in, with no HUD and no name card. */
   trailerBoss(boss: number, skip = 0) {
+    if (this.cut) this.endCut(false);
     this.t = 9;
     this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);
     const a = this.arena;
@@ -1272,6 +1691,7 @@ export class Act2 {
   }
 
   skipToFight(phase = 0, boss = 0) {
+    if (this.cut) this.endCut(false);
     this.t = 9;
     this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);
     const a = this.arena;

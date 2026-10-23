@@ -118,6 +118,9 @@ export class UI {
   private pumpTimer = 0;
   private heartMax = 3;
   private recenterEl: HTMLButtonElement;
+  /** cutscene subtitles: who is talking, and what they say */
+  private subEl!: HTMLElement;
+  private subTimer = 0;
   private onRecenter: (() => void) | null = null;
   private onSkip: (() => void) | null = null;
   /** the animation loop of the splash and the home page (logo, fireflies, eyes), and what to do when the stage is resized */
@@ -168,6 +171,7 @@ export class UI {
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
+    this.subEl = mk('sub');
     this.skipEl = mk('skip', 'button') as HTMLButtonElement;
     this.skipEl.textContent = 'Skip ▸';
     this.skipEl.addEventListener('click', (e) => {
@@ -609,6 +613,38 @@ export class UI {
   recenter(show: boolean, cb?: () => void) {
     this.onRecenter = cb ?? null;
     this.recenterEl.classList.toggle('show', show);
+  }
+
+  /**
+   * A cutscene subtitle, the way big games do it: the speaker's name in their colour, the line under it, low on the screen above the letterbox.
+   * `who` null is the world talking (no name, in italics). Works while the cinematic layer is on (narration is muted then).
+   */
+  sub(who: string | null, text: string | null, ms = 2600, colour = '#ffe9a0') {
+    window.clearTimeout(this.subTimer);
+    if (text === null) {
+      this.subEl.classList.remove('show');
+      return;
+    }
+    this.subEl.innerHTML = '';
+    if (who) {
+      const n = document.createElement('b');
+      n.textContent = who;
+      n.style.color = colour;
+      this.subEl.append(n);
+    }
+    const t = document.createElement('span');
+    t.textContent = text;
+    this.subEl.append(t);
+    this.subEl.classList.toggle('world', !who);
+    this.subEl.classList.remove('show');
+    void this.subEl.offsetWidth;
+    this.subEl.classList.add('show');
+    this.subTimer = window.setTimeout(() => this.subEl.classList.remove('show'), ms);
+  }
+
+  /** wider letterbox bars for an in-game cutscene (the trailer keeps the thin ones) */
+  widescreen(on: boolean) {
+    this.cineEl.classList.toggle('wide', on);
   }
 
   skip(show: boolean, cb?: () => void) {

@@ -3,6 +3,8 @@ import { W, H, makeSprite } from '../core/pix';
 import { C } from '../core/palette';
 import { hash2, rng, TAU } from '../core/util';
 import { drawBlob } from '../core/art';
+import { Cage } from './family';
+import { animateJelly, BLOB_LOOK, makeJelly, type JellyRig } from './jelly';
 
 const BG = 0x120a22;
 export const ARENA_R = 18;
@@ -43,15 +45,6 @@ function specimen(kind: number): THREE.CanvasTexture {
   }
   p.px(9, 1, C.redDark);
   p.px(9, 2, C.red);
-  return tex(p.canvas);
-}
-
-/** The big pinned blobs on the wall are the family. Mother wears her bow, which needs a taller picture. */
-const BIG_H = { plain: 26, bow: 34 };
-function bigBlob(bow: boolean): THREE.CanvasTexture {
-  const h = bow ? BIG_H.bow : BIG_H.plain;
-  const p = makeSprite(34, h);
-  drawBlob(p, 17, h - 2, { s: 2.2, shadow: false, bow });
   return tex(p.canvas);
 }
 
@@ -122,8 +115,9 @@ export class Arena {
   private platform!: THREE.InstancedMesh;
   private pillars: THREE.Group[] = [];
   readonly pillarData: { x: number; z: number; r: number; hp: number; alive: boolean; g: THREE.Group }[] = [];
-  private skin!: THREE.MeshLambertMaterial;
-  private rig!: { model: THREE.Group; body: THREE.Group; legs: THREE.Group[]; arms: THREE.Group[]; eyes: THREE.Group[] };
+  private skin!: THREE.MeshStandardMaterial;
+  private rig!: JellyRig;
+  private thirdEyeSize = new THREE.Vector3();
   private thirdEye!: THREE.Mesh;
   private glow: THREE.PointLight;
   private redLight: THREE.PointLight;
@@ -136,6 +130,8 @@ export class Arena {
   private tmpC = new THREE.Color();
   private belowMat: THREE.MeshBasicMaterial | null = null;
   readonly moth = new THREE.Group();
+  /** Mother and Father, in the Collector's cage, hanging over the arena: three locks, one per boss */
+  readonly cage = new Cage();
   private mothWings: THREE.Mesh[] = [];
   private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
@@ -167,6 +163,7 @@ export class Arena {
     this.buildExtras();
     this.buildClearing();
     this.marks = new Marks(this.world, 16);
+    this.world.add(this.cage.g);
     this.buildLight();
 
     // ground telegraphs
@@ -336,100 +333,27 @@ export class Arena {
         this.world.add(m);
       }
     }
-    // the two big ones are Mother (on the left, as the camera sees it) and Father; both stand on the same line, 0.325 units to a pixel
-    const bigs = { mother: bigBlob(true), father: bigBlob(false) };
-    for (const sx of [-1, 1]) {
-      const mother = sx < 0;
-      const hPx = mother ? BIG_H.bow : BIG_H.plain;
-      const h = (8.5 * hPx) / BIG_H.plain;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(11, h), new THREE.MeshBasicMaterial({ map: mother ? bigs.mother : bigs.father, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide }));
-      m.position.set(sx * 27, 38 - 4.25 + h / 2, -62);
-      m.lookAt(0, 38, 0);
-      this.pinned.push(m);
-      this.world.add(m);
-    }
   }
 
-  /** The baby blob in 3D: a chunky voxel creature with stubby legs and arms, big eyes and a tuft. */
+  /** The baby blob in 3D: a glowing jelly dome with big dark glassy eyes (see jelly.ts). */
   private buildPlayer() {
     const P = this.player;
-    const model = new THREE.Group();
-    model.scale.setScalar(1.25);
-    P.add(model);
-    const skin = new THREE.MeshLambertMaterial({ color: 0xf2d36b, emissive: 0x8a6420, emissiveIntensity: 0.7 });
-    this.skin = skin;
-    const belly = new THREE.MeshLambertMaterial({ color: 0xfff1a6, emissive: 0x8a7430, emissiveIntensity: 0.6 });
-    const foot = new THREE.MeshLambertMaterial({ color: 0xd9a93a, emissive: 0x5a3a10, emissiveIntensity: 0.6 });
-    const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const ink = new THREE.MeshBasicMaterial({ color: 0x3a1020 });
-    const blush = new THREE.MeshBasicMaterial({ color: 0xf0907c });
-    const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number, parent: THREE.Object3D) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
-      mesh.position.set(x, y, z);
-      parent.add(mesh);
-      return mesh;
-    };
-
-    // body: a pillowy cube, like a jelly cube that suits the cube world
-    const body = new THREE.Group();
-    body.position.y = 0.62;
-    model.add(body);
-    const pillow = new THREE.BoxGeometry(1, 1, 1, 7, 7, 7);
-    const pp = pillow.getAttribute('position');
-    const v = new THREE.Vector3();
-    for (let i = 0; i < pp.count; i++) {
-      v.fromBufferAttribute(pp, i);
-      const round = v.clone().normalize().multiplyScalar(0.6);
-      v.lerp(round, 0.5);
-      pp.setXYZ(i, v.x * 1.12, v.y * 1.0, v.z * 1.0);
-    }
-    pillow.computeVertexNormals();
-    const torso = new THREE.Mesh(pillow, skin);
-    torso.position.y = 0.04;
-    body.add(torso);
-    box(0.54, 0.46, 0.05, belly, 0, -0.12, 0.52, body);
-    // tuft
-    box(0.12, 0.24, 0.12, skin, 0.04, 0.72, 0, body).rotation.z = -0.25;
-    box(0.1, 0.18, 0.1, skin, -0.1, 0.68, 0.02, body).rotation.z = 0.4;
-    // face
-    const eyes: THREE.Group[] = [];
-    for (const sx of [-1, 1]) {
-      const eg = new THREE.Group();
-      eg.position.set(sx * 0.27, 0.28, 0.5);
-      box(0.28, 0.32, 0.06, white, 0, 0, 0, eg);
-      box(0.14, 0.2, 0.06, ink, sx * -0.02, -0.02, 0.04, eg);
-      body.add(eg);
-      eyes.push(eg);
-      box(0.18, 0.1, 0.05, blush, sx * 0.4, 0.04, 0.49, body);
-    }
-    box(0.16, 0.05, 0.05, ink, 0, 0.06, 0.5, body);
-    // the third eye opens later
-    this.thirdEye = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.06), new THREE.MeshBasicMaterial({ color: 0xff2a40 }));
-    this.thirdEye.position.set(0, 0.52, 0.5);
+    const jelly = makeJelly(BLOB_LOOK);
+    P.add(jelly.g);
+    this.skin = jelly.mat;
+    const body = jelly.body;
+    // the third eye opens later, in the middle of the forehead
+    this.thirdEye = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2a40 }));
+    const fh = jelly.forehead;
+    this.thirdEye.position.copy(fh.p);
+    this.thirdEye.lookAt(fh.p.clone().add(fh.n));
+    this.thirdEyeSize.set(0.2, 0.26, 0.08);
     this.thirdEye.scale.setScalar(0.001);
     body.add(this.thirdEye);
 
-    // legs and arms pivot at the hip and shoulder
-    const legs: THREE.Group[] = [];
-    for (const sx of [-1, 1]) {
-      const lg = new THREE.Group();
-      lg.position.set(sx * 0.3, 0.3, 0.04);
-      box(0.3, 0.3, 0.36, foot, 0, -0.1, 0.04, lg);
-      model.add(lg);
-      legs.push(lg);
-    }
-    const arms: THREE.Group[] = [];
-    for (const sx of [-1, 1]) {
-      const ag = new THREE.Group();
-      ag.position.set(sx * 0.62, 0.78, 0.04);
-      box(0.2, 0.36, 0.2, skin, 0, -0.17, 0, ag);
-      model.add(ag);
-      arms.push(ag);
-    }
-
     // the claw that grows from its right side
     const cm = new THREE.MeshLambertMaterial({ color: 0x120a1c });
-    this.claw.position.set(0.7, 0.78, 0.06);
+    this.claw.position.set(0.9, 0.5, 0.06);
     for (let i = -1; i <= 1; i++) {
       const c = new THREE.Mesh(new THREE.ConeGeometry(0.13, 1.1, 5), cm);
       c.rotation.set(Math.PI / 2 + i * 0.22, 0, -0.5);
@@ -440,34 +364,16 @@ export class Arena {
     carm.position.set(0.1, 0, 0);
     this.claw.add(carm);
     this.claw.scale.setScalar(0.001);
-    model.add(this.claw);
+    body.add(this.claw);
 
-    this.rig = { model, body, legs, arms, eyes };
+    this.rig = jelly;
     this.world.add(P);
   }
 
-  /** Walk cycle, breathing, blinking and the claw swing. `phase` advances with distance walked. */
+  /** Waddle, breathing, blinking and the claw swing. `phase` advances with distance walked. */
   animatePlayer(dt: number, time: number, walk: number, phase: number, strike: number, hurt: boolean) {
     const r = this.rig;
-    const w = Math.min(1, walk);
-    const swing = Math.sin(phase);
-    // body: squash with the step, breathe while idle, lean into the run
-    const sq = 1 + Math.sin(phase * 2) * 0.05 * w + Math.sin(time * 2.4) * 0.025 * (1 - w);
-    r.body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
-    r.body.position.y = 0.62 + Math.abs(swing) * 0.1 * w;
-    r.body.rotation.x = 0.14 * w;
-    // legs and arms
-    r.legs[0]!.position.y = 0.3 + Math.max(0, swing) * 0.16 * w;
-    r.legs[1]!.position.y = 0.3 + Math.max(0, -swing) * 0.16 * w;
-    r.legs[0]!.rotation.x = swing * 0.7 * w;
-    r.legs[1]!.rotation.x = -swing * 0.7 * w;
-    r.arms[0]!.rotation.x = -swing * 0.8 * w + Math.sin(time * 2.4) * 0.05;
-    const clawOut = this.claw.scale.x > 0.3;
-    r.arms[1]!.visible = !clawOut;
-    r.arms[1]!.rotation.x = swing * 0.8 * w;
-    // blink
-    const blink = Math.sin(time * 1.3) > 0.985 || (time % 3.7) < 0.1;
-    r.eyes.forEach((e) => (e.scale.y = blink ? 0.12 : 1));
+    animateJelly(r, time, walk, phase, 0, 0, 0);
     // claw swing during a strike (strike runs 0..1)
     if (strike > 0) {
       const u = 1 - strike;
@@ -479,7 +385,7 @@ export class Arena {
       this.claw.rotation.z *= 0.8;
     }
     // hurt flash
-    this.skin.emissive.setHex(hurt ? 0xc02020 : 0x8a6420);
+    this.skin.emissive.setHex(hurt ? 0xc02020 : 0x000000);
     void dt;
   }
 
@@ -690,7 +596,7 @@ export class Arena {
   showPlayerClaw(u: number) {
     const s = Math.max(0.001, u);
     this.claw.scale.setScalar(s);
-    this.thirdEye.scale.setScalar(Math.max(0.001, Math.min(1, (u - 0.3) / 0.7)));
+    this.thirdEye.scale.copy(this.thirdEyeSize).multiplyScalar(Math.max(0.001, Math.min(1, (u - 0.3) / 0.7)));
   }
 
   setBelow(canvas: HTMLCanvasElement) {
@@ -766,6 +672,7 @@ export class Arena {
     this.debris.instanceMatrix.needsUpdate = true;
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true;
 
+    this.cage.update(dt, _time);
     // player glow follows the body
     this.glow.position.set(this.player.position.x, 2.6, this.player.position.z);
     if (this.belowMat) this.belowMat.needsUpdate = false;

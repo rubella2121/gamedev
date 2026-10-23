@@ -71,7 +71,7 @@ export class Game {
 
     this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
     this.act2.onEnd = () => this.onEnd();
-    this.act1.onBoom = () => this.beginBoom();
+    this.act1.onBoom = () => this.beginBoom(0, true);
     this.act1.onTeaserFlash = () => {
       this.act2.prepareTeaser();
       this.flash3D = 0.2;
@@ -196,10 +196,11 @@ export class Game {
     this.state = 'act1';
   }
 
-  private beginBoom(boss = 0) {
+  /** into 3D: a real run gets the film (the fall, the cage); the showcase and the debug jumps get the quick boom */
+  private beginBoom(boss = 0, cinematic = false) {
     this.state = 'boom';
     track('boom');
-    this.act2.begin(this.act1.p.canvas, boss);
+    this.act2.begin(this.act1.p.canvas, boss, cinematic);
   }
 
   private onEnd() {
@@ -217,12 +218,12 @@ export class Game {
   }
 
   /** Debug: jump to the boom (builds a fake edge frame first). */
-  debugBoom() {
+  debugBoom(cinematic = false) {
     this.begin();
     this.act1.skipOpening();
     this.act1.warp('edge');
     this.act1.render();
-    this.beginBoom();
+    this.beginBoom(0, cinematic);
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
