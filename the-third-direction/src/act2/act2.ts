@@ -4,7 +4,6 @@ import { CollectorBoss } from './bosses/collector';
 import { MashBoss } from './bosses/mash';
 import { XBoss } from './bosses/xboss';
 import { Features, type FeatureEnv } from './features';
-import { ExploreWorld, type MapEnv, type Progress } from './explore/world';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
 import { DashPool } from '../core/dash';
@@ -16,7 +15,7 @@ import { MothMood, MothShield } from '../core/mothbond';
 import { Falls, type Verdict } from '../core/falls';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
-type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end' | 'explore';
+type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
 
 const PLAYER_SPEED = 7.6;
 const START_Z = 12;
@@ -32,10 +31,6 @@ const BOOM_POS = new THREE.Vector3(0, 9, 27);
 const BOOM_LOOK = new THREE.Vector3(0, 8, -14);
 /** The fight camera: a little flatter than before, so the whole monster fits. */
 const CAM_PITCH = 0.5;
-/** On the map the camera sits a little higher and closer, so the paths ahead read. */
-const MAP_PITCH = 0.62;
-const MAP_DIST = 12.5;
-const BG = 0x120a22;
 
 export class Act2 {
   readonly arena = new Arena();
@@ -127,14 +122,6 @@ export class Act2 {
 
   onEnd: (() => void) | null = null;
 
-  // the explorable map (a run started from Play, or from the 3D world button; the boss picker skips it)
-  readonly map: ExploreWorld;
-  private exploreRun = false;
-  readonly prog: Progress = { lanterns: false, bells: false, bones: false, beaten: 0 };
-  /** a fade between the map and a fight */
-  private trans: { t: number; to: 'boss' | 'map'; boss: number } | null = null;
-  private menv: MapEnv;
-
   /** what a boss sees of the fight */
   private env: Env;
   private fenv: FeatureEnv;
@@ -168,8 +155,6 @@ export class Act2 {
     }
     this.solids = [...a.pillarData];
     this.features = new Features(a);
-    this.map = new ExploreWorld();
-    a.scene.add(this.map.group);
 
     const self = this;
     this.env = {
@@ -214,21 +199,6 @@ export class Act2 {
       launch: (dx, dz, dist) => this.launch(dx, dz, dist),
       sfx: { warm: () => ctx.audio.warm(), chime: () => ctx.audio.chime(), dash: () => ctx.audio.dash(), click: () => ctx.audio.click() },
     };
-    this.menv = {
-      audio: ctx.audio,
-      ui: ctx.ui,
-      arena: a,
-      p: this.pl,
-      hurt: (kx, kz) => this.hurt(kx, kz),
-      addLight: (v) => this.addLight(v),
-      shake: (v) => (this.shake = Math.max(this.shake, v)),
-      get hearts() {
-        return self.hearts;
-      },
-      get maxHearts() {
-        return self.maxHearts;
-      },
-    };
     // the bosses, in the order you meet them
     const x = new XBoss(this.env, a.world, () => this.bossDown());
     this.bosses.push(x, new CollectorBoss(this.env, a.world, () => this.bossDown()), new MashBoss(this.env, a.world, () => this.bossDown()));
@@ -249,15 +219,9 @@ export class Act2 {
   /* the boom                                                          */
   /* ---------------------------------------------------------------- */
 
-  begin(frame: HTMLCanvasElement, boss = 0, explore = false) {
+  begin(frame: HTMLCanvasElement, boss = 0) {
     const a = this.arena;
     this.state = 'boom';
-    this.exploreRun = explore;
-    this.trans = null;
-    Object.assign(this.prog, { lanterns: false, bells: false, bones: false, beaten: 0 });
-    this.map.reset();
-    this.map.show(false);
-    this.toStage();
     this.t = 0;
     this.fired.clear();
     this.arenaStory = false;
@@ -439,9 +403,7 @@ export class Act2 {
     this.fire('reveal', t >= 5.1, () => {
       ui.flash(0.95, 700);
       audio.sting();
-      // a story run lands you on the map; the boss picker goes straight to the fight
-      if (this.exploreRun) this.enterMap(true);
-      else this.startBoss(3000);
+      this.startBoss(3000);
       this.shake = 1.2;
     });
     this.fire('title', t >= 5.5, () => {
@@ -460,7 +422,6 @@ export class Act2 {
   /* ---------------------------------------------------------------- */
 
   private startBoss(titleDelay = 900, startOver = false) {
-    this.toStage();
     this.state = 'fight';
     this.falls.reset();
     this.quietStart = startOver;
@@ -495,9 +456,6 @@ export class Act2 {
       if (!this.arenaStory) {
         this.arenaStory = true;
         for (const s of STORY.arena) window.setTimeout(() => this.state === 'fight' && say(ui, s.line), s.after);
-      } else if (this.exploreRun && !this.fired.has('x-line')) {
-        this.fired.add('x-line');
-        window.setTimeout(() => this.state === 'fight' && say(ui, STORY.arena[0]!.line), STORY.arena[0]!.after);
       }
       window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
       window.setTimeout(() => ui.hint(null), 9600);
@@ -518,15 +476,6 @@ export class Act2 {
 
   /** Swing the camera behind the player, looking at the boss. */
   private resetCamera() {
-    if (this.state === 'explore') {
-      // on the map: look the way the next thing to do lies
-      const o = this.map.objective(this.prog);
-      const dx = o.x - this.pl.x;
-      const dz = o.z - this.pl.z;
-      if (Math.hypot(dx, dz) > 0.5) this.camYaw = Math.atan2(-dx, -dz);
-      this.camPitch = MAP_PITCH;
-      return;
-    }
     const dx = 0 - this.pl.x;
     const dz = BOSS_Z + 1.5 - this.pl.z;
     this.camYaw = Math.atan2(-dx, -dz);
@@ -539,8 +488,7 @@ export class Act2 {
 
   private hurt(kx: number, kz: number) {
     const pl = this.pl;
-    if (pl.invuln > 0 || pl.dead) return;
-    if (this.state === 'fight' ? this.boss.state !== 'fight' : this.state !== 'explore') return;
+    if (pl.invuln > 0 || pl.dead || this.boss.state !== 'fight' || this.state !== 'fight') return;
     const { ui, audio } = this.ctx;
     if (this.shield.absorb()) {
       this.mothTakesIt();
@@ -579,10 +527,8 @@ export class Act2 {
     this.trapped = false;
     this.deadT = 1.1;
     this.ctx.stats.deaths++;
-    if (this.state === 'fight') {
-      this.fallVerdict = this.falls.fall();
-      this.showFalls();
-    }
+    this.fallVerdict = this.falls.fall();
+    this.showFalls();
     ui.fade(1, 250);
     audio.death();
     this.control = false;
@@ -662,7 +608,7 @@ export class Act2 {
 
   /** the nearest thing a hit could land on, for the lunge and the aim */
   private nearestWeak(maxAng = Math.PI, from?: { x: number; z: number; yaw: number }): { w: Weak; d: number } | null {
-    const ws = this.state === 'explore' ? this.map.weak() : this.boss.weak();
+    const ws = this.boss.weak();
     let best: { w: Weak; d: number } | null = null;
     let bs = 1e9;
     for (const w of ws) {
@@ -705,10 +651,6 @@ export class Act2 {
     const pl = this.pl;
     const fx = Math.sin(this.lastFace);
     const fz = Math.cos(this.lastFace);
-    if (this.state === 'explore') {
-      this.map.strike(pl.x, pl.z, fx, fz, this.menv, this.prog);
-      return;
-    }
     this.features.hit(pl.x + fx * 1.2, pl.z + fz * 1.2, 1.6, this.fenv);
     this.boss.onPlayerStrike(pl.x, pl.z, fx, fz);
     for (const w of this.boss.weak()) {
@@ -801,8 +743,7 @@ export class Act2 {
         l.x += l.vx * sdt;
         l.y += l.vy * sdt;
         l.z += l.vz * sdt;
-        const far = this.state === 'explore' ? Math.hypot(l.x - pl.x, l.z - pl.z) > 40 : Math.hypot(l.x, l.z) > ARENA_R + 16;
-        dead = l.t >= l.life || l.y < 0.1 || l.y > 40 || far;
+        dead = l.t >= l.life || l.y < 0.1 || l.y > 40 || Math.hypot(l.x, l.z) > ARENA_R + 16;
         if (!dead && l.y < 4.5) {
           for (const s of this.solids) {
             if (!s.alive) continue;
@@ -814,10 +755,6 @@ export class Act2 {
               }
             }
           }
-        }
-        if (this.state === 'explore') {
-          if (!dead && this.map.lance(l, this.menv, this.prog)) dead = true;
-          continue;
         }
         if (!dead && l.y < 3 && this.features.hit(l.x, l.z, 0.5, this.fenv)) dead = true;
         if (!dead && this.boss.state === 'fight') {
@@ -847,9 +784,8 @@ export class Act2 {
       n.t += dt;
       n.R = n.max * easeOutCubic(n.t / 0.5);
       a.setNova(true, n.x, n.z, n.R, n.t / 0.55);
-      if (this.state === 'explore') this.map.nova(n.x, n.z, n.R, this.menv, this.prog);
-      else this.features.hit(n.x, n.z, n.R, this.fenv);
-      if (this.state === 'fight' && this.boss.state === 'fight') {
+      this.features.hit(n.x, n.z, n.R, this.fenv);
+      if (this.boss.state === 'fight') {
         this.boss.onNova(n);
         if (!n.hit) {
           for (const w of this.boss.weak()) {
@@ -955,27 +891,13 @@ export class Act2 {
     ox += this.pullX * dt;
     oz += this.pullZ * dt;
     this.pullX = this.pullZ = 0;
-    if (this.state === 'explore') {
-      // on the map you walk where there is floor: slide along an edge instead of stepping off it
-      if (this.map.walk(pl.x + ox, pl.z)) pl.x += ox;
-      else {
-        pl.vx = 0;
-        this.dvx = 0;
-      }
-      if (this.map.walk(pl.x, pl.z + oz)) pl.z += oz;
-      else {
-        pl.vz = 0;
-        this.dvz = 0;
-      }
-    } else {
-      pl.x += ox;
-      pl.z += oz;
-    }
+    pl.x += ox;
+    pl.z += oz;
     const decay = Math.exp(-12 * dt);
     this.dvx *= decay;
     this.dvz *= decay;
     const rr = Math.hypot(pl.x, pl.z);
-    if (this.state !== 'explore' && rr > ARENA_R - 0.9) {
+    if (rr > ARENA_R - 0.9) {
       pl.x *= (ARENA_R - 0.9) / rr;
       pl.z *= (ARENA_R - 0.9) / rr;
     }
@@ -1097,7 +1019,7 @@ export class Act2 {
     }
     const moving = Math.hypot(pl.vx, pl.vz) > 0.6 || this.dashT > 0 || this.state === 'boom';
     this.mood.update(dt, moving, this.hearts, this.maxHearts);
-    const inFight = this.state === 'fight' || this.state === 'explore';
+    const inFight = this.state === 'fight';
     if (this.shield.update(dt) && inFight) {
       audio.chime();
       a.burst3(pl.x, 1.4, pl.z, 8, [0x9fe8ff, 0xcff6ff], 4);
@@ -1160,200 +1082,7 @@ export class Act2 {
     this.camPitch = clamp(this.camPitch + cam.dy * 0.008, 0.12, 1.25);
     this.updateRig(dt);
     this.updateMoth(dt);
-    if (this.it >= 5.2 && !this.trans) {
-      if (this.exploreRun) this.leaveFight();
-      else this.startBoss();
-    }
-  }
-
-
-  /* ---------------------------------------------------------------- */
-  /* the explorable map                                                */
-  /* ---------------------------------------------------------------- */
-
-  /** the fight's floor back, the map away, the fight's own fog and light */
-  private toStage() {
-    const a = this.arena;
-    a.stage(true);
-    this.map.show(false);
-    this.map.quiet(this.menv);
-    const fog = a.scene.fog as THREE.Fog;
-    fog.near = 48;
-    fog.far = 160;
-    fog.color.setHex(BG);
-    (a.scene.background as THREE.Color).setHex(BG);
-    a.mood(1, 1, 1);
-    this.ctx.ui.goal(null);
-  }
-
-  /** onto the map: the first time after the boom, and again after each boss (in front of its gate) */
-  private enterMap(first: boolean) {
-    const { ui, input, audio } = this.ctx;
-    const a = this.arena;
-    const pl = this.pl;
-    this.state = 'explore';
-    a.stage(false);
-    this.features.show(false);
-    for (const b of this.bosses) b.hide();
-    a.hideShadow();
-    a.marks.hideAll();
-    a.lanes.forEach((l) => (l.visible = false));
-    a.setRedLight(0);
-    a.setLances([]);
-    a.setNova(false);
-    this.cubeGroup.visible = false;
-    this.shard.visible = false;
-    a.player.visible = true;
-    a.showPlayerClaw(1);
-    this.map.show(true);
-    const sp = this.map.spawnPoint();
-    pl.x = sp.x;
-    pl.z = sp.z;
-    pl.vx = pl.vz = 0;
-    pl.dead = false;
-    pl.invuln = 0.8;
-    this.dvx = this.dvz = 0;
-    this.trapped = false;
-    this.lances = [];
-    this.nova = null;
-    this.dashT = this.dashCd = this.launchT = 0;
-    this.hearts = this.maxHearts;
-    this.solids.length = 0;
-    this.solids.push(...this.map.solids);
-    this.control = true;
-    this.hud = true;
-    this.falls.reset();
-    ui.falls(null);
-    ui.bossBar(null);
-    input.setMoveEnabled(true);
-    input.setCameraEnabled(true);
-    input.setAction('strike');
-    ui.hearts(this.hearts, this.maxHearts);
-    ui.light(this.light);
-    ui.recenter(true, () => this.resetCamera());
-    this.shield.arm();
-    this.mood.reset();
-    this.resetCamera();
-    const f = this.camFwd();
-    const cp = Math.cos(this.camPitch);
-    this.camPos.set(pl.x - f.x * MAP_DIST * cp, 1.4 + Math.sin(this.camPitch) * MAP_DIST, pl.z - f.z * MAP_DIST * cp);
-    this.camLook.set(pl.x + f.x * 5, 1.2, pl.z + f.z * 5);
-    this.map.snapAtmosphere(this.menv);
-    audio.setDrone(0.2, 2);
-    if (first) {
-      this.mothP.set(pl.x - 1.4, 2.1, pl.z + 0.4);
-      // the lines the first fight used to say, said here where you can look around: the forest below, the family above
-      this.arenaStory = true;
-      window.setTimeout(() => this.state === 'explore' && say(ui, STORY.arena[1]!.line), 4200);
-      window.setTimeout(() => this.state === 'explore' && say(ui, STORY.arena[2]!.line), 9000);
-      window.setTimeout(() => this.state === 'explore' && ui.hint('drag to look · tap to strike'), 1500);
-      window.setTimeout(() => ui.hintIs('drag to look · tap to strike') && ui.hint(null), 9500);
-    }
-  }
-
-  private updateExplore(dt: number) {
-    const { input, ui } = this.ctx;
-    const pl = this.pl;
-    if (pl.dead) {
-      this.deadT -= dt;
-      this.updateRig(dt);
-      if (this.deadT <= 0) this.respawnMap();
-      return;
-    }
-    this.updatePlayer(dt);
-    this.updateLight(dt);
-    if (this.control) {
-      const cam = input.takeCam();
-      this.camYaw += input.camKey * 2.4 * dt + cam.dx * -0.011;
-      this.camPitch = clamp(this.camPitch + cam.dy * 0.008, 0.12, 1.25);
-      if (input.camReset) {
-        input.camReset = false;
-        this.resetCamera();
-      }
-    }
-    this.map.update(dt, this.menv, this.prog);
-    this.map.guide(pl.x, pl.z, this.prog, this.control && !this.trans);
-    const o = this.map.objective(this.prog);
-    ui.goal(o.text || null, true);
-    this.updateRig(dt);
-    this.updateMoth(dt);
-    if (!this.trans && this.control) {
-      const g = this.map.gateHit(pl.x, pl.z, this.prog);
-      if (g !== null) this.gotoBoss(g);
-    }
-  }
-
-  /** a death on the map: back to the last checkpoint, hearts full, what you have done stays done */
-  private respawnMap() {
-    const { ui } = this.ctx;
-    const pl = this.pl;
-    this.map.calm();
-    this.map.quiet(this.menv);
-    const sp = this.map.spawnPoint();
-    pl.x = sp.x;
-    pl.z = sp.z;
-    pl.vx = pl.vz = 0;
-    pl.dead = false;
-    pl.invuln = 1.2;
-    this.dvx = this.dvz = 0;
-    this.hearts = this.maxHearts;
-    this.control = true;
-    ui.hearts(this.hearts, this.maxHearts);
-    ui.light(this.light);
-    ui.fade(0, 450);
-    this.shield.arm();
-    this.mood.reset();
-    this.resetCamera();
-    ui.narrate("It's all right. Up we get.", 2200, 'warm');
-  }
-
-  /** into a boss's gate: the screen goes dark and the fight's floor rises in its place */
-  private gotoBoss(i: number) {
-    const { ui, audio } = this.ctx;
-    this.trans = { t: 0, to: 'boss', boss: i };
-    this.control = false;
-    this.pl.vx = this.pl.vz = 0;
-    ui.fade(1, 450);
-    ui.goal(null);
-    ui.hint(null);
-    audio.sting();
-  }
-
-  /** after a boss (and the quiet after it): back out onto the map, in front of its gate, with the next bridge unpinned */
-  private leaveFight() {
-    const { ui, audio } = this.ctx;
-    this.prog.beaten = this.bi;
-    this.map.bossBeaten(this.bi - 1, ui, audio);
-    this.trans = { t: 0, to: 'map', boss: this.bi };
-    this.control = false;
-    ui.fade(1, 450);
-  }
-
-  private updateTrans(dt: number) {
-    const tr = this.trans!;
-    tr.t += dt;
-    if (tr.t < 0.55) return;
-    this.trans = null;
-    const { ui } = this.ctx;
-    if (tr.to === 'boss') {
-      for (const b of this.bosses) b.hide();
-      this.bi = tr.boss;
-      this.boss = this.bosses[this.bi]!;
-      const pl = this.pl;
-      pl.x = 0;
-      pl.z = START_Z;
-      pl.vx = pl.vz = 0;
-      this.dvx = this.dvz = 0;
-      this.camPos.copy(BOOM_POS);
-      this.camLook.copy(BOOM_LOOK);
-      this.startBoss(900);
-    } else {
-      this.enterMap(false);
-      const lines = ['the marsh is open. the bells are waiting.', 'the wastes are open. something rattles.'];
-      const l = lines[this.prog.beaten - 1];
-      if (l) window.setTimeout(() => this.state === 'explore' && ui.narrate(l, 3000, 'world'), 900);
-    }
-    ui.fade(0, 700);
+    if (this.it >= 5.2) this.startBoss();
   }
 
   /* ---------------------------------------------------------------- */
@@ -1462,22 +1191,19 @@ export class Act2 {
     this.t += dtReal;
     const a = this.arena;
     const dt = dtReal;
-    if (this.trans) this.updateTrans(dt);
     if (this.state === 'boom') this.updateBoom(dt);
     else if (this.state === 'fight') this.updateFight(dt);
     else if (this.state === 'interlude') this.updateInterlude(dt);
-    else if (this.state === 'explore') this.updateExplore(dt);
     else if (this.state === 'ending') this.updateEnding(dt);
     a.update(dt, this.time);
 
     // camera
-    if (this.state === 'fight' || this.state === 'interlude' || this.state === 'explore') {
+    if (this.state === 'fight' || this.state === 'interlude') {
       const cine = this.state === 'fight' && this.boss.state === 'dying' ? this.boss.cinematic() : null;
       const f = this.camFwd();
       const cp = Math.cos(this.camPitch);
       const pl = this.pl;
-      const dist = this.state === 'explore' ? MAP_DIST : this.camDist;
-      const target = new THREE.Vector3(pl.x - f.x * dist * cp, 1.4 + Math.sin(this.camPitch) * dist, pl.z - f.z * dist * cp);
+      const target = new THREE.Vector3(pl.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, pl.z - f.z * this.camDist * cp);
       // during an entrance the camera stays up and back, looking at the boss
       if (cine) {
         // a boss going down gets a wide shot from the middle of the floor
@@ -1502,7 +1228,6 @@ export class Act2 {
   /** The 1:45 teaser: a split-second look at the 3D world (no boss yet) before the forest snaps back. */
   prepareTeaser() {
     const a = this.arena;
-    this.toStage();
     this.cubeGroup.visible = false;
     this.shard.visible = false;
     a.setRise(1);

@@ -12,8 +12,6 @@ export interface HomeOptions {
   onShowcase: (boss: number) => void;
   /** play the cinematic intro again */
   onIntro?: () => void;
-  /** skip the forest: land in the explorable 3D world */
-  onWorld?: () => void;
   onSound: (on: boolean) => void;
   onDifficulty: (id: DiffId) => void;
   difficulty: DiffId;
@@ -450,9 +448,7 @@ export class UI {
   }
 
   /** The goal in one line, under the five dots, while you are out on the roads (null hides it). It also hides with the hearts. */
-  goal(text: string | null, low = false) {
-    // (on the 3D map the light and dash meters sit under the hearts, so the goal line goes under them)
-    this.goalEl.classList.toggle('low', low);
+  goal(text: string | null) {
     if (text === this.goalKey) return;
     this.goalKey = text;
     if (text === null) {
@@ -712,12 +708,6 @@ export class UI {
       pill('Trailer', ICON.play, () => {
         el.classList.add('hide');
         o.onIntro!();
-      });
-    }
-    if (o.onWorld) {
-      pill('3D world', ICON.play, () => {
-        el.classList.add('hide');
-        o.onWorld!();
       });
     }
     pill('Fight a boss', ICON.skull, () => this.showShowcase(o));
