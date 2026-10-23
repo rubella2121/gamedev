@@ -259,6 +259,7 @@ export class Act2 {
     this.dashPool.reset();
     this.hud = false;
     a.player.visible = false;
+    a.jellyReset();
     a.setRise(0);
     a.showPlayerClaw(0);
     a.hideShadow();
@@ -509,6 +510,7 @@ export class Act2 {
       return;
     }
     this.mood.hurt();
+    this.arena.jellyKick(-3.4, (Math.random() - 0.5) * 3, -2.2);
     this.hearts--;
     pl.invuln = 1.5;
     ui.hearts(this.hearts, this.maxHearts);
@@ -699,6 +701,8 @@ export class Act2 {
     this.dashPool.use();
     pl.invuln = Math.max(pl.invuln, DASH_T + 0.05);
     this.lastFace = Math.atan2(dx, dz);
+    // it stretches long and low into the dash
+    this.arena.jellyKick(-2.2, 0, 1.2);
     audio.dash();
     this.arena.burst3(pl.x, 0.5, pl.z, 8, [0xf2d36b, 0xfff1a6, 0xffffff], 4);
   }
@@ -857,6 +861,7 @@ export class Act2 {
           this.strikeT = 0.3;
           this.strikeCd = 0.42;
           this.pending = 0.14;
+          this.arena.jellyKick(-1.4, 0, 1.6);
           audio.strike();
           this.strikeDash();
         }
@@ -900,7 +905,11 @@ export class Act2 {
       ox = this.dashX * sp * dt;
       oz = this.dashZ * sp * dt;
       if (Math.floor(this.time * 40) !== Math.floor((this.time - dt) * 40)) this.arena.burst3(pl.x, 0.5, pl.z, 1, [0xf2d36b, 0xfff1a6, 0xffffff], 1.5);
-      if (this.dashT <= 0) this.launchT = 0;
+      if (this.dashT <= 0) {
+        // the end of a dash or a throw: it splats down and sloshes
+        this.arena.jellyKick(this.launchT > 0 ? -4.2 : -2.4);
+        this.launchT = 0;
+      }
     }
     ox += this.pullX * dt;
     oz += this.pullZ * dt;
@@ -1301,6 +1310,7 @@ export class Act2 {
           p.position.set(0, (Y - 1) * (1 - u * u), lerp(1.2, START_Z, smooth(u)));
           p.rotation.set(u * 7.5, Math.PI * 0.2, u * 2);
         } else if (landed) {
+          if (t < 6.05) a.jellyKick(-0.9);
           p.position.set(0, 0, START_Z);
           // it faces us, then turns to the thing in the sky
           const turn = smooth(unlerp(7.9, 8.4, t));
@@ -1562,8 +1572,8 @@ export class Act2 {
         const walking = wk > 0 && wk < 1 ? 1 : 0;
         const hug = t > 8.6 ? smooth(unlerp(8.6, 9.6, t)) : 0;
         const hop = t > 9.7 && t < 14 ? 1 : 0;
-        animateParent(cg.mother, this.time, walking, t < 6.6 ? 0.2 + (t > 5.8 ? 0.6 : 0) : hug, hop * 0.4, 1);
-        animateParent(cg.father, this.time, walking, t < 6.6 ? 0.1 + (t > 5.8 ? 0.5 : 0) : hug * 0.8, hop * 0.3, 2.7);
+        animateParent(cg.mother, dt, this.time, walking, t < 6.6 ? 0.2 + (t > 5.8 ? 0.6 : 0) : hug, hop * 0.4, 1);
+        animateParent(cg.father, dt, this.time, walking, t < 6.6 ? 0.1 + (t > 5.8 ? 0.5 : 0) : hug * 0.8, hop * 0.3, 2.7);
         // the pinned flicker out into warm lights and drift up and away
         const pos = this.warm.geometry.getAttribute('position') as THREE.BufferAttribute;
         this.warmData.forEach((w, i) => {

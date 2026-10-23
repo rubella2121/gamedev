@@ -18,8 +18,8 @@ export function makeParent(mother: boolean): ParentRig {
 }
 
 /** how a parent moves: `walk` 0..1, `reach` stretches it up (a hug, a look up), `hop` a little bounce of joy */
-export function animateParent(r: ParentRig, time: number, walk: number, reach: number, hop: number, seed: number) {
-  animateJelly(r, time, walk, time * 9 + seed, reach, hop, seed);
+export function animateParent(r: ParentRig, dt: number, time: number, walk: number, reach: number, hop: number, seed: number) {
+  animateJelly(r, dt, time, walk, time * 9 + seed, reach, hop, seed);
 }
 
 /** the cage: brass bars, a dome, three locks on the door, a chain into the dark */
@@ -195,8 +195,8 @@ export class Cage {
     this.inner.material.opacity = 0.38 + 0.08 * Math.sin(time * 1.7);
     if (parentsMove) {
       // inside: they wait, close together, and look worried
-      animateParent(this.mother, time, 0, 0.15 + 0.1 * Math.sin(time * 0.8), 0, 1);
-      animateParent(this.father, time, 0, 0.1, 0, 2.7);
+      animateParent(this.mother, dt, time, 0, 0.15 + 0.1 * Math.sin(time * 0.8), 0, 1);
+      animateParent(this.father, dt, time, 0, 0.1, 0, 2.7);
     }
   }
 }

@@ -370,23 +370,33 @@ export class Arena {
     this.world.add(P);
   }
 
-  /** Waddle, breathing, blinking and the claw swing. `phase` advances with distance walked. */
+  /** Hop-and-splat, the slosh, blinking and the claw swing. `phase` advances with distance walked. */
   animatePlayer(dt: number, time: number, walk: number, phase: number, strike: number, hurt: boolean) {
     const r = this.rig;
-    animateJelly(r, time, walk, phase, 0, 0, 0);
-    // claw swing during a strike (strike runs 0..1)
+    // a strike throws its top forward into the swing
+    const lean = strike > 0 ? 0.3 * Math.sin((1 - strike) * Math.PI) : 0;
+    // the stride is quick; a slime's hops are slower and bigger, about two and a half a second at a run
+    animateJelly(r, dt, time, walk, phase * 0.55, 0, 0, 0, lean);
     if (strike > 0) {
       const u = 1 - strike;
       this.claw.rotation.y = -0.9 + 2.1 * (1 - Math.pow(1 - u, 3));
       this.claw.rotation.z = Math.sin(u * Math.PI) * 0.6;
-      r.body.rotation.x += 0.25 * Math.sin(u * Math.PI);
     } else {
       this.claw.rotation.y *= 0.8;
       this.claw.rotation.z *= 0.8;
     }
     // hurt flash
     this.skin.emissive.setHex(hurt ? 0xc02020 : 0x000000);
-    void dt;
+  }
+
+  /** set the Blob's jelly ringing: `sq` < 0 splats it, > 0 stretches it; `lx`/`lz` throw its top sideways / forwards */
+  jellyKick(sq: number, lx = 0, lz = 0) {
+    this.rig.wob.kick(sq, lx, lz);
+  }
+
+  /** the Blob was put somewhere else (a respawn, a cut): its jelly forgets where it was */
+  jellyReset() {
+    this.rig.wob.reset();
   }
 
 

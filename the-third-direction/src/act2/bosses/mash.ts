@@ -37,10 +37,12 @@ import { BeaconFX, BeamFX, BlobFX, FanFX, FlashFX, LaneFX, PuddleFX, RingFX, Sho
  *   3  the shell   tears loose and rolls along red lanes, bounces off the rim, crushes pillars; then it crashes into the bell
  *                  and lies on its back
  *   4  the remix   two of them at once; the flower breathes in and drags you to its maw; then the lure drops to the floor
+ * From the second round of a phase on, another guardian's move is stitched into it (rings under the eye's stare, a sting
+ * while the eye holds you, venom under the rings, a shell that rolls while the tail lashes), so no two rounds are the same.
  * Each hit makes the next round a tenth quicker.
  */
 
-export const MASH_PIPS = [2, 2, 2, 3];
+export const MASH_PIPS = [3, 3, 3, 4];
 
 interface Beat {
   make: (b: MashBoss) => Runner[];
@@ -459,27 +461,47 @@ export class MashBoss extends Boss3D {
     const c = this.cycle;
     const space = Math.max(0.95, 1.3 * k);
     const vol = (n: number, echo: boolean, gapN = 8, sp = space) => (b: MashBoss) => [new VolleyRunner(b.hub, { n, echo, gapN: Math.max(7, gapN - (c > 0 ? 1 : 0)), space: sp, speed: 9.5 })];
+    // every round of a phase is a different one: the guardian whose phase it is, and from the second round on, someone else's move
+    // stitched in with it (only one thing can drive the tail at a time: sting, lash and spit never pair with each other)
+    const watch = (secs: number) => (b: MashBoss) => [new WatchRunner(b.hub, secs)];
+    const sting = (b: MashBoss) => [new StingRunner(b.hub)];
+    const sweep = (b: MashBoss) => [new SweepRunner(b.hub)];
+    const spit = (b: MashBoss) => [new SpitRunner(b.hub, 3)];
+    const roll = (b: MashBoss) => [new RollRunner(b.hub, b.ball, { count: 1, finisher: false })];
+    const both =
+      (...fs: ((b: MashBoss) => Runner[])[]) =>
+      (b: MashBoss) =>
+        fs.flatMap((f) => f(b));
     if (ph === 0) {
-      return [
-        { make: vol(2, false, 9), hard: true, wait: 0.5 },
-        { make: (b) => [new WatchRunner(b.hub, 2.0)], hard: true, wait: 0.3 },
-        { make: vol(3, true, 8), hard: true, wait: 0.7 },
-        { make: (b) => [new ClapperRunner(b.hub)], hard: true, window: true, wait: 0.6 },
+      const clapper: Beat = { make: (b) => [new ClapperRunner(b.hub)], hard: true, window: true, wait: 0.6 };
+      const rounds: Beat[][] = [
+        [{ make: vol(2, false, 9), hard: true, wait: 0.5 }, { make: watch(2.0), hard: true, wait: 0.3 }, { make: vol(3, true, 8), hard: true, wait: 0.6 }, clapper],
+        // TOLL UNDER THE STARE: the rings come while the eye punishes standing still in their gap
+        [{ make: both(vol(2, false, 8), watch(1.8)), hard: true, wait: 0.4 }, { make: vol(3, true, 7), hard: true, wait: 0.5 }, clapper],
+        [{ make: watch(1.4), hard: true, wait: 0.2 }, { make: vol(3, true, 7, space * 0.9), hard: true, wait: 0.3 }, { make: both(vol(2, true, 8), watch(1.6)), hard: true, wait: 0.5 }, clapper],
       ];
+      return rounds[c % 3]!;
     }
     if (ph === 1) {
-      return [
-        { make: (b) => [new StingRunner(b.hub)], wait: 0.35 },
-        { make: (b) => [new SweepRunner(b.hub)], wait: 0.45 },
-        { make: (b) => [new SpitRunner(b.hub, 3)], hard: true, wait: 0.6 },
-        { make: (b) => [new StingRunner(b.hub)], wait: 0.3 },
-        { make: (b) => [new StingRunner(b.hub, true)], hard: true, window: true, wait: 0.6 },
+      const fin: Beat = { make: (b) => [new StingRunner(b.hub, true)], hard: true, window: true, wait: 0.6 };
+      const rounds: Beat[][] = [
+        [{ make: sting, wait: 0.35 }, { make: sweep, wait: 0.45 }, { make: spit, hard: true, wait: 0.5 }, { make: sting, wait: 0.3 }, fin],
+        // HELD AND STUNG: the bell's eye holds you while the tail picks its spot; then a lash under a ring of the bell
+        [{ make: both(watch(1.5), sting), wait: 0.4 }, { make: both(vol(2, false, 8), sweep), hard: true, wait: 0.45 }, { make: sting, wait: 0.3 }, fin],
+        // VENOM RAIN: spit while the rings close in, then the lash, then the sting that sticks
+        [{ make: both(vol(2, true, 8), spit), hard: true, wait: 0.4 }, { make: sweep, wait: 0.3 }, { make: both(watch(1.4), sting), wait: 0.3 }, fin],
       ];
+      return rounds[c % 3]!;
     }
     if (ph === 2) {
-      return [
-        { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: true })], hard: true, window: true, wait: 0.6 },
+      const fin: Beat = { make: (b) => [new RollRunner(b.hub, b.ball, { count: 2, finisher: true })], hard: true, window: true, wait: 0.6 };
+      const rounds: Beat[][] = [
+        [fin],
+        // the shell rolls while something else comes for you: rings, the lash, the eye
+        [{ make: both(roll, vol(2, false, 8)), hard: true, wait: 0.5 }, fin],
+        [{ make: both(roll, sweep), hard: true, wait: 0.4 }, { make: both(roll, watch(1.6)), hard: true, wait: 0.5 }, fin],
       ];
+      return rounds[c % 3]!;
     }
     // the remix: two at once, and the flower. The first pair does not wait for its last ring to leave the floor (the next
     // beat starts when nothing it could still hurt you with is near), so the whole round is a run of overlapping dangers

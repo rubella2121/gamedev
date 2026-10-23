@@ -31,6 +31,10 @@ export interface JellyRig {
   height: number;
   /** a point in the middle of the forehead, and the way the skin faces there (for a third eye) */
   forehead: { p: THREE.Vector3; n: THREE.Vector3 };
+  /** the springs that make it slosh */
+  wob: Wobble;
+  /** the skin's ripple: how strong, and its clock */
+  wave: { uWave: { value: number }; uT: { value: number } };
 }
 
 let domeGeo: THREE.BufferGeometry | null = null;
@@ -62,19 +66,24 @@ function dome(): THREE.BufferGeometry {
 }
 
 /** the jelly's skin: lit like a wet surface, but glowing from inside, warm in the middle and rose at the edge */
-function jellyMaterial(look: JellyLook): THREE.MeshStandardMaterial {
+function jellyMaterial(look: JellyLook, wave: JellyRig['wave']): THREE.MeshStandardMaterial {
   const m = new THREE.MeshStandardMaterial({ color: look.core, roughness: 0.16, metalness: 0, emissive: 0x000000 });
   const u = {
     uCore: { value: new THREE.Color(look.core) },
     uLow: { value: new THREE.Color(look.low) },
     uRim: { value: new THREE.Color(look.rim) },
     uGlow: { value: look.glow ?? 0.85 },
+    ...wave,
   };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vJy;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvJy = position.y;');
+      .replace('#include <common>', '#include <common>\nvarying float vJy;\nuniform float uWave;\nuniform float uT;')
+      // ripples run up the skin, strongest at the top, none where it sits on the floor
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvJy = position.y;\ntransformed += normal * uWave * sin(position.y * 24.0 - uT * 15.0 + position.x * 6.0) * smoothstep(0.02, 0.4, position.y);',
+      );
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec3 uCore;\nuniform vec3 uLow;\nuniform vec3 uRim;\nuniform float uGlow;\nvarying float vJy;')
       .replace(
@@ -99,7 +108,8 @@ export function makeJelly(look: JellyLook): JellyRig {
   const g = new THREE.Group();
   const body = new THREE.Group();
   g.add(body);
-  const mat = jellyMaterial(look);
+  const wave = { uWave: { value: 0 }, uT: { value: 0 } };
+  const mat = jellyMaterial(look, wave);
   const skin = new THREE.Mesh(dome(), mat);
   skin.scale.setScalar(S);
   body.add(skin);
@@ -180,25 +190,135 @@ export function makeJelly(look: JellyLook): JellyRig {
       body.add(b);
     }
   }
-  return { g, body, eyes, mat, height, forehead: onSkin(0, height * 0.86) };
+  body.matrixAutoUpdate = false;
+  return { g, body, eyes, mat, height, forehead: onSkin(0, height * 0.86), wob: new Wobble(), wave };
 }
 
 /**
- * How a jelly moves. `walk` 0..1 is a bouncing waddle, `lift` stretches it up (a reach, a hug, a look up), `hop` a bounce of joy.
- * Breathing and blinking go on underneath.
+ * The slosh of a jelly: three springs. `sq` is how much taller (+) or flatter (-) than at rest it is; `lx`/`lz` is how far its
+ * top leans (a shear: the bottom stays on the floor, the top swings), in its own frame. Moving pushes the springs: when it starts,
+ * its top is left behind; when it stops, the top runs on and sloshes back. A kick (a landing, a dash, a hit) sets them ringing.
  */
-export function animateJelly(r: JellyRig, time: number, walk: number, phase: number, lift: number, hop: number, seed: number) {
+export class Wobble {
+  sq = 0;
+  private sqV = 0;
+  lx = 0;
+  private lxV = 0;
+  lz = 0;
+  private lzV = 0;
+  /** how hard it is ringing right now (for the ripples) */
+  energy = 0;
+  private px = NaN;
+  private pz = NaN;
+  private vx = 0;
+  private vz = 0;
+  private wasDown = true;
+  private q = new THREE.Quaternion();
+  private v = new THREE.Vector3();
+
+  /** set the springs ringing: `sq` < 0 splats it, > 0 stretches it up; `lx`/`lz` throw its top sideways / forwards */
+  kick(sq: number, lx = 0, lz = 0) {
+    this.sqV += sq;
+    this.lxV += lx;
+    this.lzV += lz;
+  }
+
+  /** forget where it was (after a teleport, a respawn) */
+  reset() {
+    this.px = NaN;
+    this.sq = this.sqV = this.lx = this.lxV = this.lz = this.lzV = 0;
+    this.vx = this.vz = 0;
+  }
+
+  /** follow it through the world: its acceleration pushes the top the other way. `g` is the object that turns with it. */
+  step(dt: number, g: THREE.Object3D) {
+    if (dt <= 0) return;
+    g.getWorldPosition(this.v);
+    const x = this.v.x;
+    const z = this.v.z;
+    if (Number.isNaN(this.px)) {
+      this.px = x;
+      this.pz = z;
+    }
+    let vx = (x - this.px) / dt;
+    let vz = (z - this.pz) / dt;
+    this.px = x;
+    this.pz = z;
+    // a jump across the floor is a teleport, not a dash
+    if (Math.hypot(vx, vz) > 45) {
+      vx = this.vx;
+      vz = this.vz;
+    }
+    let ax = clampN((vx - this.vx) / dt, 260);
+    let az = clampN((vz - this.vz) / dt, 260);
+    this.vx = vx;
+    this.vz = vz;
+    // into its own frame
+    g.getWorldQuaternion(this.q).invert();
+    this.v.set(ax, 0, az).applyQuaternion(this.q);
+    ax = this.v.x;
+    az = this.v.z;
+    const n = Math.max(1, Math.ceil(dt / (1 / 120)));
+    const h = dt / n;
+    for (let i = 0; i < n; i++) {
+      // squash: stiff and bouncy; lean: softer, sloshier
+      this.sqV += (-170 * this.sq - 6.5 * this.sqV) * h;
+      this.sq += this.sqV * h;
+      this.lxV += (-105 * this.lx - 5.2 * this.lxV - ax * 0.32) * h;
+      this.lzV += (-105 * this.lz - 5.2 * this.lzV - az * 0.32) * h;
+      this.lx += this.lxV * h;
+      this.lz += this.lzV * h;
+    }
+    this.lx = clampN(this.lx, 0.55);
+    this.lz = clampN(this.lz, 0.55);
+    this.sq = Math.max(-0.45, Math.min(0.6, this.sq));
+    this.energy = Math.min(1, Math.abs(this.sqV) * 0.12 + Math.hypot(this.lxV, this.lzV) * 0.1);
+  }
+
+  /** a hop has landed (`down` true when the hop is at the floor) */
+  stepHop(down: boolean, w: number) {
+    if (down && !this.wasDown && w > 0.2) this.kick(-2.6 * w, 0, -0.8 * w);
+    if (!down && this.wasDown && w > 0.2) this.kick(1.4 * w);
+    this.wasDown = down;
+  }
+}
+
+function clampN(v: number, m: number) {
+  return v > m ? m : v < -m ? -m : v;
+}
+
+const shear = new THREE.Matrix4();
+
+/**
+ * How a jelly moves. `walk` 0..1 is a hop-and-splat: it moves in little bounces, stretching as it leaves the floor and splatting
+ * as it lands. `lift` stretches it up (a reach, a hug, a look up), `hop` is a bounce of joy on the spot, `lean` tips its top forward
+ * (a strike). Breathing, blinking and the slosh go on underneath.
+ */
+export function animateJelly(r: JellyRig, dt: number, time: number, walk: number, phase: number, lift: number, hop: number, seed: number, lean = 0) {
   const w = Math.min(1, walk);
-  const bounce = Math.abs(Math.sin(phase));
+  const wob = r.wob;
+  wob.step(dt, r.g);
+  // the hops: up and down twice a stride
+  const s = Math.sin(phase);
+  const up = Math.abs(s);
+  wob.stepHop(up < 0.25, w);
   const jump = hop * Math.abs(Math.sin(time * 7 + seed));
-  // squash on the landing, stretch in the air; a slow breath when still
-  let sq = 1 + (bounce - 0.5) * 0.16 * w + Math.sin(time * 2.3 + seed) * 0.03 * (1 - w) + lift * 0.14 + (jump - 0.4) * 0.18 * hop;
-  sq = Math.max(0.7, sq);
-  const side = 1 / Math.sqrt(sq);
-  r.body.scale.set(side, sq, side);
-  r.body.position.y = bounce * 0.16 * w + jump * 0.35;
-  r.body.rotation.x = 0.1 * w - lift * 0.08;
-  r.body.rotation.z = Math.sin(phase * 0.5) * 0.05 * w;
+  const breath = Math.sin(time * 2.3 + seed) * 0.035 * (1 - w);
+  // stretched in the air, flat on the floor, plus whatever the springs are doing
+  let sy = 1 + (up - 0.35) * 0.2 * w + breath + lift * 0.16 + (jump - 0.35) * 0.22 * hop + wob.sq;
+  sy = Math.max(0.55, Math.min(1.7, sy));
+  // the same jelly, so what it loses in height it gains in width (and a little more as it splats)
+  const sxz = 1 / Math.sqrt(sy) + Math.max(0, 1 - sy) * 0.18;
+  const y = up * 0.26 * w + jump * 0.4;
+  const lx = wob.lx + Math.sin(phase * 0.5) * 0.06 * w;
+  const lz = wob.lz + 0.08 * w - lift * 0.05 + lean;
+  // scale, then shear (the top moves, the bottom stays), then lift
+  shear.set(sxz, lx * sy, 0, 0, 0, sy, 0, y, 0, lz * sy, sxz, 0, 0, 0, 0, 1);
+  r.body.matrix.copy(shear);
+  r.body.matrixWorldNeedsUpdate = true;
+  // the skin ripples while it is sloshing
+  r.wave.uT.value = time;
+  r.wave.uWave.value = 0.004 + 0.016 * wob.energy + 0.006 * w;
   const blink = Math.sin(time * 1.1 + seed) > 0.985 || (time + seed) % 3.7 < 0.09;
   r.eyes.forEach((e) => (e.scale.y = blink ? 0.12 : 1));
 }
