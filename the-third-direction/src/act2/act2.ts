@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { Arena, ARENA_R, BOSS_Z } from './arena';
+import { Arena, ARENA_R, BOSS_Z, FAR_Z, groundY, landY } from './arena';
+import { FERNS } from './crater';
+import { groundDecals } from './ground';
 import { CollectorBoss } from './bosses/collector';
 import { MashBoss } from './bosses/mash';
 import { XBoss } from './bosses/xboss';
@@ -190,6 +192,9 @@ export class Act2 {
         this.pullZ += vz;
       },
       camLook: null,
+      get hidden() {
+        return self.hidden;
+      },
     };
     this.fenv = {
       p: this.pl,
@@ -204,8 +209,13 @@ export class Act2 {
       },
       heal: (v) => this.heal(v),
       addLight: (v) => this.addLight(v),
-      launch: (dx, dz, dist) => this.launch(dx, dz, dist),
-      sfx: { warm: () => ctx.audio.warm(), chime: () => ctx.audio.chime(), dash: () => ctx.audio.dash(), click: () => ctx.audio.click() },
+      hurt: (kx, kz) => this.hurt(kx, kz),
+      solids: this.solids,
+      say: (text) => ctx.ui.caption(text, 2200, true),
+      get fighting() {
+        return self.state === 'fight' && self.boss.state === 'fight' && !self.cut && self.control;
+      },
+      sfx: { warm: () => ctx.audio.warm(), chime: () => ctx.audio.chime(), dash: () => ctx.audio.dash(), click: () => ctx.audio.click(), slam: () => ctx.audio.slam(), snap: () => ctx.audio.snap() },
     };
     // the bosses, in the order you meet them
     const x = new XBoss(this.env, a.world, () => this.bossDown());
@@ -279,6 +289,8 @@ export class Act2 {
     this.features.reset();
     this.cubeGroup.visible = true;
     this.shard.visible = false;
+    // every warning the bosses draw on the floor lies on the ground, terraces too
+    groundDecals(a.world);
     // capture the last 2D frame, 4x4 pixels per cube
     const ctx2 = frame.getContext('2d')!;
     const img = ctx2.getImageData(0, 0, W, H).data;
@@ -479,10 +491,32 @@ export class Act2 {
     input.setAction('strike');
   }
 
+  /** can the Blob move by (dx, dz) from (x, z)? Not up a cliff: a rise steeper than a ramp, checked in small steps */
+  private canStep(x: number, z: number, dx: number, dz: number): boolean {
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-6) return true;
+    const n = Math.max(1, Math.ceil(d / 0.12));
+    let h = groundY(x, z);
+    for (let i = 1; i <= n; i++) {
+      const h2 = groundY(x + (dx * i) / n, z + (dz * i) / n);
+      // a ramp rises 0.8 in 5 or more; a cliff rises it in a fraction of a unit
+      if (h2 - h > 0.05 + (0.45 * d) / n) return false;
+      h = h2;
+    }
+    return true;
+  }
+
   private resetSolids() {
     this.solids.length = 0;
     this.solids.push(...this.arena.pillarData);
   }
+
+  /** in the fern thicket: what hunts by sight cannot see you (a strike or a bolt gives you away for a moment) */
+  get hidden(): boolean {
+    const pl = this.pl;
+    return !pl.dead && this.strikeT <= 0 && this.revealT <= 0 && Math.hypot(pl.x - FERNS.x, pl.z - FERNS.z) < FERNS.r;
+  }
+  private revealT = 0;
 
   /** Which way the camera looks along the floor. */
   private camFwd(): THREE.Vector3 {
@@ -510,6 +544,7 @@ export class Act2 {
       return;
     }
     this.mood.hurt();
+    this.features.onHurt();
     this.arena.jellyKick(-3.4, (Math.random() - 0.5) * 3, -2.2);
     this.hearts--;
     pl.invuln = 1.5;
@@ -707,16 +742,6 @@ export class Act2 {
     this.arena.burst3(pl.x, 0.5, pl.z, 8, [0xf2d36b, 0xfff1a6, 0xffffff], 4);
   }
 
-  /** a pad throws you */
-  private launch(dx: number, dz: number, dist: number) {
-    this.dashX = dx;
-    this.dashZ = dz;
-    this.dashT = dist / 24;
-    this.launchT = this.dashT;
-    this.pl.invuln = Math.max(this.pl.invuln, this.dashT + 0.2);
-    this.lastFace = Math.atan2(dx, dz);
-  }
-
   private castLance() {
     const pl = this.pl;
     let dx = Math.sin(this.yaw);
@@ -727,11 +752,12 @@ export class Act2 {
       const l = tg.d || 1;
       dx = (tg.w.x - pl.x) / l;
       dz = (tg.w.z - pl.z) / l;
-      vy = ((tg.w.y - 1.1) / Math.max(0.2, l / LANCE_SPEED)) * 0.98;
+      vy = ((tg.w.y - 1.1 - groundY(pl.x, pl.z)) / Math.max(0.2, l / LANCE_SPEED)) * 0.98;
     }
     this.lastFace = Math.atan2(dx, dz);
     this.strikeT = Math.max(this.strikeT, 0.2);
-    this.lances.push({ x: pl.x + dx * 0.9, y: 1.1, z: pl.z + dz * 0.9, vx: dx * LANCE_SPEED, vy, vz: dz * LANCE_SPEED, t: 0, life: 1.15 });
+    this.revealT = 1.2;
+    this.lances.push({ x: pl.x + dx * 0.9, y: 1.1 + groundY(pl.x, pl.z), z: pl.z + dz * 0.9, vx: dx * LANCE_SPEED, vy, vz: dz * LANCE_SPEED, t: 0, life: 1.15 });
     this.ctx.audio.lance();
   }
 
@@ -761,7 +787,7 @@ export class Act2 {
         l.x += l.vx * sdt;
         l.y += l.vy * sdt;
         l.z += l.vz * sdt;
-        dead = l.t >= l.life || l.y < 0.1 || l.y > 40 || Math.hypot(l.x, l.z) > ARENA_R + 16;
+        dead = l.t >= l.life || l.y < groundY(l.x, l.z) + 0.1 || l.y > 40 || Math.hypot(l.x, l.z) > ARENA_R + 16;
         if (!dead && l.y < 4.5) {
           for (const s of this.solids) {
             if (!s.alive) continue;
@@ -914,8 +940,17 @@ export class Act2 {
     ox += this.pullX * dt;
     oz += this.pullZ * dt;
     this.pullX = this.pullZ = 0;
+    // the edge of a terrace is a cliff: you can drop down it, not climb it (try the whole step, then each half of it)
+    if (!this.canStep(pl.x, pl.z, ox, oz)) {
+      if (this.canStep(pl.x, pl.z, ox, 0)) oz = 0;
+      else if (this.canStep(pl.x, pl.z, 0, oz)) ox = 0;
+      else ox = oz = 0;
+    }
     pl.x += ox;
     pl.z += oz;
+    this.revealT = Math.max(0, this.revealT - dt);
+    // the first time you slip into the ferns, you are told what they are for
+    this.fire('ferns', this.hidden && this.state === 'fight', () => this.ctx.ui.caption('in the ferns, it cannot see you.', 2400, true));
     const decay = Math.exp(-12 * dt);
     this.dvx *= decay;
     this.dvz *= decay;
@@ -924,6 +959,8 @@ export class Act2 {
       pl.x *= (ARENA_R - 0.9) / rr;
       pl.z *= (ARENA_R - 0.9) / rr;
     }
+    // the boss's side of the floor ends where he stands
+    if (pl.z < FAR_Z) pl.z = FAR_Z;
     // columns are solid: pillars, pins, jars
     for (const s of this.solids) {
       if (!s.alive) continue;
@@ -1007,7 +1044,7 @@ export class Act2 {
     while (dy > Math.PI) dy -= TAU;
     while (dy < -Math.PI) dy += TAU;
     this.yaw += dy * (1 - Math.exp(-14 * dt));
-    p.position.set(pl.x, 0, pl.z);
+    p.position.set(pl.x, groundY(pl.x, pl.z), pl.z);
     p.rotation.y = this.yaw;
     p.visible = pl.invuln > 0 && this.dashT <= 0 ? Math.floor(this.time * 14) % 2 === 0 : true;
     const f = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
@@ -1057,9 +1094,10 @@ export class Act2 {
     // beside you; on your head when you stand still; close and trembling when you are one hit from a fall
     const rest = this.mood.calm;
     const worry = this.mood.worry;
-    const target = new THREE.Vector3(pl.x - 1.4, 2.1, pl.z + 0.4);
-    target.lerp(new THREE.Vector3(pl.x + 0.05, 2.15, pl.z), rest);
-    target.lerp(new THREE.Vector3(pl.x - 0.7, 1.95, pl.z + 0.3), worry * 0.8);
+    const gy = groundY(pl.x, pl.z);
+    const target = new THREE.Vector3(pl.x - 1.4, 2.1 + gy, pl.z + 0.4);
+    target.lerp(new THREE.Vector3(pl.x + 0.05, 2.15 + gy, pl.z), rest);
+    target.lerp(new THREE.Vector3(pl.x - 0.7, 1.95 + gy, pl.z + 0.3), worry * 0.8);
     target.x += Math.sin(this.time * 31) * 0.05 * worry;
     target.y += Math.cos(this.time * 27) * 0.04 * worry;
     this.mothP.lerp(target, 1 - Math.exp(-(rest > 0.5 ? 7 : 3.5) * dt));
@@ -1076,6 +1114,7 @@ export class Act2 {
   private bossDown() {
     const { ui, input } = this.ctx;
     this.boss.hide();
+    this.features.endFight(this.fenv);
     this.trapped = false;
     this.arena.marks.hideAll();
     this.arena.setLances([]);
@@ -1345,7 +1384,7 @@ export class Act2 {
     const { ui, audio } = this.ctx;
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
     const cage = () => this.cageLook();
-    const pl = () => V(this.pl.x, 0, this.pl.z);
+    const pl = () => V(this.pl.x, groundY(this.pl.x, this.pl.z), this.pl.z);
     const L = STORY.cut.locks[i]!;
     const keys: CamKey[] = [
       { t: 0, pos: this.camPos.clone(), look: this.camLook.clone(), fov: 64 },
@@ -1384,7 +1423,7 @@ export class Act2 {
       (t, dt) => {
         // the Blob looks up at the cage, then at us
         const p = a.player;
-        p.position.set(this.pl.x, 0, this.pl.z);
+        p.position.set(this.pl.x, groundY(this.pl.x, this.pl.z), this.pl.z);
         const toCage = Math.atan2(a.cage.hang.x - this.pl.x, a.cage.hang.z - this.pl.z);
         p.rotation.set(0, lerp(toCage, 0.4, smooth(unlerp(3.9, 4.4, t))), 0);
         a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
@@ -1457,8 +1496,8 @@ export class Act2 {
       { t: 5.45, cut: true, pos: V(2.2, 2.7, 9.0), look: V(0, 1.2, -3), fov: 46 },
       { t: 8.25, pos: V(1.7, 2.4, 8.0), look: V(0, 1.1, -0.5), fov: 46 },
       // the other way: the Blob, from between them
-      { t: 8.3, cut: true, pos: V(3.3, 3.1, -0.7), look: V(0, 0.8, 2.2), fov: 46 },
-      { t: 9.65, pos: V(3.0, 2.8, -0.2), look: V(0, 0.85, 2.2), fov: 42 },
+      { t: 8.3, cut: true, pos: V(4.6, 4.2, -2.2), look: V(0, 0.8, 2.2), fov: 44 },
+      { t: 9.65, pos: V(4.2, 3.8, -1.6), look: V(0, 0.85, 2.2), fov: 40 },
       // round the family
       { t: 9.7, cut: true, pos: orbit, look: V(0, 1.1, 1.2), fov: 50 },
       { t: 14, pos: orbit, look: V(0, 1.1, 1.2), fov: 50 },
@@ -1551,7 +1590,7 @@ export class Act2 {
         this.pl.x = bp.x;
         this.pl.z = bp.z;
         this.pl.vx = this.pl.vz = 0;
-        p.position.set(bp.x, 0, bp.z);
+        p.position.set(bp.x, groundY(bp.x, bp.z), bp.z);
         const toCage = Math.atan2(cg.world.x - bp.x, cg.world.z - bp.z);
         // it turns to us for the hug, and looks up at the end
         p.rotation.set(0, t < 9.7 ? toCage : Math.PI, 0);
@@ -1633,6 +1672,11 @@ export class Act2 {
         this.camPos.lerp(target, 1 - Math.exp(-14 * dt));
         this.camLook.set(pl.x + f.x * 5, 1.2, pl.z + f.z * 5);
       }
+    }
+    // the camera never goes into the land (the crater's wall, a terrace) when it swings round behind you
+    if (!this.cut && this.state !== 'boom') {
+      const floor = landY(this.camPos.x, this.camPos.z) + 1.4;
+      if (this.camPos.y < floor) this.camPos.y = floor;
     }
     // a cutscene holds the camera
     if (this.cut) {

@@ -2,7 +2,7 @@ import { say, STORY } from '../../core/story';
 import * as THREE from 'three';
 import { D } from '../../core/difficulty';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
-import { ARENA_R, BOSS_Z, LANES } from '../arena';
+import { ARENA_R, BOSS_Z, groundY, LANES } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
 import { XModel } from '../models/x';
@@ -34,7 +34,7 @@ const FOOT_STEPS: Step[] = [
   { w: 0.5, T: 1.0, lead: 0.3, quake: true },
   { w: 0.25, T: 0.75, lead: 0.65 },
   { w: 0.2, T: 0.7, lead: 0.7 },
-  { w: 0.6, T: 1.05, lead: 0.3, fin: true, quake: true },
+  { w: 0.6, T: 1.05, lead: 0.3, fin: true },
 ];
 const RAKE_STEPS: Step[] = [
   { w: 1.1, T: 1.2 },
@@ -74,8 +74,8 @@ const LANE_GAP = 4.7;
 /** floor marks of his own (the Collector uses the low ones) */
 const MARK_QUAKE = 10;
 const MARK_GLARE = 11;
-/** the shock ring of a quake: how far it runs, how fast, how thick */
-const QUAKE = { max: 17, speed: 13, half: 0.75 };
+/** the shock ring of a quake: a moment of rumble after the stamp, then it runs out (how far, how fast, how thick) */
+const QUAKE = { wait: 0.4, max: 14, speed: 7.0, half: 0.55 };
 
 export class XBoss extends Boss3D {
   protected introLen = 3.4;
@@ -89,7 +89,7 @@ export class XBoss extends Boss3D {
   private foot = { x: 0, z: 0 };
   private rake = { dir: 1, lanes: [] as number[], armX: 0, base: 0, cross: false };
   /** the shock ring of the last quake (r < 0: none) */
-  private quake = { x: 0, z: 0, r: -1, hit: false };
+  private quake = { x: 0, z: 0, r: -1, hit: false, wait: 0 };
   /** the glare: which shot, where it is aiming, where it locked */
   private glare = { shot: 0, t: 0, x: 0, z: 0, ax: 0, az: 0, th: 0 };
   /** the maw chase: where each one is, and when it was placed */
@@ -441,7 +441,7 @@ export class XBoss extends Boss3D {
       audio.setHeart(1.2 + u * 1.6, 0.7);
       if (kind === 'foot') {
         a.setShadow(this.foot.x, this.foot.z, FOOT_R + 0.4, u, u > 0.8 && Math.floor(env.time * 10) % 2 === 0);
-        m.foot.position.set(this.foot.x, lerp(40, FOOT_HOVER, u * u), this.foot.z);
+        m.foot.position.set(this.foot.x, lerp(40, FOOT_HOVER, u * u) + groundY(this.foot.x, this.foot.z), this.foot.z);
         // a stamp that will crack the floor shows a violet ring round its shadow, throbbing
         if (step.quake && this.quake.r < 0) a.marks.set(MARK_QUAKE, true, this.foot.x, this.foot.z, FOOT_R + 1.3 + 0.25 * Math.sin(env.time * 14), { col: 0xb070ff, fill: 0, alpha: 0.4 + 0.5 * u });
       } else {
@@ -473,7 +473,7 @@ export class XBoss extends Boss3D {
       if (kind === 'foot') {
         // the foot falls the last of the way in a blink, and lands
         const fall = clamp(ft / 0.09, 0, 1);
-        m.foot.position.set(this.foot.x, lerp(FOOT_HOVER, 1.3, fall * fall), this.foot.z);
+        m.foot.position.set(this.foot.x, lerp(FOOT_HOVER, 1.3, fall * fall) + groundY(this.foot.x, this.foot.z), this.foot.z);
         if (fall >= 1 && !this.footLanded) {
           this.footLanded = true;
           a.hideShadow();
@@ -485,7 +485,7 @@ export class XBoss extends Boss3D {
           if (Math.hypot(pl.x - this.foot.x, pl.z - this.foot.z) < FOOT_R * 0.92) env.hurt(pl.x - this.foot.x, pl.z - this.foot.z);
           if (step.quake) {
             // the floor cracks: a ring of shock runs out from the foot
-            this.quake = { x: this.foot.x, z: this.foot.z, r: FOOT_R, hit: false };
+            this.quake = { x: this.foot.x, z: this.foot.z, r: FOOT_R, hit: false, wait: QUAKE.wait * D.tele };
             audio.crumble();
             audio.boom();
             a.burst3(this.foot.x, 0.3, this.foot.z, 30, [0xb070ff, 0xe8d0ff, 0x3a2a62], 12);
@@ -526,14 +526,14 @@ export class XBoss extends Boss3D {
       }
     } else if (this.fst === 'stuck') {
       const S = 2.1 * D.window;
-      if (kind === 'foot') m.foot.position.y = 1.3 + Math.sin(env.time * 20) * 0.04;
+      if (kind === 'foot') m.foot.position.y = 1.3 + groundY(this.foot.x, this.foot.z) + Math.sin(env.time * 20) * 0.04;
       if (ft >= S) {
         this.ft = 0;
         this.fst = 'retract';
       }
     } else if (this.fst === 'retract') {
       const u = clamp(ft / (step.fin ? 0.9 : 0.45), 0, 1);
-      if (kind === 'foot') m.foot.position.y = lerp(1.3, 40, u * u);
+      if (kind === 'foot') m.foot.position.y = lerp(1.3, 40, u * u) + groundY(this.foot.x, this.foot.z);
       else
         m.rakeArms.forEach((arm) => {
           if (this.rake.cross) arm.group.position.z += (step.fin ? 24 : 40) * dt;
@@ -664,7 +664,8 @@ export class XBoss extends Boss3D {
     const rz = pl.z - HEAD_G.z;
     const t = rx * dx + rz * dz;
     const perp = Math.abs(rx * dz - rz * dx);
-    if (t > 0 && t < len && perp < 0.85) env.hurt(rx, rz);
+    // (it cannot see you in the ferns)
+    if (t > 0 && t < len && perp < 0.85 && !env.hidden) env.hurt(rx, rz);
   }
 
   /**
@@ -682,7 +683,7 @@ export class XBoss extends Boss3D {
     g.t += dt;
     if (g.t < aim) {
       // the ring hunts you
-      const f = 1 - Math.exp(-7 * dt);
+      const f = env.hidden ? 0 : 1 - Math.exp(-7 * dt);
       g.ax += (pl.x - g.ax) * f;
       g.az += (pl.z - g.az) * f;
       a.marks.set(MARK_GLARE, true, g.ax, g.az, 2.1 - 0.7 * (g.t / aim), { col: 0xff3a4a, fill: 0.22, alpha: 0.9 });
@@ -719,6 +720,13 @@ export class XBoss extends Boss3D {
     const q = this.quake;
     if (q.r < 0) return;
     const { env } = this;
+    if (q.wait > 0) {
+      // the floor round the foot shudders first: that is the moment to get clear, or to get ready to dash
+      q.wait -= dt;
+      env.arena.marks.set(MARK_QUAKE, true, q.x, q.z, FOOT_R + 0.3 + 0.15 * Math.sin(env.time * 40), { col: 0xe0b0ff, fill: 0, alpha: 0.9 });
+      env.shake(0.15);
+      return;
+    }
     q.r += QUAKE.speed * D.speed * dt;
     if (q.r > QUAKE.max) {
       q.r = -1;
@@ -737,8 +745,8 @@ export class XBoss extends Boss3D {
   /** a rake arm's place: along x (or, for a cross-rake, along z) at its lane */
   private placeArm(g: THREE.Group, i: number) {
     const lane = this.rake.lanes[i]!;
-    if (this.rake.cross) g.position.set(lane, 0.7, this.rake.armX);
-    else g.position.set(this.rake.armX, 0.7, lane);
+    if (this.rake.cross) g.position.set(lane, 0.7 + groundY(lane, this.rake.armX), this.rake.armX);
+    else g.position.set(this.rake.armX, 0.7 + groundY(this.rake.armX, lane), lane);
   }
 
   /**
@@ -975,7 +983,12 @@ export class XBoss extends Boss3D {
         else out.push({ shape: 'disc', x: g.ax, z: g.az, r: 1.4, at: aim - g.t + 0.2, dur: GLARE.fire });
       } else out.push({ shape: 'cone', x: HEAD_G.x, z: HEAD_G.z, ang: this.gazeTh, len: 46, half: 0.9, at: 0, dur: 0.3 });
     }
-    if (this.quake.r >= 0) out.push({ shape: 'ring', x: this.quake.x, z: this.quake.z, r: this.quake.r + 0.6, w: QUAKE.half * 2 + 1.2, at: 0, dur: 0.3 });
+    const q = this.quake;
+    if (q.r >= 0) {
+      // where the ring will be in a moment (it is coming outwards)
+      const ahead = q.wait > 0 ? FOOT_R + 1.2 : q.r + 1.4;
+      out.push({ shape: 'ring', x: q.x, z: q.z, r: ahead, w: ahead - Math.max(0, q.r - QUAKE.half) + 0.2, at: Math.max(0, q.wait), dur: 0.3 });
+    }
     if (kind === 'jaws' && this.chase.length) {
       for (const j of this.chase) if (!j.shut) out.push({ shape: 'disc', x: j.x, z: j.z, r: 1.8, at: Math.max(0, j.t0 + CHASE.T - this.ft), dur: 0.3 });
     } else if (kind === 'jaws') {

@@ -1,4 +1,5 @@
 import type { Game } from '../game';
+import { groundY as groundAt } from '../act2/ground';
 
 /**
  * A playing bot for the 3D bosses (test builds only). It plays through the real game: the joystick for movement, the
@@ -87,6 +88,8 @@ export function installBots3d(game: Game) {
       return;
     }
     const dangers: Any[] = boss.dangers();
+    // the guard of a fallen heart, too
+    a2.features.dangers(dangers);
     const weak: Any[] = boss.weak();
     const solids: Any[] = a2.solids;
     // where to go: the nearest thing that can be hit, standing a little inside its reach
@@ -110,7 +113,8 @@ export function installBots3d(game: Game) {
       if (Math.hypot(pl.x, pl.z - 4) < 3) goal = [pl.x, pl.z];
     }
     // light and wells
-    const lowHearts = a2.hearts < a2.maxHearts;
+    // (the Moonwell is far, up on a terrace, and slow: the trip is only worth it on the last heart)
+    const lowHearts = a2.hearts <= 1 && a2.hearts < a2.maxHearts;
     if (!target && lowHearts) {
       let bw: Any = null;
       let bwd = 1e9;
@@ -123,6 +127,8 @@ export function installBots3d(game: Game) {
         }
       }
       if (bw && bwd < 22) goal = [bw.x, bw.z];
+      // the Moonwell is up on the west terrace: from the floor, go round by the stone ramp
+      if (bw && a2.arena.crater && groundAt(bw.x, bw.z) > 0.4 && groundAt(pl.x, pl.z) < 0.4) goal = pl.x > -9.2 ? [-8.6, 2.1] : [-15.6, 2.1];
     }
     const dirs: [number, number][] = [[0, 0]];
     for (let i = 0; i < 12; i++) dirs.push([Math.sin((i / 12) * TAU), Math.cos((i / 12) * TAU)]);
@@ -131,6 +137,8 @@ export function installBots3d(game: Game) {
     let hereC = 0;
     let bestRisk = 0;
     for (const [dx, dz] of dirs) {
+      // a cliff would stop it dead: that is not a way to go
+      if ((dx || dz) && !a2.canStep(pl.x, pl.z, dx * 0.5, dz * 0.5)) continue;
       const risk = cost(dangers, pl.x, pl.z, dx, dz, solids);
       if (!dx && !dz) hereC = risk;
       const px = pl.x + dx * SPEED * 0.45;
@@ -146,8 +154,16 @@ export function installBots3d(game: Game) {
     if (!hereC && Math.hypot(goal[0] - pl.x, goal[1] - pl.z) < 0.6) best = [0, 0];
     setMove(best[0], best[1]);
     const now = performance.now() / 1000;
-    // cornered: dash
-    if (hereC >= 10 && bestRisk >= 10 && a2.dashCd <= 0 && a2.dashT <= 0 && a2.dashPool.can()) {
+    // a ring coming outwards and about to reach us: dash in through it (the dash cannot be hurt)
+    const ring = dangers.find((d) => d.shape === 'ring' && d.at < 0.15 && Math.hypot(pl.x - d.x, pl.z - d.z) > d.r - (d.w ?? 1) - 0.6 && Math.hypot(pl.x - d.x, pl.z - d.z) < d.r + 0.9);
+    if (ring && a2.dashCd <= 0 && a2.dashT <= 0 && a2.dashPool.can()) {
+      const dl = Math.hypot(ring.x - pl.x, ring.z - pl.z) || 1;
+      a2.yaw = Math.atan2((ring.x - pl.x) / dl, (ring.z - pl.z) / dl);
+      setMove((ring.x - pl.x) / dl, (ring.z - pl.z) / dl);
+      a2.startDash();
+      stats.dashes++;
+    } else if (hereC >= 10 && bestRisk >= 10 && a2.dashCd <= 0 && a2.dashT <= 0 && a2.dashPool.can()) {
+      // cornered: dash
       a2.startDash();
       stats.dashes++;
     }

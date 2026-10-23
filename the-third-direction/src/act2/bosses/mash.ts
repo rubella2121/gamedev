@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { D } from '../../core/difficulty';
 import { clamp, lerp, smooth, unlerp } from '../../core/util';
-import { ARENA_R, BOSS_Z } from '../arena';
+import { ARENA_R, BOSS_Z, groundY } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
 import { halo } from '../kit/skin';
@@ -90,6 +90,7 @@ export class MashBoss extends Boss3D {
   private sewStarted = false;
   private misses = 0;
   private _ctrl = newCtrl();
+  private shellLift = 0;
 
   constructor(env: Env, world: THREE.Group, onVictory: () => void) {
     super(env, 'mash', 'The Mash', 'every guardian, stitched back together', '#ff8aa8', MASH_PIPS, onVictory);
@@ -682,9 +683,14 @@ export class MashBoss extends Boss3D {
     }
     // the shell: docked to the bell, or loose
     const b = this.ball;
-    if (b.docked) m.dockShell();
-    else {
+    if (b.docked) {
+      m.dockShell();
+      this.shellLift = 0;
+    } else {
+      // it rides up onto a terrace (smoothly: a big shell bumps, it does not teleport)
+      this.shellLift += (groundY(b.pos.x, b.pos.z) - this.shellLift) * (1 - Math.exp(-10 * dt));
       m.shell.position.copy(b.pos);
+      m.shell.position.y += this.shellLift;
       m.spinner.quaternion.copy(b.q);
     }
     if (b.shudder > 0) m.spinner.position.set((Math.random() - 0.5) * b.shudder * 0.5, (Math.random() - 0.5) * b.shudder * 0.4, (Math.random() - 0.5) * b.shudder * 0.5);

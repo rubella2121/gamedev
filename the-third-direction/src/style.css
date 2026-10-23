@@ -15,6 +15,8 @@ body {
   box-shadow: 0 0 70px 6px rgba(40, 140, 150, 0.1);
 }
 .stage canvas.view { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; display: block; touch-action: none; }
+/* the 3D part is drawn at the screen's own resolution: no pixel scaling */
+.stage canvas.view.smooth { image-rendering: auto; }
 
 .touch-layer { position: absolute; inset: 0; z-index: 5; touch-action: none; }
 .joy-base {

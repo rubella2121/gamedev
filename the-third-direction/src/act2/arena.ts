@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import { W, H, makeSprite } from '../core/pix';
 import { C } from '../core/palette';
-import { hash2, rng, TAU } from '../core/util';
+import { rng, TAU } from '../core/util';
 import { drawBlob } from '../core/art';
 import { Cage } from './family';
+import { Crater, FAR_Z, FLOOR_R, landY, type Cover } from './crater';
+import { groundY, onGround } from './ground';
 import { animateJelly, BLOB_LOOK, makeJelly, type JellyRig } from './jelly';
 
-const BG = 0x120a22;
-export const ARENA_R = 18;
+const BG = 0x0c2230;
+/** the fighting floor's radius (it is cut off at FAR_Z on the boss's side: see crater.ts) */
+export const ARENA_R = FLOOR_R;
+export { FAR_Z, groundY, landY };
 /** Where the Hollow stands, beyond the far edge of the platform. */
 export const BOSS_Z = -29;
 /** How many arms rake the floor at once. */
@@ -17,6 +21,30 @@ function tex(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.minFilter = t.magFilter = THREE.NearestFilter;
   t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** the sky as a soft panorama, for reflections: deep blue above, teal at the horizon, a bright moon */
+function skyEnv(): THREE.Texture {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  const gr = g.createLinearGradient(0, 0, 0, 64);
+  gr.addColorStop(0, '#04070f');
+  gr.addColorStop(0.45, '#123848');
+  gr.addColorStop(0.55, '#0c2230');
+  gr.addColorStop(1, '#05080a');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 128, 64);
+  const m = g.createRadialGradient(80, 18, 0, 80, 18, 10);
+  m.addColorStop(0, 'rgba(232,255,251,1)');
+  m.addColorStop(1, 'rgba(159,244,238,0)');
+  g.fillStyle = m;
+  g.fillRect(60, 0, 40, 40);
+  const t = new THREE.CanvasTexture(c);
+  t.mapping = THREE.EquirectangularReflectionMapping;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
@@ -54,7 +82,8 @@ export class Marks {
 
   constructor(world: THREE.Group, n: number) {
     const ringG = new THREE.RingGeometry(0.86, 1, 40);
-    const discG = new THREE.CircleGeometry(0.86, 32);
+    // (rings within rings, so a disc can bend over the edge of a terrace)
+    const discG = new THREE.RingGeometry(0, 0.86, 32, 5);
     for (let i = 0; i < n; i++) {
       const ring = new THREE.Mesh(ringG, new THREE.MeshBasicMaterial({ color: 0xe02b3a, side: THREE.DoubleSide, transparent: true, depthWrite: false }));
       const disc = new THREE.Mesh(discG, new THREE.MeshBasicMaterial({ color: 0x20040a, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false }));
@@ -102,9 +131,8 @@ export class Arena {
   readonly shadow = new THREE.Group();
   readonly lanes: THREE.Mesh[] = [];
   readonly pinned: THREE.Mesh[] = [];
-  private tiles: { x: number; z: number; d: number }[] = [];
-  private tileBase: THREE.Color[] = [];
-  private tileForest: THREE.Color[] = [];
+  /** the place itself: land, forest, cover (see crater.ts) */
+  readonly crater: Crater;
   readonly clearing = new THREE.Group();
   readonly marks: Marks;
   private lanceMeshes: THREE.Group[] = [];
@@ -112,9 +140,8 @@ export class Arena {
   private novaWall!: THREE.Mesh;
   private flowers: { g: THREE.Group; delay: number }[] = [];
   private peekers: { g: THREE.Group; delay: number }[] = [];
-  private platform!: THREE.InstancedMesh;
-  private pillars: THREE.Group[] = [];
-  readonly pillarData: { x: number; z: number; r: number; hp: number; alive: boolean; g: THREE.Group }[] = [];
+  /** cover: standing stones that crumble (a beam, a rolling shell) and stand again each phase, a log and a stump that do not */
+  readonly pillarData: Cover[];
   private skin!: THREE.MeshStandardMaterial;
   private rig!: JellyRig;
   private thirdEyeSize = new THREE.Vector3();
@@ -138,15 +165,31 @@ export class Arena {
 
   constructor() {
     this.scene.background = new THREE.Color(BG);
-    this.scene.fog = new THREE.Fog(BG, 48, 160);
+    this.scene.fog = new THREE.FogExp2(BG, 0.0125);
     this.scene.add(this.world);
+    this.crater = new Crater(this.scene);
+    this.world.add(this.crater.group);
+    this.pillarData = this.crater.cover;
+    // a soft sky to reflect in wet things (the jelly, the Moonwell)
+    this.scene.environment = skyEnv();
+    this.scene.environmentIntensity = 0.55;
 
-    // lights (three r170 uses physical units, so intensities carry a PI factor)
-    this.world.add(new THREE.AmbientLight(0x8a78c8, 1.25));
-    const key = new THREE.DirectionalLight(0x9fe8ff, 1.9);
-    key.position.set(-6, 14, 8);
-    this.world.add(key);
-    const back = new THREE.DirectionalLight(0xb060ff, 1.6);
+    // lights (three r170 uses physical units, so intensities carry a PI factor). The moon casts the shadows; they are drawn
+    // once, when the land has settled (see `shadowDirty`)
+    this.world.add(new THREE.AmbientLight(0x6f9ab8, 1.15));
+    const key = new THREE.DirectionalLight(0xb0e8ff, 2.3);
+    key.position.copy(this.crater.moonDir).multiplyScalar(70);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    const sc = key.shadow.camera;
+    sc.left = sc.bottom = -34;
+    sc.right = sc.top = 34;
+    sc.near = 20;
+    sc.far = 150;
+    key.shadow.bias = -0.0006;
+    key.shadow.normalBias = 0.05;
+    this.world.add(key, key.target);
+    const back = new THREE.DirectionalLight(0x7a6aff, 1.0);
     back.position.set(6, 10, -14);
     this.world.add(back);
     this.glow = new THREE.PointLight(0xffd878, 28, 11, 1.6);
@@ -155,9 +198,7 @@ export class Arena {
     this.redLight.position.set(0, 14, -10);
     this.world.add(this.redLight);
 
-    this.buildPlatform();
-    this.buildRocks();
-    this.buildStars();
+    this.setRise(1);
     this.buildWall();
     this.buildPlayer();
     this.buildExtras();
@@ -167,7 +208,7 @@ export class Arena {
     this.buildLight();
 
     // ground telegraphs
-    this.shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x02030a, transparent: true, opacity: 0.72 }));
+    this.shadowDisc = new THREE.Mesh(new THREE.RingGeometry(0, 1, 40, 6), new THREE.MeshBasicMaterial({ color: 0x02030a, transparent: true, opacity: 0.72 }));
     this.shadowDisc.rotation.x = -Math.PI / 2;
     this.shadowRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 48), new THREE.MeshBasicMaterial({ color: 0xe02b3a, side: THREE.DoubleSide }));
     this.shadowRing.rotation.x = -Math.PI / 2;
@@ -176,7 +217,12 @@ export class Arena {
     this.shadow.visible = false;
     this.world.add(this.shadow);
     for (let i = 0; i < LANES; i++) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(52, 0.05, 0.5), new THREE.MeshBasicMaterial({ color: 0xff3a4a, transparent: true, opacity: 0.9 }));
+      // a long flat strip, cut into many pieces so it can follow the floor up a terrace
+      const lg = new THREE.PlaneGeometry(52, 0.5, 104, 1);
+      lg.rotateX(-Math.PI / 2);
+      const lm = new THREE.MeshBasicMaterial({ color: 0xff3a4a, transparent: true, opacity: 0.9, depthWrite: false });
+      onGround(lm);
+      const m = new THREE.Mesh(lg, lm);
       m.position.y = 0.08;
       m.visible = false;
       this.lanes.push(m);
@@ -198,137 +244,40 @@ export class Arena {
 
   /* ------------------------------ builders ------------------------------ */
 
-  private buildPlatform() {
-    const rnd = rng(5);
-    const R = ARENA_R;
-    for (let x = -R - 1; x <= R + 1; x++) {
-      for (let z = -R - 1; z <= R + 1; z++) {
-        const d = Math.hypot(x, z);
-        if (d <= R + 0.3 && !(d > R - 1.3 && rnd() < 0.25)) this.tiles.push({ x, z, d });
-      }
-    }
-    this.platform = new THREE.InstancedMesh(new THREE.BoxGeometry(0.96, 0.7, 0.96), new THREE.MeshLambertMaterial({ color: 0xffffff }), this.tiles.length);
-    this.platform.frustumCulled = false;
-    const cols = [0x3a2a62, 0x2e2252, 0x46346f, 0x34285a, 0x1b5a5a, 0x2a2048];
-    const forest = [0x14444f, 0x1b5a5a, 0x2e7d4f, 0x103846, 0x2a7a6c];
-    this.tiles.forEach((t, i) => {
-      const h = hash2(t.x * 3 + 1, t.z * 7 + 2);
-      let c = h > 0.9 ? cols[4]! : cols[Math.floor(h * 4.5) % 4]!;
-      // faint stone rings and spokes, so movement reads on such a big floor
-      const ring = [9.5, 14.5].some((r) => Math.abs(t.d - r) < 0.55);
-      const spoke = t.d > 2 && (Math.abs(t.x) < 0.5 || Math.abs(t.z) < 0.5);
-      if (ring || spoke) c = 0x5a4a8a;
-      const base = new THREE.Color(c).multiplyScalar(t.d > R - 1.4 ? 0.7 : 1);
-      this.tileBase.push(base);
-      this.tileForest.push(new THREE.Color(forest[Math.floor(hash2(t.x + 9, t.z + 4) * forest.length)]!).multiplyScalar(t.d > R - 1.4 ? 0.75 : 1));
-      this.platform.setColorAt(i, base);
-    });
-    this.world.add(this.platform);
-    this.setRise(1);
-
-    // stone pillars: a near ring and a far ring, cover from the Watcher's gaze
-    const spots: [number, number][] = [];
-    for (let i = 0; i < 4; i++) {
-      const a = Math.PI / 4 + (i * Math.PI) / 2;
-      spots.push([Math.cos(a) * 7.5, Math.sin(a) * 7.5 - 2]);
-    }
-    for (let i = 0; i < 4; i++) {
-      const a = (i * Math.PI) / 2 + 0.2;
-      spots.push([Math.cos(a) * 13.5, Math.sin(a) * 13.5 - 2]);
-    }
-    for (const [px, pz] of spots) {
-      const g = new THREE.Group();
-      for (let k = 0; k < 3; k++) {
-        const b = new THREE.Mesh(new THREE.BoxGeometry(1.5 - k * 0.12, 1.05, 1.5 - k * 0.12), new THREE.MeshLambertMaterial({ color: k === 2 ? 0x6a5a98 : 0x4a3d6a }));
-        b.position.set((k % 2) * 0.08, 0.52 + k * 1.05, 0);
-        g.add(b);
-      }
-      g.position.set(px, 0, pz);
-      this.pillars.push(g);
-      this.pillarData.push({ x: px, z: pz, r: 0.9, hp: 0.85, alive: true, g });
-      this.world.add(g);
-    }
-  }
-
-  /** Small broken islands of the old world drifting around the arena. */
-  private buildRocks() {
-    const r = rng(41);
-    const n = 90;
-    const rocks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), n);
-    rocks.frustumCulled = false;
-    const m = new THREE.Object3D();
-    const c = new THREE.Color();
-    for (let i = 0; i < n; i++) {
-      const a = r() * TAU;
-      const d = ARENA_R + 8 + r() * 38;
-      const s = 0.8 + r() * r() * 5;
-      m.position.set(Math.cos(a) * d, -3 - r() * 16 + (r() < 0.25 ? 14 : 0), Math.sin(a) * d);
-      m.rotation.set(r() * 3, r() * 3, r() * 3);
-      m.scale.set(s, s * (0.5 + r() * 0.8), s);
-      m.updateMatrix();
-      rocks.setMatrixAt(i, m.matrix);
-      rocks.setColorAt(i, c.setHex([0x2a2048, 0x34285a, 0x1b3a4a, 0x46346f][Math.floor(r() * 4)]!));
-    }
-    this.world.add(rocks);
-  }
-
   setRise(u: number) {
-    const m = this.tmp;
-    this.tiles.forEach((t, i) => {
-      const local = Math.min(1, Math.max(0, (u * 1.6 - (t.d / ARENA_R) * 0.6)));
-      const e = 1 - Math.pow(1 - local, 3);
-      m.position.set(t.x, -0.35 - (1 - e) * 14, t.z);
-      m.rotation.set(0, 0, 0);
-      m.scale.setScalar(Math.max(0.001, e));
-      m.updateMatrix();
-      this.platform.setMatrixAt(i, m.matrix);
-    });
-    this.platform.instanceMatrix.needsUpdate = true;
-    this.pillarData.forEach((pd, i) => {
-      const e = Math.min(1, Math.max(0, u * 1.8 - 0.5));
+    this.crater.setRise(u);
+    // the standing stones grow up out of the floor a moment after it
+    const e = Math.min(1, Math.max(0, u * 1.8 - 0.5));
+    for (const pd of this.pillarData) {
+      if (pd.keep) continue;
       pd.g.scale.set(1, Math.max(0.001, e), 1);
       if (u >= 1) pd.g.visible = pd.alive;
-      void i;
-    });
-  }
-
-  private buildStars() {
-    const r = rng(11);
-    const n = 320;
-    const pos = new Float32Array(n * 3);
-    const col = new Float32Array(n * 3);
-    const c = new THREE.Color();
-    for (let i = 0; i < n; i++) {
-      const a = r() * TAU;
-      const b = (r() - 0.25) * 1.5;
-      const d = 120 + r() * 30;
-      pos[i * 3] = Math.cos(a) * Math.cos(b) * d;
-      pos[i * 3 + 1] = Math.sin(b) * d + 12;
-      pos[i * 3 + 2] = Math.sin(a) * Math.cos(b) * d;
-      c.setHex([0x9ff4ee, 0xe8fffb, 0xb88aff, 0xff7a9a][Math.floor(r() * 4)]!);
-      col.set([c.r, c.g, c.b], i * 3);
     }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 2, sizeAttenuation: false, vertexColors: true, fog: false }));
-    this.scene.add(pts);
   }
 
   private buildWall() {
     const kinds = [0, 1, 2, 3, 4].map(specimen);
     const rnd = rng(21);
-    const geo = new THREE.PlaneGeometry(4, 4);
-    // a ring of pinned specimens all around the arena, like a collector's wall
-    const N = 40;
-    for (let row = 0; row < 4; row++) {
-      for (let i = 0; i < N; i++) {
-        const a = (i / N) * TAU + row * 0.07;
-        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: kinds[Math.floor(rnd() * 5)]!, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: true }));
-        const r = 66 + (rnd() - 0.5) * 3;
-        m.position.set(Math.cos(a) * r, 2 + row * 7 + rnd(), Math.sin(a) * r);
-        m.lookAt(0, m.position.y, 0);
-        m.rotation.z += (rnd() - 0.5) * 0.18;
+    const geo = new THREE.PlaneGeometry(1.7, 1.7);
+    // his collection, pinned to the trunks all round the crater, facing in: four or five to a tree, up and down it
+    const trunks = this.crater.trunks;
+    for (let t = 0; t < trunks.length; t++) {
+      const tr = trunks[t]!;
+      const n = 4 + Math.floor(rnd() * 2);
+      for (let k = 0; k < n; k++) {
+        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: kinds[Math.floor(rnd() * 5)]!, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: true, color: 0xb8c8c8 }));
+        // on the side of the trunk that faces the middle, a little round it either way
+        const face = Math.atan2(-tr.z, -tr.x) + (rnd() - 0.5) * 0.9;
+        // the trunk narrows as it rises (see crater.ts): stay on its bark
+        const y = 2.2 + k * 2.6 + rnd() * 0.8;
+        const r = tr.r * (1 - (y / tr.h) * 0.6) * (1 + 0.55 * Math.pow(1 - y / tr.h, 10)) + 0.06;
+        // the trunk's own line at that height (it leans in, and wavers: the same sum crater.ts bends it by)
+        const u = y / tr.h;
+        const cx = tr.x - tr.x * 0.004 * u * u * tr.h + Math.sin(u * 5 + tr.x) * 0.35;
+        const cz = tr.z - tr.z * 0.004 * u * u * tr.h + Math.cos(u * 4 + tr.z) * 0.35;
+        m.position.set(cx + Math.cos(face) * r, tr.y - 0.3 + y, cz + Math.sin(face) * r);
+        m.lookAt(cx + Math.cos(face) * (r + 5), tr.y - 0.3 + y, cz + Math.sin(face) * (r + 5));
+        m.rotation.z += (rnd() - 0.5) * 0.25;
         this.pinned.push(m);
         this.world.add(m);
       }
@@ -478,13 +427,13 @@ export class Arena {
     const rnd = rng(31);
     const stem = new THREE.MeshLambertMaterial({ color: 0x0a2e30 });
     const bulb = new THREE.MeshBasicMaterial({ color: 0x7fd8f5 });
-    for (let i = 0; i < 90; i++) {
+    for (let i = 0; i < 160; i++) {
       const a = rnd() * TAU;
-      const d = 4 + rnd() * (ARENA_R - 5.5);
+      const d = 4 + rnd() * (ARENA_R - 9);
       const g = new THREE.Group();
-      const st = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), stem);
+      const st = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.8, 4), stem);
       st.position.y = 0.4;
-      const bl = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), bulb);
+      const bl = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), bulb);
       bl.position.y = 0.9;
       g.add(st, bl);
       g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
@@ -492,12 +441,6 @@ export class Arena {
       this.flowers.push({ g, delay: rnd() * 0.5 });
       this.clearing.add(g);
     }
-    // the crater where the family rested
-    const crater = new THREE.Mesh(new THREE.CircleGeometry(5.6, 32), new THREE.MeshBasicMaterial({ color: 0x03050a, transparent: true, opacity: 0.85 }));
-    crater.rotation.x = -Math.PI / 2;
-    crater.position.set(0, 0.04, -2);
-    crater.name = 'crater';
-    this.clearing.add(crater);
     // tiny monsters peek over the rim
     const mk = (kind: number, x: number, z: number) => {
       const g = new THREE.Group();
@@ -546,20 +489,13 @@ export class Arena {
     this.world.add(this.clearing);
   }
 
-  /** Recolour the platform from violet void-stone to forest ground (u: 0 to 1). */
+  /** The ending: the crater comes into full flower (u: 0 to 1). */
   tint(u: number) {
-    const c = this.tmpC;
-    this.tiles.forEach((_t, i) => {
-      c.copy(this.tileBase[i]!).lerp(this.tileForest[i]!, Math.min(1, Math.max(0, u)));
-      this.platform.setColorAt(i, c);
-    });
-    if (this.platform.instanceColor) this.platform.instanceColor.needsUpdate = true;
+    this.crater.setBloom(u);
   }
 
   setClearing(u: number) {
     this.clearing.visible = u > 0.001;
-    const crater = this.clearing.getObjectByName('crater');
-    if (crater) crater.visible = u > 0.5;
     for (const f of this.flowers) f.g.scale.setScalar(Math.max(0.001, 1 - Math.pow(1 - Math.min(1, Math.max(0, (u - f.delay * 0.5) * 2)), 3)));
     for (const p of this.peekers) p.g.scale.setScalar(Math.max(0.001, Math.min(1, Math.max(0, (u - p.delay * 0.6) * 3))));
   }
@@ -587,18 +523,28 @@ export class Arena {
 
   crumblePillar(i: number) {
     const pd = this.pillarData[i]!;
-    if (!pd.alive) return;
+    if (!pd.alive || pd.keep) return;
     pd.alive = false;
     pd.g.visible = false;
-    this.burst3(pd.x, 1.5, pd.z, 18, [0x4a3d6a, 0x6a5a98, 0x2a2048], 7);
+    this.crater.shadowDirty = true;
+    this.burst3(pd.x, 1.5, pd.z, 18, [0x626a72, 0x40464c, 0x356a4c], 7);
   }
 
   restorePillars() {
     for (const pd of this.pillarData) {
+      if (pd.keep) continue;
+      if (!pd.alive || !pd.g.visible) this.crater.shadowDirty = true;
       pd.alive = true;
       pd.hp = 0.85;
       pd.g.visible = true;
     }
+  }
+
+  /** the shadows need drawing again (read once per frame by the renderer's owner) */
+  takeShadowDirty(): boolean {
+    const d = this.crater.shadowDirty;
+    this.crater.shadowDirty = false;
+    return d;
   }
 
   /* ------------------------------ controls ------------------------------ */
@@ -683,8 +629,9 @@ export class Arena {
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true;
 
     this.cage.update(dt, _time);
+    this.crater.update(dt, _time);
     // player glow follows the body
-    this.glow.position.set(this.player.position.x, 2.6, this.player.position.z);
+    this.glow.position.set(this.player.position.x, this.player.position.y + 2.6, this.player.position.z);
     if (this.belowMat) this.belowMat.needsUpdate = false;
   }
 }

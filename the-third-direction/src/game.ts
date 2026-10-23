@@ -32,7 +32,7 @@ export class Game {
   private paused = false;
   private runStart = 0;
   private flash3D = 0;
-  private res = 1;
+  private res = '';
   private showcaseRun = false;
   private trailer!: Trailer;
   /** the player wants sound for the intro (the score has a bus of its own, so it has to be told) */
@@ -50,7 +50,8 @@ export class Game {
     this.ui = new UI(root);
     this.input = new Input(this.ui.stage);
     try {
-      this.renderer = new THREE.WebGLRenderer({ canvas: this.ui.view, antialias: false, powerPreference: 'high-performance' });
+      // anti-aliased: the 3D part is drawn smooth and sharp; the forest (a single full-screen picture) is not affected
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.ui.view, antialias: true, powerPreference: 'high-performance' });
     } catch {
       this.ui.noWebGL();
       return;
@@ -58,6 +59,10 @@ export class Game {
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(W, H, false);
     this.renderer.setClearColor(0x05060c, 1);
+    // the Crater's shadows are drawn when it asks (when the land has settled, when a stone falls), not every frame
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
 
     const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats };
     this.act1 = new Forest(ctx);
@@ -168,10 +173,59 @@ export class Game {
   }
 
   /** The 2D forest is drawn at 216x384; the 3D world gets twice that so the character reads well. */
-  private setRes(k: number) {
-    if (this.res === k) return;
-    this.res = k;
-    this.renderer.setSize(W * k, H * k, false);
+  /**
+   * How finely to draw. 1: the forest's own pixel grid (scaled up, crisp). 'hd': the 3D part at the screen's real resolution
+   * (up to 1.5 device pixels per CSS pixel, and at most about 1.2 million pixels, so a phone keeps its frame rate).
+   */
+  private setRes(k: number | 'hd') {
+    let w = W;
+    let h = H;
+    if (k === 'hd') {
+      const rect = this.ui.view.getBoundingClientRect();
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      h = Math.max(H, Math.round((rect.height || H * 2) * dpr));
+      h = Math.min(h, Math.round(Math.sqrt((this.hdBudget * H) / W)));
+      w = Math.round((h * W) / H);
+    } else {
+      w = W * k;
+      h = H * k;
+    }
+    const key = `${w}x${h}`;
+    if (this.res === key) return;
+    this.res = key;
+    this.renderer.setSize(w, h, false);
+    // the forest is pixel art and stays crisp; the 3D part is smooth
+    this.ui.view.classList.toggle('smooth', k === 'hd');
+  }
+
+  /** how many pixels the 3D part may use: it steps down when frames are slow and back up when there is room */
+  private hdBudget = 1.2e6;
+  private slowT = 0;
+  private fastT = 0;
+
+  /** a phone that cannot keep up gets fewer pixels (never fewer than the old pixel-art size), one that can gets them back */
+  private tuneRes(dt: number, frameMs: number) {
+    if (frameMs > 24) {
+      this.slowT += dt;
+      this.fastT = 0;
+    } else if (frameMs < 13) {
+      this.fastT += dt;
+      this.slowT = 0;
+    } else this.slowT = this.fastT = 0;
+    if (this.slowT > 1.5 && this.hdBudget > W * H) {
+      this.hdBudget = Math.max(W * H, this.hdBudget * 0.7);
+      this.slowT = 0;
+    } else if (this.fastT > 4 && this.hdBudget < 1.2e6) {
+      this.hdBudget = Math.min(1.2e6, this.hdBudget * 1.25);
+      this.fastT = 0;
+    }
+  }
+
+  /** draw the 3D part (and its shadows, when the Crater asks for them) */
+  private render3D() {
+    this.setRes('hd');
+    if (this.act2.arena.takeShadowDirty()) this.renderer.shadowMap.needsUpdate = true;
+    this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
   }
 
   private setPaused(p: boolean) {
@@ -278,6 +332,8 @@ export class Game {
     requestAnimationFrame((t) => this.frame(t));
     if (this.paused) return;
     const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 0.016;
+    // (the 3D part tunes its resolution to the phone: see tuneRes)
+    if (this.last && (this.state === 'arena' || this.state === 'boom' || this.state === 'ending')) this.tuneRes(dt, now - this.last);
     this.fpsN++;
     this.fpsT += dt;
     if (this.fpsT >= 1) {
@@ -305,8 +361,7 @@ export class Game {
     }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
-      this.setRes(2);
-      this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
+      this.render3D();
     } else if (this.state === 'trailer') {
       const layer = this.trailer.layer;
       if (layer === '2d') {
@@ -316,8 +371,7 @@ export class Game {
         this.tex2d.needsUpdate = true;
         this.renderer.render(this.scene2d, this.cam2d);
       } else if (layer === '3d') {
-        this.setRes(2);
-        this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
+        this.render3D();
       } else {
         this.renderer.clear();
       }

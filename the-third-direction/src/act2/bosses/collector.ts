@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { D } from '../../core/difficulty';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
-import { ARENA_R, BOSS_Z } from '../arena';
+import { ARENA_R, BOSS_Z, groundY } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Solid, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
 import { CollectorModel } from '../models/collector';
@@ -943,11 +943,12 @@ export class CollectorBoss extends Boss3D {
     const dx = pl.x - g.x;
     const dz = pl.z - g.z;
     const d = Math.hypot(dx, dz) || 1;
-    const sp = GLASS_SPEED * D.speed * (g.t < 0.6 ? 0.3 : 1) * Math.min(1, d / 1.2);
+    // in the ferns he cannot see you: the spot wanders where it is
+    const sp = env.hidden ? 0.6 : GLASS_SPEED * D.speed * (g.t < 0.6 ? 0.3 : 1) * Math.min(1, d / 1.2);
     g.x += (dx / d) * sp * dt;
     g.z += (dz / d) * sp * dt;
     // standing in it burns, after a moment
-    const inside = d < GLASS_R && fade > 0.8 && !pl.dead;
+    const inside = d < GLASS_R && fade > 0.8 && !pl.dead && !env.hidden;
     if (inside) g.heat += dt;
     else g.heat = Math.max(0, g.heat - dt * 2);
     if (g.heat > GLASS_BURN) {
@@ -958,10 +959,10 @@ export class CollectorBoss extends Boss3D {
     const hot = Math.max(0, g.heat) / GLASS_BURN;
     const flick = 0.9 + 0.1 * Math.sin(env.time * 37);
     this.glassDisc.visible = this.glassShaft.visible = true;
-    this.glassDisc.position.set(g.x, 0.11, g.z);
+    this.glassDisc.position.set(g.x, 0.11 + groundY(g.x, g.z), g.z);
     this.glassDisc.scale.setScalar(0.9 + 0.1 * Math.sin(env.time * 9));
     (this.glassDisc.material as THREE.MeshBasicMaterial).opacity = (0.55 + 0.35 * hot) * fade * flick;
-    this.glassShaft.position.set(g.x, 17, g.z);
+    this.glassShaft.position.set(g.x, 17 + groundY(g.x, g.z), g.z);
     (this.glassShaft.material as THREE.MeshBasicMaterial).opacity = 0.2 * fade * flick;
     env.arena.marks.set(MARK_GLASS, true, g.x, g.z, GLASS_R + 0.1, { col: 0xffb040, fill: 0, hot: hot > 0.3 && Math.floor(env.time * 16) % 2 === 0, alpha: fade });
     if (Math.random() < dt * 14) env.arena.burst3(g.x + (Math.random() - 0.5) * 2, 0.2, g.z + (Math.random() - 0.5) * 2, 1, [0xffd070, 0x3a2a1a], 2);

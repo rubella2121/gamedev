@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { groundY } from '../ground';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TubeChain } from '../kit/chain';
 import { fbm, mix, ridge, rgb, scale, worley, type RGB } from '../kit/noise';
@@ -943,7 +944,7 @@ export class XModel {
   setCore(on: boolean, x = 0, y = 1, z = 0, lit = 0) {
     this.core.visible = on;
     if (!on) return;
-    this.core.position.set(x, y, z);
+    this.core.position.set(x, y + groundY(x, z), z);
     const pulse = 1 + 0.08 * Math.sin(this.time * 8) + 0.06 * Math.sin(this.time * 13);
     this.coreMesh.scale.setScalar(pulse);
     (this.coreMesh.material as THREE.MeshBasicMaterial).color.setHex(lit > 0.5 ? 0xffffff : 0x4a2a60);
@@ -959,7 +960,7 @@ export class XModel {
     const r = 1.55 * Math.min(1, tele);
     s.ring.scale.set(Math.max(0.01, r), Math.max(0.01, r), 1);
     s.group.visible = on && burst > 0.02;
-    s.group.position.set(x, 0, z);
+    s.group.position.set(x, groundY(x, z), z);
     s.group.scale.set(1, Math.max(0.01, burst), 1);
     s.maw.open(Math.min(1, Math.max(0, burst)));
   }

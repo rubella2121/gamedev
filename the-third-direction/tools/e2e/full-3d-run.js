@@ -1,6 +1,8 @@
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const g = __tt, a = g.act2;
+  // (no graphics card here: the Crater's plants and forest are hidden, the fight is the same)
+  a.arena.crater.setLite(true);
   const out = { diff: document.querySelector('.dtile.on b')?.textContent, bosses: [] };
   const log = [];
   let lastBi = -1, t0 = performance.now(), lastHearts = null, lost = 0;

@@ -95,6 +95,8 @@ export interface Env {
   pull(vx: number, vz: number): void;
   /** the fight asks the boss to put the camera somewhere (null = the player's) */
   camLook: { x: number; y: number; z: number } | null;
+  /** the player is hiding in the ferns: what hunts by sight (a gaze, a glare, a watching eye, the burning glass) cannot see them */
+  readonly hidden: boolean;
 }
 
 export type BState = 'intro' | 'fight' | 'dying' | 'gone';

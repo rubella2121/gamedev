@@ -822,7 +822,7 @@ export class UI {
     const card = document.createElement('div');
     card.className = 'sheet';
     const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
-    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
+    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.<br>In the Crater: stand still in the Moonwell to heal, hide in the ferns, and take a fallen heart if you dare.</div>`;
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Got it';
