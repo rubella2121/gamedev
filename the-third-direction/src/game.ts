@@ -495,10 +495,23 @@ export class Game {
     return (performance.now() - this.runStart) / 1000;
   }
 
+  /** (tools: the trailer capture) the clock is driven by hand: no frames of its own; `tick` moves the game on and draws */
+  private manual = false;
+
+  manualClock(on: boolean) {
+    this.manual = on;
+    this.last = 0;
+  }
+
+  /** (tools) move the game on by exactly `dt` and draw one frame */
+  tick(dt: number) {
+    this.step(dt);
+  }
+
   private frame(now: number) {
     requestAnimationFrame((t) => this.frame(t));
     this.ui.pauseButton(!this.paused && this.canPause());
-    if (this.paused) return;
+    if (this.paused || this.manual) return;
     const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 0.016;
     // (the 3D part tunes its resolution to the phone: see tuneRes)
     if (this.last && (this.state === 'arena' || this.state === 'boom' || this.state === 'ending')) this.tuneRes(dt, now - this.last);
@@ -510,6 +523,11 @@ export class Game {
       this.fpsT = 0;
     }
     this.last = now;
+    this.step(dt);
+  }
+
+  /** one frame: everything moves on by `dt` (times the debug speed), then it is drawn */
+  private step(dt: number) {
     const n = Math.max(1, Math.round(this.debugSpeed));
     for (let k = 0; k < n; k++) {
       this.input.update(dt);
