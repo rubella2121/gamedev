@@ -116,6 +116,34 @@ After each encounter except the Mournmoth's, X's shadow drags the creatures in, 
 - Slow motion. He doesn't scream. He flattens into a 2D pixel sprite and crumbles.
 
 ## ENDING (10:40–11:20)
+> **v7 note: the Fourth, and the Fourth Dimension.** The ending has a last boss in the middle of it. After the three 3D bosses
+> the cage comes down and the family holds on (the reunion). Then nothing moves: the lullaby bends and stops, the moth hangs in
+> the air, the moon goes out, and where it was the **Fourth** unfolds out of the sky: a four-dimensional cube's shadow (thick
+> beams of violet light turning through each other, a block of light at every corner, the moments just past trailing after
+> them), a dark ball of blocks inside it, and in the ball one slit of an eye, which opens. "You were never meant to leave."
+> Mother steps in front of the Blob ("Get behind me!"). "Then all three of you." The floor cracks, a tear opens over the family
+> and pulls all three of them up into it, holding on to each other ("Hold on to each other!"). White, then black.
+>
+> They fall out of the dark onto **a dial of dark stone hanging over nothing**: the Fourth Dimension. Cold light runs in its
+> cracks out to the twelve hours, broken stones round its rim; its underside hangs down in a ragged cone; a bridge goes out from
+> it and breaks off. All round, columns come up out of nothing, towers hang upside down from rocks in the air, land floats far
+> off the wrong way up, shards turn round the dial and knots of blocks fold into themselves. Behind it, high up, an enormous
+> empty cage; in the sky, cracks of light and a moon with a face, dark streaks running from its eyes. Thin tall shapes watch from
+> the columns and are somewhere else when you look back. "Where are we?" The Fourth comes down after them: "Here, there is no up
+> to look to." "Stay together. Whatever happens."
+>
+> You fight it *with* Mother and Father: they follow you, dodge, and strike its eye when it comes down; Father holds it down a
+> moment longer, Mother gives you a heart back once each phase, and a strike when all three of you are at the eye counts twice.
+> Its attacks are made of time: echoes (where you were), foresight (where you will be), a ring that rolls out and rewinds, the
+> hands of a clock, and half the floor folding shut. It cannot be killed: at the end the family's three lights hit it at once,
+> it cracks, and it runs, backing up into a tear of its own: "This is not the end." "I will come back." "For all three of you."
+> The tear shuts, the dial goes, and they are home. Then the ending below goes on as before.
+>
+> Its voice is its own: a whisper says each line a moment before the voice does, then the voice itself, very low and juddering,
+> with another an octave under it, a thin echo after, and a slow clock ticking under all of it. Cutscene subtitles stay up longer
+> now (the longer the line, the longer it stays). (Code: `act2/fourth-model.ts`, `act2/fourth-world.ts`, `act2/bosses/fourth.ts`,
+> `act2/allies.ts`, `core/voice.ts` `fourthSpeak`; the scenes are `beginArrival` and `fourthFled` in `act2/act2.ts`.)
+
 - The pinned sprites flicker into warm lights. Most drift away into the forest, and two settle beside you.
 - Cubes drift in and rebuild the original clearing in 3D, with the crater still there. Tiny monsters peek out from behind the roots.
 - The camera rises towards the moon. *"I can look up now."* Then the moon blinks.

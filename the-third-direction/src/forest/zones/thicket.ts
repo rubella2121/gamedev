@@ -173,6 +173,12 @@ export class ThicketZone implements Zone {
     }
   }
 
+  objective(): string | null {
+    if (this.cleared || this.guardian) return null;
+    if (this.walls.some((w) => w.broken < 0.85)) return "stand by a wall of roots until x's shadow falls · then run · his stomp breaks it";
+    return this.heart.st === 'open' ? 'the rootheart is open · tap to pulse it now' : 'wait beside the rootheart until it opens';
+  }
+
   complete() {
     this.guardian = null;
     this.cleared = true;

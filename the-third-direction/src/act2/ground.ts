@@ -32,8 +32,20 @@ function step(a: number, b: number, x: number) {
   return t * t * (3 - 2 * t);
 }
 
+/**
+ * The flat world (the Fourth's fold, where the Crater is gone): the floor is flat everywhere. One switch for the TypeScript and,
+ * through a shared uniform, for every shader that lays things on the ground.
+ */
+export const GROUND = { flat: false };
+const flatU = { value: 0 };
+export function setFlatGround(on: boolean) {
+  GROUND.flat = on;
+  flatU.value = on ? 1 : 0;
+}
+
 /** the height of the floor at (x, z): what the Blob stands on, and what a warning is drawn on */
 export function groundY(x: number, z: number): number {
+  if (GROUND.flat) return 0;
   let h = Math.max((1 - step(-EDGE, 0, sdBox(x, z, WEST))) * TERRACE_H.west, (1 - step(-EDGE, 0, sdBox(x, z, EAST))) * TERRACE_H.east);
   // the stone ramp: it rises along x, and has steep sides
   const s = STONE_RAMP;
@@ -55,6 +67,7 @@ export function groundY(x: number, z: number): number {
 
 /** the same, for a vertex shader (vec2 p = world xz) */
 export const GROUND_GLSL = /* glsl */ `
+uniform float uGroundFlat;
 float gSdBox(vec2 p, vec2 c, vec2 hs, float r) {
   vec2 d = abs(p - c) - hs + r;
   return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r;
@@ -86,6 +99,7 @@ export function onGround(m: THREE.Material) {
   const prev = m.onBeforeCompile;
   m.onBeforeCompile = (sh, r) => {
     prev?.call(m, sh, r);
+    sh.uniforms['uGroundFlat'] = flatU;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + GROUND_GLSL).replace(
       '#include <project_vertex>',
       `vec4 mvPosition = vec4( transformed, 1.0 );
@@ -96,7 +110,7 @@ export function onGround(m: THREE.Material) {
   mvPosition = instanceMatrix * mvPosition;
 #endif
   vec4 gWorld = modelMatrix * mvPosition;
-  gWorld.y += groundY(gWorld.xz);
+  gWorld.y += groundY(gWorld.xz) * (1.0 - uGroundFlat);
   mvPosition = viewMatrix * gWorld;
   gl_Position = projectionMatrix * mvPosition;`,
     );

@@ -99,6 +99,16 @@ export class SkyRift {
     this.mat.uniforms['uHas']!.value = 1;
   }
 
+  /** the colour of its light (cold, by default: the forest's moonlight) */
+  setCool(hex: number) {
+    (this.mat.uniforms['uCool']!.value as THREE.Color).setHex(hex);
+  }
+
+  /** whether the forest shows through it (when it opens onto somewhere else, it is dark inside) */
+  showFlat(on: boolean) {
+    this.mat.uniforms['uHas']!.value = on && this.flat ? 1 : 0;
+  }
+
   /** time, and how much of his red is in the light (0..1) */
   update(time: number, red: number) {
     this.mat.uniforms['uTime']!.value = time;

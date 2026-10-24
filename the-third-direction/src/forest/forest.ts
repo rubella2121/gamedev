@@ -286,6 +286,24 @@ export class Forest implements Hub {
     return true;
   }
 
+  /** The Blob is inside something solid (a tree, a root, a wall): move it to the nearest spot it can stand on. */
+  private unstick() {
+    const pl = this.player;
+    for (let r = 2; r <= 40; r += 2) {
+      const n = Math.max(8, Math.round(r * 1.5));
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU;
+        const x = pl.x + Math.cos(a) * r;
+        const y = pl.y + Math.sin(a) * r * 0.8;
+        if (this.canStand(x, y)) {
+          pl.x = x;
+          pl.y = y;
+          return;
+        }
+      }
+    }
+  }
+
   inPatch(x: number, y: number, k = 0.92): Patch | null {
     for (const p of this.patches) {
       const dx = (x - p.x) / (p.rx * k);
@@ -1110,6 +1128,8 @@ export class Forest implements Hub {
       pl.vx += (mvx * sp0 - pl.vx) * k;
       pl.vy += (mvy * sp0 - pl.vy) * k;
     }
+    // (stuck inside something, however it happened: step out to the nearest free spot)
+    if (!this.canStand(pl.x, pl.y)) this.unstick();
     const nx = pl.x + pl.vx * dt;
     if (this.canStand(nx, pl.y)) pl.x = nx;
     else pl.vx = 0;
@@ -2298,6 +2318,14 @@ export class Forest implements Hub {
   /** The goal, in one line: how many guardians are down, or where to go once the road is open. */
   private goalText(): string {
     if (this.sealOpen) return 'the road is open · follow the red arrow';
+    // inside a zone: what to do there
+    const pl = this.player;
+    for (const z of ZONES) {
+      // (from its entrance on: the road meets a zone a little outside its ellipse)
+      if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) >= 1.35) continue;
+      const o = this.zones.find((q) => q.id === z.id)?.objective?.();
+      if (o) return o;
+    }
     return `beat the five guardians · ${this.zones.filter((z) => z.cleared).length} of 5`;
   }
 

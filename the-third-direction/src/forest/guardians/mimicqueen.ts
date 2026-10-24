@@ -433,7 +433,7 @@ export class MimicQueen extends Guardian {
   private pushOut(dt: number) {
     const pl = this.pl;
     if (this.sink > 0.5 || pl.dead > 0) return;
-    if (Math.abs(pl.x - this.qx) < 16 && pl.y > this.qy - 8 && pl.y < this.qy + 5) pl.y += 90 * dt;
+    if (Math.abs(pl.x - this.qx) < 16 && pl.y > this.qy - 8 && pl.y < this.qy + 5 && this.hub.canStand(pl.x, pl.y + 90 * dt)) pl.y += 90 * dt;
   }
 
   private updateBlooms(dt: number) {

@@ -53,7 +53,7 @@ const ZONES = [
 /** the guardians, in the order of the road: the name that slams onto the screen, and its colour */
 const GUARDIANS = [
   { id: 'gloom', name: 'Gloommother', sub: 'she is hungry', colour: '#6ff0ff', skip: 3.2 },
-  { id: 'thicket', name: 'Thornback King', sub: 'let him hit a tree', colour: '#e0a060', skip: 3.8 },
+  { id: 'thicket', name: 'Thornback King', sub: 'when his back cracks open, strike', colour: '#e0a060', skip: 3.8 },
   { id: 'marsh', name: 'Toll Queen', sub: 'hush', colour: '#d9b8ff', skip: 4.0 },
   { id: 'bones', name: 'Bone Wyrm', sub: 'it hears you', colour: '#f4efe0', skip: 4.0 },
   { id: 'meadow', name: 'Mimic Queen', sub: 'follow the glow', colour: '#ff8aa8', skip: 3.8 },

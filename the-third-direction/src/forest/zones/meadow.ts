@@ -169,6 +169,14 @@ export class MeadowZone implements Zone {
 
   private cpSet = false;
 
+  objective(): string | null {
+    if (this.cleared || this.guardian) return null;
+    if (!this.freed) return 'find the caged moth · hold the button beside it to free it';
+    const n = this.open.filter(Boolean).length;
+    if (n < this.open.length) return `stand still beside each sleeping flower while the moth hovers · ${n} of ${this.open.length}`;
+    return 'walk into the lightseed';
+  }
+
   complete() {
     this.guardian = null;
     this.cleared = true;

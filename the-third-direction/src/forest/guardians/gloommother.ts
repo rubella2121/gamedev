@@ -293,7 +293,7 @@ export class Gloommother extends Guardian {
   private pushOut(dt: number) {
     const pl = this.pl;
     if (this.sink > 0.5 || pl.dead > 0) return;
-    if (Math.abs(pl.x - this.bx) < 46 && pl.y > this.by - 14 && pl.y < this.by + 5) pl.y += 110 * dt;
+    if (Math.abs(pl.x - this.bx) < 46 && pl.y > this.by - 14 && pl.y < this.by + 5 && this.hub.canStand(pl.x, pl.y + 110 * dt)) pl.y += 110 * dt;
   }
 
   /* ---------------------------------------------------------------- */

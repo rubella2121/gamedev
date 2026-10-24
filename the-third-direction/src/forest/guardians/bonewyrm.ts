@@ -358,8 +358,10 @@ export class BoneWyrm extends Guardian {
     const pl = this.pl;
     if (this.hRise > 0.5 && pl.dead <= 0 && Math.hypot(pl.x - this.hx, pl.y - this.hy) < 12) {
       const a = Math.atan2(pl.y - this.hy, pl.x - this.hx);
-      pl.x += Math.cos(a) * 80 * dt;
-      pl.y += Math.sin(a) * 80 * dt;
+      const nx = pl.x + Math.cos(a) * 80 * dt;
+      const ny = pl.y + Math.sin(a) * 80 * dt;
+      if (this.hub.canStand(nx, pl.y)) pl.x = nx;
+      if (this.hub.canStand(pl.x, ny)) pl.y = ny;
     }
   }
 

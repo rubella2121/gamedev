@@ -115,7 +115,7 @@ export function installBots3d(game: Game) {
     // light and wells
     // (the Moonwell is far, up on a terrace, and slow: the trip is only worth it on the last heart)
     const lowHearts = a2.hearts <= 1 && a2.hearts < a2.maxHearts;
-    if (!target && lowHearts) {
+    if (!target && lowHearts && !a2.inDim) {
       let bw: Any = null;
       let bwd = 1e9;
       for (const w of a2.features.wells) {
@@ -202,6 +202,16 @@ export function installBots3d(game: Game) {
       stats.deaths0 = g0.stats.deaths;
       g0.debugFight(phase, boss);
       return 'running';
+    },
+    /** play whatever fight is on now (the Fourth: it is not one of the three a fight can be jumped to) */
+    attach(speed = 1) {
+      on = true;
+      started = performance.now();
+      g0.debugSpeed = speed;
+      g0.debugRenderEvery = speed > 1 ? 6 : 1;
+      stats.strikes = stats.lances = stats.novas = stats.dashes = 0;
+      stats.deaths0 = g0.stats.deaths;
+      return 'attached';
     },
     stop() {
       on = false;

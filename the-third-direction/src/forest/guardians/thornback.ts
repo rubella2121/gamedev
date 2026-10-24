@@ -2,7 +2,7 @@ import { burst, makeTree } from '../../core/art';
 import { D } from '../../core/difficulty';
 import { C } from '../../core/palette';
 import type { Pix } from '../../core/pix';
-import { clamp, dist, lerp, rng, smooth, TAU, unlerp } from '../../core/util';
+import { clamp, dist, TAU, unlerp } from '../../core/util';
 import type { ArenaDef } from '../land';
 import { drawThornbackKing } from '../bossart';
 import type { Drawable, Hub, Lance, Nova, Rect } from '../types';
@@ -10,11 +10,19 @@ import { onScreen } from '../zones/parts';
 import { Guardian } from './base';
 
 /**
- * The Thornback King: a bullfight. He charges along a lane, and the only thing that hurts him is a tree. Stand behind one
- * and he crashes into it and is stunned (the tree falls); step in and light his unarmoured head.
- *   1  he charges
- *   2  he fires thorns first, and when he crashes into a wall he turns and charges again at once
- *   3  he curls into a ball and rolls, bouncing off the walls, until something stops him
+ * The Thornback King: an old beetle the roots grew over. One rule all fight long: after every round of attacks he is spent,
+ * and the crack in his back (X's mark) splits open and glows. Strike it, as often as you can, before it closes.
+ *   ROOT SNARE      he stamps and roots crawl out of him and hunt you along the ground, thorns bursting up behind them; each
+ *                   one splits in two halfway. They turn slower than you walk: step aside late. A tree stops them.
+ *   MANDIBLE LUNGE  a red line follows you, then locks; he dashes down it and snaps his jaws at its end (from the second
+ *                   phase, twice, the second quicker).
+ *                   If he lunges into a tree he sticks in it, and his back opens.
+ *   THORN RAIN      his crown shakes and thorns fall where their shadows are: two waves that follow you (three, last).
+ *   ROOT CAGE       roots burst up in a ring round you with one gap, and he lunges at you: out through the gap, or pulse the
+ *                   roots apart.
+ *   THORN WHEEL     he curls up and spins, three turning arms of thorns, rolling slowly after you; halfway it turns
+ *                   the other way. After it he is dizzy and open for longer.
+ * Each phase adds to the mix. A Nova knocks him out of whatever he is doing and opens his back.
  */
 
 const ACCENT = '#e0a060';
@@ -29,24 +37,62 @@ const TREE_SPOTS: [number, number][] = [
 interface Tree {
   x: number;
   y: number;
-  state: 'up' | 'shake' | 'down';
-  t: number;
-  /** growing back (0..1) */
-  grow: number;
   img: HTMLCanvasElement;
+  /** a root just hit it */
+  shake: number;
 }
 
-type KMode = 'enter' | 'prowl' | 'windup' | 'charge' | 'stun' | 'recover' | 'roll' | 'dying';
+/** a root crawling along the ground after you */
+interface Runner {
+  x: number;
+  y: number;
+  ang: number;
+  t: number;
+  life: number;
+  drop: number;
+  dead: boolean;
+  /** it has split in two already */
+  split: boolean;
+}
+
+/** a root post of the cage */
+interface Post {
+  x: number;
+  y: number;
+  alive: boolean;
+}
+
+type Attack = 'roots' | 'roots2' | 'roots3' | 'rain' | 'lunge' | 'cage' | 'wheel';
+type KMode = 'enter' | 'walk' | 'windup' | 'roots' | 'rain' | 'lunge' | 'snap' | 'spin' | 'gap' | 'open' | 'recover' | 'dying';
+
+/** what he does in each phase before his back opens (the first round of a phase is the shorter one) */
+const PLAN: Attack[][][] = [
+  [['roots', 'lunge'], ['roots2', 'lunge']],
+  [['rain', 'roots2'], ['cage', 'rain']],
+  [['roots2', 'rain', 'wheel'], ['cage', 'roots3', 'wheel']],
+];
+
+/** a root: how fast it crawls (px/s, the Blob walks at 66), how fast it turns (rad/s), how long it lives (s), when it splits */
+const ROOT = { speed: 50, turn: 1.4, life: 2.4, step: 0.08, warn: 0.32, r: 9, split: 1.0, fork: 0.6 };
+/** the thorn rain: waves (the last phase one more), thorns in a wave, shadow size, how long a shadow shows, time between waves */
+const RAIN = { waves: 2, n: 4, r: 13, warn: 1.1, gap: 0.55 };
+/** the lunge: the line shows this long (the second one less), follows you for this much of it, then he dashes */
+const LUNGE = { tele: 1.1, tele2: 0.85, lock: 0.5, dash: 0.4, len: 150, wd: 11, bite: 16, after: 0.5 };
+/** the root cage: its size, how many posts, the gap (half width, rad), the warning, how long it stands */
+const CAGE = { rx: 36, ry: 26, posts: 30, gapW: 0.62, tele: 0.75, up: 2.2 };
+/** the thorn wheel: arms, how fast it turns (rad/s), thorns per second per arm, thorn speed, how long, how fast it rolls */
+const WHEEL = { arms: 3, turn: 1.5, rate: 5, speed: 74, len: 3.4, roll: 22 };
+/** how long his back stays open: after an ordinary round, after the wheel, after a Nova or a tree */
+const OPEN = { round: 3.0, wheel: 3.6, nova: 2.4 };
 
 let treeImgs: HTMLCanvasElement[] | null = null;
 
-/** A rolling spiky ball: the King curled up. */
+/** A spinning spiky ball: the King curled up. */
 function drawBall(p: Pix, x: number, y: number, t: number, spin: number, flash: boolean, fade: number) {
   p.alpha(fade);
   p.dither(x, y + 1, 20, 6, '#02050a', 0.8);
   const cy = y - 15;
   const r = 15;
-  // thorns around the rim, turning
   for (let i = 0; i < 14; i++) {
     const a = spin + (i / 14) * TAU;
     const x0 = x + Math.cos(a) * (r - 1);
@@ -60,16 +106,13 @@ function drawBall(p: Pix, x: number, y: number, t: number, spin: number, flash: 
   p.ellipse(x, cy, r + 1, r + 1, '#05080e');
   p.ellipse(x, cy, r, r, flash ? '#7a9aaa' : '#1a2c3c');
   p.ellipse(x + 2, cy - 2, r - 4, r - 4, flash ? '#9ab8c8' : '#27425a');
-  // plates
   for (let i = 0; i < 5; i++) {
     const a = spin * 1.3 + (i / 5) * TAU;
     p.line(x + Math.cos(a) * 3, cy + Math.sin(a) * 3, x + Math.cos(a) * (r - 2), cy + Math.sin(a) * (r - 2), '#0a121a', 1);
   }
-  // red cracks
   const hot = 0.5 + 0.5 * Math.sin(t * 9);
   p.line(x - 5, cy - 2, x + 1, cy + 4, hot > 0.5 ? C.redGlow : C.red, 1);
   p.px(x + 5, cy - 5, C.red);
-  // two angry eyes peek out as it turns
   const ex = x + Math.cos(spin * 0.6) * 5;
   p.px(ex - 2, cy - 7 + Math.sin(spin) * 2, C.redGlow);
   p.px(ex + 2, cy - 7 + Math.sin(spin) * 2, C.redGlow);
@@ -82,84 +125,68 @@ export class ThornbackKing extends Guardian {
   x: number;
   y: number;
   face: 1 | -1 = 1;
-  private mode: KMode = 'enter';
+  /** (read by the test bot) */
+  mode: KMode = 'enter';
   private mt = 0;
   private trees: Tree[] = [];
-  private lane: { y: number; dir: 1 | -1; endX: number; tree: Tree | null } | null = null;
-  private stunT = 0;
-  private stunKind: 'tree' | 'wall' | 'nova' | 'ball' = 'wall';
-  private hitDone = false;
-  private doubleLeft = 0;
+  /** the roots crawling now (read by the test bot) */
+  runners: Runner[] = [];
+  /** this round's attacks, and which one is next */
+  private round: Attack[] = [];
+  private ri = 0;
+  private rounds = 0;
+  private attack: Attack = 'roots';
+  /** how long his back stays open this time */
+  private openLen = OPEN.round;
   private hurtCd = 0;
-  private prowlSide: 1 | -1 = 1;
-  private aligned = 0;
   private spin = 0;
-  private roll = { vx: 0, vy: 0, bounces: 0 };
+  private wheelA = 0;
+  private wheelEmit = 0;
+  private wheelArms = WHEEL.arms;
+  /** the lunge: where it starts and ends, how many are left in this attack, how long its line shows (read by the test bot) */
+  lunge = { sx: 0, sy: 0, ex: 0, ey: 0, ang: 0, T: LUNGE.tele };
+  private lungesLeft = 0;
+  /** the root cage round you, while it stands (t < 0: still coming up) */
+  cage: { x: number; y: number; t: number; gap: number; posts: Post[] } | null = null;
+  private rainWave = 0;
+  private rainNext = 0;
   private fall = 0;
+  private landed = false;
   private hinted = false;
   private snortT = 1;
+  /** where he is walking to between rounds */
+  private walkTo = { x: 0, y: 0 };
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Thornback King', 'let him hit a tree', ACCENT, [3, 4, 4], onVictory);
+    super(hub, a, 'Thornback King', 'when his back cracks open, strike', ACCENT, [3, 3, 4], onVictory);
     this.x = a.x;
     this.y = a.boss.y;
     if (!treeImgs) treeImgs = [11, 12, 13, 14, 15].map((i) => makeTree(900 + i * 13, 92 + (i % 3) * 6));
-    this.trees = TREE_SPOTS.map(([dx, dy], i) => ({ x: a.x + dx, y: a.y + dy, state: 'up', t: 0, grow: 1, img: treeImgs![i]! }));
+    this.trees = TREE_SPOTS.map(([dx, dy], i) => ({ x: a.x + dx, y: a.y + dy, img: treeImgs![i]!, shake: 0 }));
   }
 
   focus() {
     return { x: this.x, y: this.y - 20 };
   }
 
-  private head() {
-    return { x: this.x + this.face * 46, y: this.y - 20 };
+  /** the crack in his back: where it glows, and where light has to reach to hurt him */
+  weak() {
+    return { x: this.x - this.face * 3, y: this.y - 44 };
+  }
+
+  get isOpen() {
+    return this.mode === 'open';
   }
 
   lanceTarget() {
-    return this.mode === 'stun' && !this.hitDone ? this.head() : null;
+    return this.isOpen ? this.weak() : null;
   }
 
   colliders(): Rect[] {
-    return this.trees.filter((t) => t.state !== 'down').map((t) => ({ x0: t.x - 6, x1: t.x + 6, y0: t.y - 5, y1: t.y + 3 }));
-  }
-
-  /* ---------------------------------------------------------------- */
-  /* helpers                                                           */
-  /* ---------------------------------------------------------------- */
-
-  /** the x where his body stops when he runs at a wall from the middle of the arena */
-  private wallX(y: number, dir: 1 | -1): number {
-    let x = this.cx;
-    for (let i = 0; i < 150; i += 2) {
-      if (!this.hub.land.isWalk(this.cx + dir * i + dir * 40, y)) break;
-      x = this.cx + dir * i;
-    }
-    return x;
-  }
-
-  private treeAt(nx: number, y: number, dir: 1 | -1): Tree | null {
-    for (const t of this.trees) {
-      if (t.state === 'down') continue;
-      if (Math.abs(t.y - y) < 12 && (t.x - nx) * dir > 0 && (t.x - nx) * dir < 40) return t;
-    }
-    return null;
-  }
-
-  private dropTree(t: Tree) {
-    t.state = 'shake';
-    t.t = 0;
-    this.hub.audio.crumble();
-    this.hub.shake(7);
-    burst(this.hub.parts, t.x, t.y - 40, 22, ['#07121c', '#123a46', '#2e7d4f', '#5bbf6a'], 60, 1, 60);
-  }
-
-  private regrow() {
-    for (const t of this.trees) {
-      if (t.state === 'down') {
-        t.state = 'up';
-        t.grow = 0;
-      }
-    }
+    const out = this.trees.map((t) => ({ x0: t.x - 6, x1: t.x + 6, y0: t.y - 5, y1: t.y + 3 }));
+    const c = this.cage;
+    if (c && c.t >= 0) for (const p of c.posts) if (p.alive) out.push({ x0: p.x - 3, x1: p.x + 3, y0: p.y - 3, y1: p.y + 2 });
+    return out;
   }
 
   /* ---------------------------------------------------------------- */
@@ -173,11 +200,9 @@ export class ThornbackKing extends Guardian {
     this.y = this.a.boss.y;
     this.face = 1;
     this.fall = 1;
-    this.regrow();
-    this.trees.forEach((t) => {
-      t.state = 'up';
-      t.grow = 1;
-    });
+    this.landed = false;
+    this.runners = [];
+    this.cage = null;
     this.hub.audio.setDrone(0.18, 1.5);
   }
 
@@ -202,53 +227,110 @@ export class ThornbackKing extends Guardian {
     }
     hub.camFocus = this.focus();
   }
-  private landed = false;
 
   /* ---------------------------------------------------------------- */
   /* phases                                                            */
   /* ---------------------------------------------------------------- */
 
   protected startPhase() {
-    this.regrow();
     this.hz.clear();
     this.shots.clear();
-    this.mode = 'prowl';
-    this.mt = 0;
-    this.aligned = 0;
-    this.doubleLeft = 0;
-    this.hitDone = false;
+    this.runners = [];
+    this.cage = null;
+    this.rounds = 0;
     this.fall = 0;
+    this.toWalk();
     if (this.phase > 0) {
       this.hub.audio.v.kingBellow();
       this.hub.shake(8);
       this.hub.ui.flash(0.3, 250);
     }
-    if (!this.hinted && this.phase === 0) {
-      this.hinted = true;
-      window.setTimeout(() => this.hub.ui.hint('stand behind a tree'), 600);
-      window.setTimeout(() => {
-        if (this.hub.ui.hintIs('stand behind a tree')) this.hub.ui.hint(null);
-      }, 5200);
-    }
-    this.pickSide();
   }
 
   protected restartPhase() {
-    this.regrow();
     this.x = this.cx;
     this.y = this.a.boss.y;
     this.face = 1;
-    this.mode = 'prowl';
-    this.mt = 0;
-    this.aligned = 0;
-    this.doubleLeft = 0;
-    this.hitDone = false;
-    this.pickSide();
+    this.runners = [];
+    this.cage = null;
+    this.rounds = 0;
+    this.toWalk();
   }
 
-  private pickSide() {
-    // he comes from the wall on the far side of you, so the trees can be between you
-    this.prowlSide = this.pl.x < this.cx ? 1 : -1;
+  /** walk somewhere new, then begin the next round */
+  private toWalk() {
+    this.mode = 'walk';
+    this.mt = 0;
+    const pl = this.pl;
+    // a spot across the floor from you, not too near and not too far
+    const a = this.a;
+    let best = { x: this.x, y: this.y };
+    let bs = -1e9;
+    for (let i = 0; i < 12; i++) {
+      const x = a.x + (Math.random() - 0.5) * a.rx * 1.1;
+      const y = a.boss.y + Math.random() * 110;
+      if (!this.hub.land.isWalk(x - 40, y) || !this.hub.land.isWalk(x + 40, y)) continue;
+      const d = Math.hypot(x - pl.x, y - pl.y);
+      const score = -Math.abs(d - 105) - 0.3 * Math.hypot(x - this.x, y - this.y);
+      if (score > bs) {
+        bs = score;
+        best = { x, y };
+      }
+    }
+    this.walkTo = best;
+  }
+
+  private beginRound() {
+    const plan = PLAN[Math.min(this.phase, PLAN.length - 1)]!;
+    this.round = plan[Math.min(this.rounds, plan.length - 1)]!;
+    this.rounds++;
+    this.ri = 0;
+    this.nextAttack();
+  }
+
+  private nextAttack() {
+    if (this.ri >= this.round.length) {
+      this.openUp(this.round[this.round.length - 1] === 'wheel' ? OPEN.wheel : OPEN.round);
+      return;
+    }
+    this.attack = this.round[this.ri++]!;
+    this.mode = 'windup';
+    this.mt = 0;
+    this.face = this.pl.x >= this.x ? 1 : -1;
+    const v = this.hub.audio.v;
+    if (this.attack === 'wheel') {
+      v.kingBellow();
+      v.kingClack(3);
+    } else if (this.attack === 'rain') v.kingClack(2);
+    else if (this.attack === 'lunge') {
+      this.lungesLeft = this.phase === 0 ? 1 : 2;
+      this.aimLunge(LUNGE.tele);
+    } else if (this.attack === 'cage') {
+      v.kingBellow();
+      this.makeCage();
+    } else v.kingSnort(2);
+  }
+
+  /** his back splits: the window to hit him */
+  private openUp(len: number) {
+    this.hz.clear('root');
+    this.runners = [];
+    this.sinkCage();
+    this.mode = 'open';
+    this.mt = 0;
+    this.openLen = len * D.window;
+    const hub = this.hub;
+    hub.audio.crumble();
+    hub.audio.v.kingSnort(1);
+    const w = this.weak();
+    burst(hub.parts, w.x, w.y, 16, ['#ffe9a0', C.redGlow, '#f4efe0'], 50, 1);
+    if (!this.hinted) {
+      this.hinted = true;
+      hub.ui.hint('his back is open: strike it');
+      window.setTimeout(() => {
+        if (hub.ui.hintIs('his back is open: strike it')) hub.ui.hint(null);
+      }, 3200);
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -260,255 +342,389 @@ export class ThornbackKing extends Guardian {
     const pl = this.pl;
     this.hurtCd = Math.max(0, this.hurtCd - dt);
     this.mt += dt;
-    this.spin += dt * (this.mode === 'roll' ? 14 : 0);
-    for (const t of this.trees) {
-      if (t.state === 'shake') {
-        t.t += dt;
-        if (t.t > 0.45) {
-          t.state = 'down';
-          burst(hub.parts, t.x, t.y - 20, 10, ['#07121c', '#5bbf6a'], 50, 1, 80);
-        }
-      } else if (t.state === 'up' && t.grow < 1) t.grow = Math.min(1, t.grow + dt * 1.2);
-    }
+    for (const t of this.trees) t.shake = Math.max(0, t.shake - dt);
     hub.camFocus = this.focus();
+    this.updateRunners(dt);
+    this.updateCage(dt);
 
-    if (this.mode === 'prowl') this.doProwl(dt);
-    else if (this.mode === 'windup') this.doWindup(dt);
-    else if (this.mode === 'charge') this.doCharge(dt);
-    else if (this.mode === 'roll') this.doRoll(dt);
-    else if (this.mode === 'stun') {
-      this.stunT -= dt;
-      if (this.stunT <= 0) {
+    if (this.mode === 'walk') this.doWalk(dt);
+    else if (this.mode === 'windup') this.doWindup();
+    else if (this.mode === 'roots') {
+      // he holds the stamp while his roots crawl; when they are done, on to the next attack
+      if (this.mt > 0.4 && this.runners.length === 0) this.gap();
+    } else if (this.mode === 'rain') this.doRain(dt);
+    else if (this.mode === 'lunge') this.doLunge();
+    else if (this.mode === 'snap') {
+      if (this.mt > LUNGE.after) {
+        this.lungesLeft--;
+        if (this.lungesLeft > 0) this.aimLunge(LUNGE.tele2);
+        else this.gap();
+      }
+    } else if (this.mode === 'spin') this.doSpin(dt);
+    else if (this.mode === 'gap') {
+      if (this.mt > 0.4) this.nextAttack();
+    } else if (this.mode === 'open') {
+      if (this.mt >= this.openLen) {
         this.mode = 'recover';
         this.mt = 0;
-        hub.audio.v.kingSnort(2);
+        hub.audio.v.kingBellow();
       }
     } else if (this.mode === 'recover') {
-      if (this.mt > 0.9) {
-        this.mode = 'prowl';
-        this.mt = 0;
-        this.aligned = 0;
-        this.pickSide();
-      }
+      if (this.mt > 0.7) this.toWalk();
     }
-    // a player that walks into his body is shoved, never trapped
-    if (this.mode !== 'charge' && this.mode !== 'roll') {
-      const dx = pl.x - this.x;
-      const dy = pl.y - this.y;
-      if (Math.abs(dx) < 36 && Math.abs(dy) < 10 && pl.dead <= 0) {
-        pl.x += Math.sign(dx || 1) * 70 * dt;
-        pl.y += Math.sign(dy || 1) * 40 * dt;
+    // a player that walks into his body is shoved, never trapped (the spinning ball and the lunge hurt)
+    const dx = pl.x - this.x;
+    const dy = pl.y - this.y;
+    if (Math.abs(dx) < 36 && Math.abs(dy) < 10 && pl.dead <= 0) {
+      if ((this.mode === 'spin' || this.mode === 'lunge') && this.hurtCd <= 0 && !pl.hide) {
+        hub.hurt(this.x, this.y, 1);
+        this.hurtCd = 0.9;
       }
+      // (never into a tree, a root or the edge of the clearing: a shove that would is not made)
+      const sx = pl.x + Math.sign(dx || 1) * 70 * dt;
+      const sy = pl.y + Math.sign(dy || 1) * 40 * dt;
+      if (hub.canStand(sx, pl.y)) pl.x = sx;
+      if (hub.canStand(pl.x, sy)) pl.y = sy;
     }
   }
 
-  private doProwl(dt: number) {
+  private gap() {
+    this.mode = 'gap';
+    this.mt = 0;
+  }
+
+  private doWalk(dt: number) {
     const hub = this.hub;
-    const pl = this.pl;
     this.snortT -= dt;
     if (this.snortT <= 0) {
       this.snortT = 3.2;
       hub.audio.v.kingSnort(2);
     }
-    // walk to the wall on the far side of the player, level with them
-    const tx = this.wallX(pl.y, this.prowlSide);
-    const dx = tx - this.x;
-    const dy = clamp(pl.y, this.a.y - this.a.ry + 80, this.a.y + this.a.ry - 40) - this.y;
-    const sp = 88 * D.speed;
+    const dx = this.walkTo.x - this.x;
+    const dy = this.walkTo.y - this.y;
+    const sp = 78 * D.speed;
     const stepX = clamp(dx, -sp * dt, sp * dt);
     const stepY = clamp(dy, -sp * 0.7 * dt, sp * 0.7 * dt);
-    // (look where he is going: after a crash he can stand closer to the wall than his usual spot and must be able to walk back out)
     if (hub.land.isWalk(this.x + stepX + Math.sign(stepX) * 38, this.y)) this.x += stepX;
     if (hub.land.isWalk(this.x, this.y + stepY)) this.y += stepY;
     if (Math.abs(dx) > 2) this.face = dx > 0 ? 1 : -1;
-    const near = Math.abs(dx) < 6 && Math.abs(dy) < 14;
-    this.aligned = near ? this.aligned + dt : 0;
-    if (this.aligned > 0.55 / D.speed && this.mt > 1.0) {
-      this.face = this.prowlSide === 1 ? -1 : 1;
-      this.beginWindup();
-    }
+    const there = Math.abs(dx) < 4 && Math.abs(dy) < 4;
+    if ((there && this.mt > 0.5) || this.mt > 1.8) this.beginRound();
   }
 
-  private beginWindup() {
+  private doWindup() {
     const hub = this.hub;
     const pl = this.pl;
-    const dir = this.face;
-    this.mode = 'windup';
-    this.mt = 0;
-    this.shotDone = false;
-    const rolling = this.phase >= 2;
-    hub.audio.v.kingBellow();
-    hub.audio.v.kingClack(3);
-    if (rolling) {
-      // the ball goes where you are now
-      const dx = pl.x - this.x;
-      const dy = pl.y - this.y;
-      const l = Math.hypot(dx, dy) || 1;
-      this.roll = { vx: dx / l, vy: dy / l, bounces: 0 };
-      this.hz.add({ kind: 'line', x: this.x, y: this.y - 14, ang: Math.atan2(dy, dx), len: 150, wd: 8, warn: 0.95 * D.tele, live: 0.01, fade: 0.2, dmg: 0, col: 'red', tag: 'lane' });
-    } else {
-      // the lane runs along this row, up to the first tree or the wall
-      const endX = this.wallX(this.y, dir);
-      const tree = this.treeAt(this.x, this.y, dir);
-      const stopX = tree ? tree.x - dir * 40 : endX;
-      this.lane = { y: this.y, dir, endX: stopX, tree };
-      this.hz.add({ kind: 'line', x: this.x + dir * 36, y: this.y - 6, ang: dir > 0 ? 0 : Math.PI, len: Math.abs(stopX - this.x) - 30, wd: 9, warn: 0.95 * D.tele, live: 0.01, fade: 0.2, dmg: 0, col: 'red', tag: 'lane' });
-    }
-  }
-  private shotDone = false;
-
-  private doWindup(dt: number) {
-    const hub = this.hub;
-    const pl = this.pl;
-    const T = 0.95 * D.tele;
-    // the second phase fires thorns first
-    if (this.phase === 1 && !this.shotDone && this.mt > T * 0.35) {
-      this.shotDone = true;
-      const a0 = Math.atan2(pl.y - 8 - (this.y - 30), pl.x - this.x);
-      for (let i = -2; i <= 2; i++) {
-        const a = a0 + i * 0.34;
-        this.shots.add({ x: this.x + this.face * 20, y: this.y - 30, vx: Math.cos(a) * 118 * D.speed, vy: Math.sin(a) * 118 * D.speed, kind: 'thorn', r: 3.2, life: 3, tag: 'thorn' });
-      }
-      hub.audio.snap();
-    }
-    if (this.mt >= T) {
-      if (this.phase >= 2) {
-        this.mode = 'roll';
+    if (this.attack === 'lunge') {
+      // the line follows you, then locks; then he goes
+      if (this.mt < this.lunge.T * LUNGE.lock) this.setLungeLine();
+      if (this.mt >= this.lunge.T) {
+        this.mode = 'lunge';
         this.mt = 0;
-        hub.audio.rumble();
-      } else {
-        this.mode = 'charge';
-        this.mt = 0;
-        this.hitDone = false;
         hub.audio.whoosh();
         hub.audio.v.kingBellow();
       }
-    }
-    void dt;
-  }
-
-  private crash(tree: Tree | null, kind: 'tree' | 'wall') {
-    const hub = this.hub;
-    hub.audio.stomp();
-    hub.audio.bossHit();
-    hub.shake(tree ? 10 : 6);
-    hub.ui.flash(0.25, 200);
-    burst(hub.parts, this.x + this.face * 44, this.y - 12, 22, ['#3a2a1e', '#8fb0c0', '#5a7a7a', '#f4efe0'], 80, 1);
-    hub.land.addDecal(this.x + this.face * 40, this.y, 16, 10, 0.5);
-    if (tree) {
-      this.dropTree(tree);
-      this.x = tree.x - this.face * 42;
-    }
-    this.hz.clear('lane');
-    // phase two: a crash into a wall is not the end: he turns and charges straight back
-    if (this.phase === 1 && kind === 'wall' && this.doubleLeft === 0) {
-      this.doubleLeft = 1;
-      this.face = (this.face * -1) as 1 | -1;
-      this.lane = null;
-      this.mode = 'windup';
-      this.mt = 0;
-      this.shotDone = true;
-      const endX = this.wallX(this.y, this.face);
-      const tr = this.treeAt(this.x, this.y, this.face);
-      const stopX = tr ? tr.x - this.face * 40 : endX;
-      this.lane = { y: this.y, dir: this.face, endX: stopX, tree: tr };
-      this.hz.add({ kind: 'line', x: this.x + this.face * 36, y: this.y - 6, ang: this.face > 0 ? 0 : Math.PI, len: Math.abs(stopX - this.x) - 30, wd: 9, warn: 0.55 * D.tele, live: 0.01, fade: 0.2, dmg: 0, col: 'red', tag: 'lane' });
-      hub.audio.v.kingBellow();
       return;
     }
-    this.doubleLeft = 0;
-    this.mode = 'stun';
+    const T = (this.attack === 'wheel' ? 0.85 : this.attack === 'rain' ? 0.6 : this.attack === 'cage' ? CAGE.tele : 0.7) * D.tele;
+    if (this.mt < T) return;
     this.mt = 0;
-    this.stunKind = kind;
-    this.stunT = (kind === 'tree' ? 3.6 : 1.8) * D.window;
-    this.hitDone = false;
-    hub.audio.v.kingSnort(1);
+    if (this.attack === 'roots' || this.attack === 'roots2' || this.attack === 'roots3') {
+      this.mode = 'roots';
+      hub.audio.stomp();
+      hub.shake(6);
+      burst(hub.parts, this.x + this.face * 36, this.y, 14, [C.root, C.rootLight, '#3a2a1e'], 50, 1);
+      const a0 = Math.atan2(pl.y - this.y, pl.x - (this.x + this.face * 36));
+      const spread = this.attack === 'roots' ? [0] : this.attack === 'roots2' ? [-0.55, 0.55] : [-0.9, 0, 0.9];
+      for (const o of spread) this.runners.push({ x: this.x + this.face * 36, y: this.y + 2, ang: a0 + o, t: 0, life: ROOT.life, drop: 0, dead: false, split: false });
+    } else if (this.attack === 'rain') {
+      this.mode = 'rain';
+      this.rainWave = 0;
+      this.rainNext = 0;
+      hub.audio.snap();
+      const w = this.weak();
+      burst(hub.parts, w.x, w.y - 10, 18, ['#f4efe0', '#8fb0c0', '#4a6a82'], 90, 1, 140);
+    } else if (this.attack === 'cage') {
+      // the cage is up: now he comes for you
+      this.raiseCage();
+      this.attack = 'lunge';
+      this.lungesLeft = 1;
+      this.aimLunge(LUNGE.tele + 0.15);
+    } else {
+      this.mode = 'spin';
+      this.wheelA = Math.atan2(pl.y - this.y, pl.x - this.x);
+      this.wheelEmit = 0;
+      this.wheelArms = WHEEL.arms;
+      hub.audio.rumble();
+    }
   }
 
-  private doCharge(dt: number) {
+  /* ---- the thorn rain: waves that follow you ---- */
+
+  private doRain(dt: number) {
+    this.rainNext -= dt;
+    const waves = RAIN.waves + (this.phase >= 2 ? 1 : 0);
+    if (this.rainWave < waves && this.rainNext <= 0) {
+      this.rainNext = RAIN.gap;
+      this.rainWave++;
+      this.rainOn(this.pl.x, this.pl.y);
+      this.hub.audio.snap();
+    }
+    if (this.rainWave >= waves && this.mt > (waves - 1) * RAIN.gap + RAIN.warn * D.tele + 0.3) this.gap();
+  }
+
+  /** a wave of thorns: one on you, the rest around you, never shoulder to shoulder */
+  private rainOn(px: number, py: number) {
+    const spots: { x: number; y: number }[] = [{ x: px, y: py }];
+    let tries = 0;
+    while (spots.length < RAIN.n && tries++ < 80) {
+      const a = Math.random() * TAU;
+      const r = 26 + Math.random() * 40;
+      const x = px + Math.cos(a) * r;
+      const y = py + Math.sin(a) * r * 0.75;
+      if (!this.hub.land.isWalk(x, y)) continue;
+      if (spots.some((s) => Math.hypot(s.x - x, s.y - y) < RAIN.r * 2.4)) continue;
+      spots.push({ x, y });
+    }
+    for (const s of spots) {
+      this.hz.add({
+        kind: 'disc',
+        x: s.x,
+        y: s.y,
+        r: RAIN.r,
+        warn: RAIN.warn * D.tele,
+        live: 0.2,
+        fade: 0.5,
+        col: 'bone',
+        tag: 'rain',
+        onLive: (h) => {
+          this.hub.audio.thump(0.4);
+          burst(this.hub.parts, h.x, h.y - 2, 8, ['#f4efe0', '#8fb0c0', '#3a2a1e'], 40, 1);
+        },
+      });
+    }
+  }
+
+  /* ---- the lunge ---- */
+
+  /** the line shows (it follows you for a while, see doWindup) */
+  private aimLunge(T: number) {
+    this.attack = 'lunge';
+    this.mode = 'windup';
+    this.mt = 0;
+    this.lunge.T = T * D.tele;
+    this.setLungeLine();
+    this.hub.audio.v.kingSnort(2);
+  }
+
+  /** from where he stands, through you, as far as he can go (to the wall, or a tree) */
+  private setLungeLine() {
+    const pl = this.pl;
+    const L = this.lunge;
+    const dx = pl.x - this.x;
+    const dy = pl.y - this.y;
+    const d = Math.hypot(dx, dy) || 1;
+    L.ang = Math.atan2(dy, dx);
+    this.face = dx >= 0 ? 1 : -1;
+    L.sx = this.x;
+    L.sy = this.y;
+    const len = Math.min(LUNGE.len, d + 20);
+    let ex = this.x;
+    let ey = this.y;
+    for (let s = 4; s <= len; s += 4) {
+      const x = this.x + (dx / d) * s;
+      const y = this.y + (dy / d) * s;
+      if (!this.hub.land.isWalk(x + this.face * 38, y)) break;
+      ex = x;
+      ey = y;
+    }
+    L.ex = ex;
+    L.ey = ey;
+  }
+
+  private doLunge() {
     const hub = this.hub;
     const pl = this.pl;
-    const spd = 238 * D.speed;
-    const dir = this.face;
-    const nx = this.x + dir * spd * dt;
-    const tree = this.treeAt(nx, this.y, dir);
+    const L = this.lunge;
+    const u = clamp(this.mt / LUNGE.dash, 0, 1);
+    const e = u * u * (3 - 2 * u);
+    const nx = L.sx + (L.ex - L.sx) * e;
+    const ny = L.sy + (L.ey - L.sy) * e;
+    // a tree in the way: his mandibles stick in it, and his back opens
+    const head = { x: nx + this.face * 44, y: ny };
+    const tree = this.trees.find((t) => Math.abs(t.x - head.x) < 10 && Math.abs(t.y - head.y) < 12);
     if (tree) {
-      this.x = nx;
-      this.crash(tree, 'tree');
+      tree.shake = 0.6;
+      hub.audio.stomp();
+      hub.shake(9);
+      burst(hub.parts, tree.x, tree.y - 30, 20, ['#07121c', '#123a46', '#2e7d4f', '#5bbf6a'], 60, 1, 60);
+      this.sinkCage();
+      this.openUp(OPEN.nova);
       return;
-    }
-    if (!hub.land.isWalk(nx + dir * 40, this.y)) {
-      this.crash(null, 'wall');
-      return;
-    }
-    this.x = nx;
-    if (Math.floor(this.mt * 20) !== Math.floor((this.mt - dt) * 20)) burst(hub.parts, this.x - dir * 30, this.y - 2, 1, ['#5a7a7a', '#3a2a1e'], 30, 0.2);
-    this.contact(pl);
-  }
-
-  private contact(pl: Hub['player']) {
-    if (this.hurtCd > 0 || pl.dead > 0 || pl.hide) return;
-    if (Math.abs(pl.x - this.x) < 36 && Math.abs(pl.y - this.y) < 11) {
-      this.hub.hurt(this.x, this.y, 1);
-      this.hurtCd = 0.9;
-    }
-  }
-
-  private doRoll(dt: number) {
-    const hub = this.hub;
-    const pl = this.pl;
-    const spd = 168 * D.speed;
-    const r = this.roll;
-    let nx = this.x + r.vx * spd * dt;
-    let ny = this.y + r.vy * spd * dt;
-    // a tree stops the ball
-    for (const t of this.trees) {
-      if (t.state === 'down') continue;
-      if (Math.hypot(nx - t.x, ny - (t.y - 3)) < 22) {
-        this.face = nx < t.x ? 1 : -1;
-        this.x = nx;
-        this.y = ny;
-        this.dropTree(t);
-        this.mode = 'stun';
-        this.mt = 0;
-        this.stunKind = 'ball';
-        this.stunT = 3.4 * D.window;
-        this.hitDone = false;
-        hub.audio.stomp();
-        hub.audio.bossHit();
-        return;
-      }
-    }
-    const okX = hub.land.isWalk(nx + Math.sign(r.vx) * 22, this.y);
-    const okY = hub.land.isWalk(this.x, ny + Math.sign(r.vy) * 10);
-    if (!okX) {
-      r.vx *= -1;
-      r.bounces++;
-      nx = this.x;
-      hub.audio.snap();
-      hub.shake(3);
-    }
-    if (!okY) {
-      r.vy *= -1;
-      r.bounces++;
-      ny = this.y;
-      hub.audio.snap();
-      hub.shake(3);
     }
     this.x = nx;
     this.y = ny;
-    if (Math.floor(this.mt * 18) !== Math.floor((this.mt - dt) * 18)) burst(hub.parts, this.x, this.y - 2, 1, ['#5a7a7a', '#3a2a1e'], 24, 0.2);
-    if (this.hurtCd <= 0 && pl.dead <= 0 && !pl.hide && Math.hypot(pl.x - this.x, (pl.y - (this.y - 10)) / 0.9) < 19) {
-      hub.hurt(this.x, this.y, 1);
-      this.hurtCd = 0.9;
-    }
-    if (r.bounces >= 4 || this.mt > 6) {
-      this.mode = 'stun';
+    if (Math.floor(this.mt * 30) !== Math.floor((this.mt - 1 / 60) * 30)) burst(hub.parts, this.x - this.face * 30, this.y - 2, 1, ['#5a7a7a', '#3a2a1e'], 30, 0.2);
+    if (u >= 1) {
+      // the snap
+      this.mode = 'snap';
       this.mt = 0;
-      this.stunKind = 'ball';
-      this.stunT = 1.6 * D.window;
-      this.hitDone = false;
-      this.face = r.vx >= 0 ? 1 : -1;
+      hub.audio.snap();
+      hub.audio.v.kingClack(2);
+      hub.shake(4);
+      const hx = this.x + this.face * 46;
+      const hy = this.y - 4;
+      burst(hub.parts, hx, hy, 10, ['#f4efe0', '#e8e0c8', C.red], 50, 1);
+      if (!pl.hide && pl.dead <= 0 && this.hurtCd <= 0 && Math.hypot(pl.x - hx, (pl.y - hy) / 0.8) < LUNGE.bite) {
+        hub.hurt(hx, hy, 1);
+        this.hurtCd = 0.9;
+      }
+    }
+  }
+
+  /* ---- the root cage ---- */
+
+  /** the ring of posts round you (coming up: the warning), with its one gap facing open ground, off his line */
+  private makeCage() {
+    const pl = this.pl;
+    const hub = this.hub;
+    const toYou = Math.atan2(pl.y - this.y, pl.x - this.x);
+    const tries = [toYou + Math.PI / 2, toYou - Math.PI / 2, toYou + Math.PI * 0.75, toYou - Math.PI * 0.75, toYou + Math.PI, toYou + Math.PI / 4, toYou - Math.PI / 4, toYou];
+    let gapA = tries[0]!;
+    for (const a of tries) {
+      const ex = pl.x + Math.cos(a) * CAGE.rx * 1.7;
+      const ey = pl.y + Math.sin(a) * CAGE.ry * 1.7;
+      const tree = this.trees.some((t) => Math.hypot(t.x - ex, t.y - ey) < 16);
+      if (hub.land.isWalk(ex, ey) && hub.land.isWalk(pl.x + Math.cos(a) * CAGE.rx, pl.y + Math.sin(a) * CAGE.ry) && !tree) {
+        gapA = a;
+        break;
+      }
+    }
+    const posts: Post[] = [];
+    for (let i = 0; i < CAGE.posts; i++) {
+      const a = (i / CAGE.posts) * TAU;
+      let da = a - gapA;
+      while (da > Math.PI) da -= TAU;
+      while (da < -Math.PI) da += TAU;
+      if (Math.abs(da) < CAGE.gapW) continue;
+      posts.push({ x: pl.x + Math.cos(a) * CAGE.rx, y: pl.y + Math.sin(a) * CAGE.ry, alive: true });
+    }
+    this.cage = { x: pl.x, y: pl.y, t: -CAGE.tele * D.tele, gap: gapA, posts };
+    hub.audio.rumble();
+  }
+
+  /** the posts burst up (none where you stand) */
+  private raiseCage() {
+    const c = this.cage;
+    if (!c) return;
+    const pl = this.pl;
+    const hub = this.hub;
+    c.t = 0;
+    // (no post comes up under you or touching you: you could not walk out of it)
+    for (const p of c.posts) if (Math.abs(p.x - pl.x) < 9 && Math.abs(p.y - pl.y) < 7) p.alive = false;
+    hub.audio.crumble();
+    hub.shake(5);
+    for (const p of c.posts) if (p.alive && Math.random() < 0.4) burst(hub.parts, p.x, p.y - 4, 2, [C.root, C.rootLight, '#3a2a1e'], 40, 1, 80);
+  }
+
+  private updateCage(dt: number) {
+    const c = this.cage;
+    if (!c || c.t < 0) return;
+    c.t += dt;
+    if (c.t >= CAGE.up * D.window) this.sinkCage();
+  }
+
+  private sinkCage() {
+    const c = this.cage;
+    if (!c) return;
+    if (c.t >= 0) for (const p of c.posts) if (p.alive && Math.random() < 0.3) burst(this.hub.parts, p.x, p.y - 4, 2, [C.root, '#3a2a1e'], 30, 1, 80);
+    this.cage = null;
+  }
+
+  /* ---- the roots ---- */
+
+  private updateRunners(dt: number) {
+    const hub = this.hub;
+    const pl = this.pl;
+    const born: Runner[] = [];
+    for (const r of this.runners) {
+      r.t += dt;
+      // halfway it splits in two, the halves fanning out
+      if (!r.split && r.t >= ROOT.split) {
+        r.split = true;
+        born.push({ ...r, ang: r.ang + ROOT.fork, drop: ROOT.step });
+        r.ang -= ROOT.fork;
+        burst(hub.parts, r.x, r.y - 3, 6, [C.root, C.rootLight], 40, 1);
+      }
+      // it turns toward you, but slower than you can walk round it
+      const want = Math.atan2(pl.y - r.y, pl.x - r.x);
+      let da = want - r.ang;
+      while (da > Math.PI) da -= TAU;
+      while (da < -Math.PI) da += TAU;
+      r.ang += clamp(da, -ROOT.turn * dt, ROOT.turn * dt);
+      const sp = ROOT.speed * D.speed;
+      const nx = r.x + Math.cos(r.ang) * sp * dt;
+      const ny = r.y + Math.sin(r.ang) * sp * dt * 0.8;
+      // a tree stops it; so do the edge of the arena and the cage's own roots
+      const tree = this.trees.find((t) => Math.hypot(t.x - nx, (t.y - ny) / 0.8) < 10);
+      if (tree || !hub.land.isWalk(nx, ny) || r.t >= r.life) {
+        r.dead = true;
+        if (tree) {
+          tree.shake = 0.5;
+          hub.audio.thump(0.5);
+          burst(hub.parts, nx, ny - 4, 12, [C.root, C.rootLight, '#5bbf6a'], 50, 1);
+        }
+        continue;
+      }
+      r.x = nx;
+      r.y = ny;
+      // thorns burst up out of the ground behind its head
+      r.drop -= dt;
+      if (r.drop <= 0) {
+        r.drop = ROOT.step;
+        this.hz.add({ kind: 'disc', x: r.x, y: r.y, r: ROOT.r, warn: ROOT.warn * D.tele, live: 0.18, fade: 0.6, col: 'green', tag: 'root' });
+        if (Math.random() < 0.5) burst(hub.parts, r.x, r.y - 2, 2, ['#3a2a1e', C.root, C.rootLight], 30, 1, 60);
+      }
+    }
+    this.runners = this.runners.filter((r) => !r.dead).concat(born);
+  }
+
+  /* ---- the thorn wheel ---- */
+
+  private doSpin(dt: number) {
+    const hub = this.hub;
+    const pl = this.pl;
+    // it turns one way, then halfway, the other
+    const dir = this.mt < WHEEL.len / 2 ? 1 : -1;
+    if (dir < 0 && this.mt - dt < WHEEL.len / 2) {
+      hub.audio.v.kingClack(2);
+      hub.shake(3);
+    }
+    this.spin += dt * 16 * dir;
+    this.wheelA += WHEEL.turn * D.speed * dir * dt;
+    // and it rolls after you
+    const dx = pl.x - this.x;
+    const dy = pl.y - this.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const sp = WHEEL.roll * D.speed * dt;
+    const nx = this.x + (dx / d) * sp;
+    const ny = this.y + (dy / d) * sp * 0.8;
+    if (hub.land.isWalk(nx + Math.sign(dx) * 24, this.y) && !this.trees.some((t) => Math.hypot(t.x - nx, t.y - this.y) < 24)) this.x = nx;
+    if (hub.land.isWalk(this.x, ny + Math.sign(dy) * 10) && !this.trees.some((t) => Math.hypot(t.x - this.x, t.y - ny) < 24)) this.y = ny;
+    this.wheelEmit -= dt;
+    if (this.wheelEmit <= 0) {
+      this.wheelEmit = 1 / WHEEL.rate;
+      for (let i = 0; i < this.wheelArms; i++) {
+        const a = this.wheelA + (i / this.wheelArms) * TAU;
+        this.shots.add({ x: this.x + Math.cos(a) * 18, y: this.y - 14 + Math.sin(a) * 14, vx: Math.cos(a) * WHEEL.speed * D.speed, vy: Math.sin(a) * WHEEL.speed * D.speed * 0.8, kind: 'thorn', r: 3, life: 2.6, tag: 'wheel' });
+      }
+      if (Math.floor(this.mt * 4) !== Math.floor((this.mt - dt) * 4)) hub.audio.snap();
+    }
+    if (this.mt >= WHEEL.len) {
+      // he stops, dizzy, and lies open
+      hub.shake(5);
+      this.mt = 0;
+      this.nextAttack();
     }
   }
 
@@ -516,49 +732,40 @@ export class ThornbackKing extends Guardian {
   /* being hit                                                         */
   /* ---------------------------------------------------------------- */
 
-  protected onHurt() {
-    // he gets up angry, and the others of his phase come at you without waiting
-    this.hitDone = true;
-    this.mode = 'recover';
-    this.mt = 0;
-    this.hub.audio.v.kingBellow();
-  }
-
-  private tryHit(x: number, y: number, n = 1): boolean {
-    if (this.mode !== 'stun' || this.hitDone) return false;
-    const h = this.head();
-    if (this.damage(n, h.x, h.y)) {
-      this.hitDone = true;
-      if (this.state === 'fight' && this.mode === 'stun') {
-        this.mode = 'recover';
-        this.mt = 0;
-      }
-      return true;
-    }
-    void x;
-    void y;
-    return false;
+  private tryHit(): boolean {
+    if (!this.isOpen) return false;
+    const w = this.weak();
+    return this.damage(1, w.x, w.y);
   }
 
   onPulse(x: number, y: number, R: number) {
     this.shots.clearIn(x, y, R + 2, true);
-    if (this.mode === 'stun' && !this.hitDone) {
-      const h = this.head();
-      if (this.pulseReach(h.x, h.y, R, x, y, 22)) this.tryHit(x, y);
+    // light breaks the cage's roots near you
+    const c = this.cage;
+    if (c && c.t >= 0) {
+      for (const p of c.posts) {
+        if (!p.alive || Math.hypot(p.x - x, (p.y - y) / 0.8) > R * 0.75) continue;
+        p.alive = false;
+        burst(this.hub.parts, p.x, p.y - 5, 5, [C.root, C.rootLight, '#ffe9a0'], 40, 1);
+      }
+      this.hub.audio.crumble();
     }
+    if (!this.isOpen) return;
+    // the light has to reach him: the crack, or anywhere on the near side of his shell
+    const w = this.weak();
+    if (this.pulseReach(w.x, w.y, R, x, y, 26) || this.pulseReach(this.x, this.y - 12, R, x, y, 34)) this.tryHit();
   }
 
   onLance(l: Lance): boolean {
-    if (this.mode === 'stun' && !this.hitDone) {
-      const h = this.head();
-      if (dist(l.x, l.y, h.x, h.y) < 15) {
-        this.tryHit(l.x, l.y);
+    if (this.isOpen) {
+      const w = this.weak();
+      if (dist(l.x, l.y, w.x, w.y) < 18) {
+        this.tryHit();
         return true;
       }
     }
-    // his shell turns a lance away, unless his head is out and waiting for it
-    const headOut = this.mode === 'stun' && !this.hitDone;
-    if (!headOut && this.mode !== 'dying' && Math.abs(l.x - this.x) < 44 && l.y > this.y - 56 && l.y < this.y + 2) {
+    // his shell turns a lance away
+    if (this.mode !== 'dying' && Math.abs(l.x - this.x) < 44 && l.y > this.y - 56 && l.y < this.y + 2) {
       burst(this.hub.parts, l.x, l.y, 5, ['#8fb0c0', '#ffffff'], 40, 0);
       return true;
     }
@@ -569,19 +776,17 @@ export class ThornbackKing extends Guardian {
     this.shots.clearIn(n.x, n.y, n.R);
     if (this.state !== 'fight') return;
     if (Math.hypot(n.x - this.x, (n.y - this.y) / 0.72) > n.R + 30) return;
-    const h = this.head();
-    if (this.mode === 'stun' && !this.hitDone) {
-      this.tryHit(h.x, h.y);
-    } else if (this.mode === 'windup' || this.mode === 'charge' || this.mode === 'roll' || this.mode === 'prowl') {
-      // a Nova rocks him: he is stunned, but not hurt
-      this.hz.clear('lane');
-      this.mode = 'stun';
-      this.mt = 0;
-      this.stunKind = 'nova';
-      this.stunT = 2.4 * D.window;
-      this.hitDone = false;
-      this.hub.audio.v.kingBellow();
+    if (this.isOpen) {
+      this.tryHit();
+      return;
     }
+    // a Nova knocks him out of whatever he was doing, and his back opens
+    this.runners = [];
+    this.hz.clear();
+    this.shots.clear('wheel');
+    this.sinkCage();
+    this.hub.audio.v.kingBellow();
+    this.openUp(OPEN.nova);
   }
 
   /* ---------------------------------------------------------------- */
@@ -590,7 +795,8 @@ export class ThornbackKing extends Guardian {
 
   protected onDie() {
     this.mode = 'dying';
-    this.face = this.face;
+    this.runners = [];
+    this.sinkCage();
     this.hub.audio.v.kingBellow();
     this.hub.audio.v.kingSnort(4);
   }
@@ -612,17 +818,85 @@ export class ThornbackKing extends Guardian {
   ground() {
     const hub = this.hub;
     const p = hub.p;
-    this.hz.draw(p, hub.camX, hub.camY, hub.time);
-    // where the charge will end
-    if (this.mode === 'windup' && this.lane) {
-      const lx = this.lane.endX + this.lane.dir * 36 - hub.camX;
-      const ly = this.lane.y - hub.camY;
-      const blink = Math.floor(hub.time * 10) % 2 === 0;
-      const c = this.lane.tree ? '#ffe9a0' : '#ff6a6a';
-      p.alpha(blink ? 1 : 0.5);
-      p.line(lx - 4, ly - 4, lx + 4, ly + 4, c, 2);
-      p.line(lx + 4, ly - 4, lx - 4, ly + 4, c, 2);
+    const t = hub.time;
+    const cx = hub.camX;
+    const cy = hub.camY;
+    this.hz.draw(p, cx, cy, t);
+    // the thorns that burst up behind a root, and the rain as it lands
+    for (const h of this.hz.list) {
+      if (h.t < h.warn) continue;
+      const k = 1 - clamp((h.t - h.warn) / (h.live + h.fade), 0, 1);
+      const x = h.x - cx;
+      const y = h.y - cy;
+      const n = h.tag === 'root' ? 3 : 5;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * TAU + h.x * 0.1;
+        const bx = x + Math.cos(a) * h.r * 0.4;
+        const by = y + Math.sin(a) * h.r * 0.25;
+        const tall = (h.tag === 'root' ? 15 : 13) * k * (0.7 + 0.3 * ((i * 7) % 3));
+        p.line(bx, by, bx + Math.cos(a) * 2, by - tall, h.tag === 'root' ? '#1a1008' : '#07101a', 4);
+        p.line(bx, by, bx + Math.cos(a) * 2, by - tall, h.tag === 'root' ? C.rootLight : '#4a6a82', 2);
+        p.px(bx + Math.cos(a) * 2, by - tall, '#f4efe0');
+      }
+    }
+    // the lunge: a red line that follows you, then locks and blinks
+    if (this.mode === 'windup' && this.attack === 'lunge') {
+      const L = this.lunge;
+      const u = clamp(this.mt / L.T, 0, 1);
+      const locked = u >= LUNGE.lock;
+      const blink = !locked || Math.floor(t * 14) % 2 === 0;
+      const x0 = L.sx + Math.cos(L.ang) * 34 - cx;
+      const y0 = L.sy + Math.sin(L.ang) * 26 - cy;
+      const x1 = L.ex + this.face * 46 - cx;
+      const y1 = L.ey - cy;
+      p.alpha(0.35 + 0.25 * u);
+      p.line(x0, y0, x1, y1, '#5a0a18', Math.round(LUNGE.wd * 2 * (0.4 + 0.6 * u)));
       p.alpha(1);
+      p.line(x0, y0, x1, y1, blink ? (locked ? '#ffb0a8' : '#e02b3a') : '#5a0a18', 1);
+      // where his jaws will snap
+      p.alpha(locked ? 0.9 : 0.5);
+      p.ring(x1, y1, LUNGE.bite * 0.8, LUNGE.bite * 0.6, 1, locked && blink ? '#ffb0a8' : '#e02b3a');
+      p.alpha(1);
+    }
+    // the root cage: its ring cracks open first, then the posts stand
+    const cg = this.cage;
+    if (cg && cg.t < 0) {
+      const u = 1 - -cg.t / (CAGE.tele * D.tele);
+      for (const q of cg.posts) {
+        p.alpha(0.4 + 0.6 * u);
+        p.rect(q.x - cx - 1, q.y - cy - 1, 2, 2, Math.floor(t * 12) % 2 === 0 && u > 0.6 ? '#ffb0a8' : C.root);
+      }
+      p.alpha(1);
+    }
+    // a root's head: the ground heaving as it crawls
+    for (const r of this.runners) {
+      const x = r.x - cx;
+      const y = r.y - cy;
+      const heave = Math.sin(t * 22 + r.x) * 1;
+      // the earth bulges over it, cracked, and root tips break through
+      p.dither(x, y + 1, 14, 6, '#1a1008', 0.8);
+      p.ellipse(x, y - 1 + heave, 8, 4, '#2a1c10');
+      p.ellipse(x, y - 2 + heave, 6, 3, C.root);
+      p.ellipse(x + 1, y - 3 + heave, 3.5, 1.6, C.rootLight);
+      for (let i = 0; i < 3; i++) {
+        const a = r.ang + (i - 1) * 0.7;
+        const tx = x + Math.cos(a) * 9;
+        const ty = y + Math.sin(a) * 4 - 3 - Math.abs(Math.sin(t * 9 + i)) * 3;
+        p.line(x + Math.cos(a) * 4, y - 2, tx, ty, C.rootLight, 1);
+        p.px(tx, ty, '#f4efe0');
+      }
+    }
+    // the thorn rain: each thorn falls on its shadow in the last moment
+    for (const h of this.hz.list) {
+      if (h.tag !== 'rain' || h.t >= h.warn) continue;
+      const u = h.t / h.warn;
+      if (u < 0.6) continue;
+      const k = (u - 0.6) / 0.4;
+      const x = h.x - cx;
+      const y = h.y - cy - (1 - k) * 90;
+      p.line(x, y - 9, x, y, '#2a4258', 3);
+      p.line(x, y - 9, x, y, '#8fb0c0', 1);
+      p.px(x, y + 1, '#f4efe0');
     }
   }
 
@@ -632,24 +906,35 @@ export class ThornbackKing extends Guardian {
     const t = hub.time;
     const cx = hub.camX;
     const cy = hub.camY;
+    // the cage's posts: thick roots with thorny tips
+    const cg = this.cage;
+    if (cg && cg.t >= 0) {
+      const rise = clamp(cg.t / 0.15, 0, 1);
+      const sink = clamp((CAGE.up * D.window - cg.t) / 0.3, 0, 1);
+      const h = 16 * rise * sink;
+      for (const q of cg.posts) {
+        if (!q.alive) continue;
+        list.push({
+          y: q.y,
+          fn: () => {
+            const x = q.x - cx;
+            const y = q.y - cy;
+            p.ellipse(x, y, 4, 1.6, '#1a1008');
+            p.line(x, y, x + 1, y - h, '#1a1008', 4);
+            p.line(x, y, x + 1, y - h, C.root, 2);
+            p.px(x + 1, y - h, '#f4efe0');
+            p.px(x - 1, y - h * 0.5, C.rootLight);
+          },
+        });
+      }
+    }
     for (const tr of this.trees) {
       if (!onScreen(hub, tr.x, tr.y, 70)) continue;
       list.push({
         y: tr.y,
         fn: () => {
-          if (tr.state === 'down') {
-            // a stump
-            p.ellipse(tr.x - cx, tr.y - cy - 1, 5, 2.4, '#0a121a');
-            p.ellipse(tr.x - cx, tr.y - cy - 2, 4, 1.6, '#2a2018');
-            return;
-          }
-          const sx = tr.x - cx + (tr.state === 'shake' ? Math.sin(tr.t * 70) * 2 : 0);
-          const g = tr.grow < 1 ? smooth(tr.grow) : 1;
-          if (g < 1) {
-            p.alpha(g);
-          }
-          p.blit(tr.img, sx - tr.img.width / 2, tr.y - cy - tr.img.height + 3 + (1 - g) * 14);
-          p.alpha(1);
+          const sx = tr.x - cx + (tr.shake > 0 ? Math.sin(tr.shake * 70) * 2 : 0);
+          p.blit(tr.img, sx - tr.img.width / 2, tr.y - cy - tr.img.height + 3);
         },
       });
     }
@@ -662,50 +947,56 @@ export class ThornbackKing extends Guardian {
         const x = this.x - cx;
         const y = this.y - cy - drop;
         if (drop > 4) {
-          // a shadow on the ground that grows as he comes down
           const k = 1 - this.fall;
           p.dither(this.x - cx, this.y - cy, 22 + 36 * k, 7 + 10 * k, '#02050a', 0.3 + 0.5 * k);
         }
         const flash = this.flash > 0.1;
-        if (this.mode === 'roll' || (this.mode === 'windup' && this.phase >= 2 && this.mt > 0.3)) {
-          if (this.mode === 'roll') drawBall(p, x, y, t, this.spin, flash, fade);
-          else {
-            // curling up: the shell shakes
-            drawThornbackKing(p, x + Math.sin(t * 60) * 1.2, y, t, { face: this.face, mode: 1, flash: flash ? 1 : 0, fade });
-          }
+        if (this.mode === 'spin') {
+          drawBall(p, x, y, t, this.spin, flash, fade);
           return;
         }
         let mode: 0 | 1 | 2 | 3 = 0;
-        if (this.mode === 'windup') mode = 1;
-        else if (this.mode === 'charge') mode = 2;
-        else if (this.mode === 'stun' || this.mode === 'dying') mode = 3;
-        const walk = this.mode === 'prowl' ? 1 : 0;
-        const shake = this.mode === 'windup' ? Math.sin(t * 50) * 1.1 : 0;
+        if (this.mode === 'windup' || this.mode === 'roots' || this.mode === 'rain' || this.mode === 'snap') mode = 1;
+        else if (this.mode === 'lunge') mode = 2;
+        else if (this.mode === 'open' || this.mode === 'dying') mode = 3;
+        const walk = this.mode === 'walk' ? 1 : 0;
+        const curling = this.mode === 'windup' && this.attack === 'wheel';
+        const shake = this.mode === 'windup' ? Math.sin(t * 50) * (curling ? 2 : 1.1) : 0;
         drawThornbackKing(p, x + shake, y, t, { face: this.face, mode, walk, flash: flash ? 1 : 0, fade });
-        // steam from his nose before a charge, dizzy stars when he is stunned
-        if (this.mode === 'windup') {
-          for (let i = 0; i < 3; i++) {
-            const k = (t * 3 + i * 0.33) % 1;
-            p.alpha(0.6 * (1 - k));
-            p.ellipse(x + this.face * (50 + k * 12), y - 14 - k * 12, 2 + k * 3, 1.5 + k * 2, '#c8d8e0');
-          }
-          p.alpha(1);
-        }
-        if (this.mode === 'stun' || this.mode === 'dying') {
-          const h = this.head();
+        // a stamp coming: the ground cracks under his front feet
+        if (this.mode === 'windup' && (this.attack === 'roots' || this.attack === 'roots2' || this.attack === 'roots3')) {
+          const u = clamp(this.mt / (0.7 * D.tele), 0, 1);
+          const fx = x + this.face * 36;
           for (let i = 0; i < 4; i++) {
-            const a = t * 5 + (i / 4) * TAU;
-            const sx = h.x - cx + Math.cos(a) * 13;
-            const sy = h.y - cy - 20 + Math.sin(a) * 4;
-            p.rect(sx - 1, sy - 1, 3, 3, '#ffe9a0');
-            p.px(sx, sy, '#ffffff');
+            const a = (i / 4) * TAU + 0.4;
+            p.line(fx, y + 1, fx + Math.cos(a) * 14 * u, y + 1 + Math.sin(a) * 5 * u, '#1a1008', 1);
           }
-          if (!this.hitDone && this.mode === 'stun') {
-            // the head glows where to strike
-            const pulse = 0.5 + 0.5 * Math.sin(t * 10);
-            p.alpha(0.5 + 0.4 * pulse);
-            p.ring(h.x - cx, h.y - cy, 12 + pulse * 3, 9 + pulse * 2, 1, '#ffe9a0');
-            p.alpha(1);
+        }
+        // his crown rattles before the rain
+        if (this.mode === 'windup' && this.attack === 'rain') {
+          for (let i = 0; i < 5; i++) {
+            const k = (t * 3 + i * 0.2) % 1;
+            p.px(x - 30 + i * 14, y - 70 - k * 18, '#f4efe0');
+          }
+        }
+        if (this.mode === 'open') {
+          // the crack in his back, split open and glowing: strike here
+          const w = this.weak();
+          const wx = w.x - cx;
+          const wy = w.y - cy;
+          const pulse = 0.5 + 0.5 * Math.sin(t * 10);
+          const left = 1 - this.mt / this.openLen;
+          p.dither(wx, wy, 16, 9, C.redGlow, 0.35 + 0.25 * pulse);
+          p.ellipse(wx, wy, 7, 3.5, '#ffe9a0');
+          p.line(wx - 9, wy + 1, wx + 9, wy - 1, C.redGlow, 1);
+          p.alpha(0.5 + 0.45 * pulse);
+          p.ring(wx, wy, 16 + pulse * 3, 10 + pulse * 2, 1, '#ffe9a0');
+          p.alpha(1);
+          // how long it stays open: a ring that closes
+          const n = 16;
+          for (let i = 0; i < n * left; i++) {
+            const a = -Math.PI / 2 + (i / n) * TAU;
+            p.px(wx + Math.cos(a) * 22, wy + Math.sin(a) * 13, '#ffe9a0');
           }
         }
       },
@@ -717,6 +1008,3 @@ export class ThornbackKing extends Guardian {
     this.shots.draw(hub.p, hub.camX, hub.camY, hub.time);
   }
 }
-
-void rng;
-void lerp;

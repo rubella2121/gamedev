@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { rng, TAU } from '../core/util';
-import { EAST, groundY, STONE_RAMP, TERRACE_H, TREE_RAMP, WEST } from './ground';
+import { EAST, GROUND, groundY, STONE_RAMP, TERRACE_H, TREE_RAMP, WEST } from './ground';
 
 /**
  * THE CRATER: where the 3D fights happen. A moonlit hollow in the same teal forest as the 2D part.
@@ -165,6 +165,8 @@ class Batch {
 
 /** the height of the land as it is drawn: the floor (see ground.ts) inside, the crater wall and the forest floor outside */
 export function landY(x: number, z: number): number {
+  // (in the Fourth's fold there is no crater: the floor is flat as far as you can see)
+  if (GROUND.flat) return 0;
   const r = Math.hypot(x, z);
   let h = groundY(x, z);
   // the wall stands further back behind the boss (he needs the room), close everywhere else
@@ -192,6 +194,9 @@ export class Crater {
   private glow = glowTex();
   private r = rng(17);
   readonly moonDir = MOON_DIR.clone();
+  /** the sky's own objects (they live in the scene, not in the group) */
+  private skyObjs: THREE.Object3D[] = [];
+  private shown = true;
 
   constructor(private scene: THREE.Scene) {
     this.buildSky();
@@ -231,6 +236,7 @@ export class Crater {
     sky.renderOrder = -10;
     sky.frustumCulled = false;
     this.scene.add(sky);
+    this.skyObjs.push(sky);
     const n = 900;
     const p = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
@@ -242,6 +248,7 @@ export class Crater {
     const stars = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcff6ff, size: 1.5, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.75, depthWrite: false }));
     stars.frustumCulled = false;
     this.scene.add(stars);
+    this.skyObjs.push(stars);
     const c = document.createElement('canvas');
     c.width = c.height = 128;
     const cg = c.getContext('2d')!;
@@ -264,10 +271,12 @@ export class Crater {
     moon.position.copy(MOON_DIR).multiplyScalar(260);
     moon.scale.setScalar(46);
     this.scene.add(moon);
+    this.skyObjs.push(moon);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.glow, color: 0x5fc8c0, fog: false, depthWrite: false, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending }));
     halo.position.copy(moon.position);
     halo.scale.setScalar(190);
     this.scene.add(halo);
+    this.skyObjs.push(halo);
   }
 
   /* ---- the ground: a fine ring of mesh for the floor and the wall, a coarse one for the forest beyond ---- */
@@ -1028,16 +1037,34 @@ export class Crater {
   /** (tests) hide the plants and the forest, so a computer with no graphics card can run a fight quickly */
   private heavy: THREE.Object3D[] = [];
   private lite = false;
+  /** the whole place, its sky too, comes and goes (the Fourth folds it away) */
+  setShown(on: boolean) {
+    this.shown = on;
+    this.group.visible = on && !this.lite && this.group.position.y > -25.9;
+    for (const o of this.skyObjs) o.visible = on;
+  }
+
+  /** the moon and the stars go out (k = 0) and come back (k = 1) */
+  dimSky(k: number) {
+    for (const o of this.skyObjs) {
+      const m = (o as THREE.Mesh).material as THREE.Material & { opacity: number };
+      if (!(o as THREE.Sprite).isSprite && !(o as THREE.Points).isPoints) continue;
+      if (m.userData['op0'] === undefined) m.userData['op0'] = m.opacity;
+      m.transparent = true;
+      m.opacity = m.userData['op0'] * k;
+    }
+  }
+
   setLite(on: boolean) {
     this.lite = on;
-    this.group.visible = !on && this.group.position.y > -25.9;
+    this.group.visible = this.shown && !on && this.group.position.y > -25.9;
     for (const o of this.heavy) o.visible = !on;
   }
 
   /** the world rises into place (u: 0 = far below and hidden, 1 = where it stands) */
   setRise(u: number) {
     const e = 1 - Math.pow(1 - Math.min(1, Math.max(0, u)), 3);
-    this.group.visible = u > 0.001 && !this.lite;
+    this.group.visible = this.shown && u > 0.001 && !this.lite;
     const y = -(1 - e) * 26;
     if (this.group.position.y !== y) {
       this.group.position.y = y;

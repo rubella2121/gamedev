@@ -79,6 +79,8 @@ export interface SpeakOpts {
   pan?: number;
   /** how much the pitch falls over the line (0..1) */
   fall?: number;
+  /** the rate of its roughness, Hz (34 is a growl; under 12 it judders, like something being wound) */
+  growl?: number;
 }
 
 const VOWEL: Record<string, F3> = {
@@ -564,7 +566,7 @@ export class Voice {
     am.gain.value = 1 - depth * 0.5;
     const amo = ctx.createOscillator();
     amo.type = 'square';
-    amo.frequency.value = 34;
+    amo.frequency.value = o.growl ?? 34;
     const amg = ctx.createGain();
     amg.gain.value = depth * 0.5;
     amo.connect(amg).connect(am.gain);
@@ -1075,5 +1077,82 @@ export class Voice {
     this.speak(line, { f0: 178, rate: 0.7, rough: 0.1, dist: 1.2, gain: 0.22, wet: 0.7, fall: 0.1, breath: 0.6, pan: 0.3 }, 0.04);
     this.speak(line, { f0: 90, rate: 0.74, rough: 0.5, dist: 3, gain: 0.3, wet: 0.7, fall: 0.2, breath: 0.2, pan: 0.0 }, 0.09);
     return a;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* The Fourth                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * It does not have one voice; it has the same voice at several moments. A breath says the line first (it has already said it),
+   * then the voice itself, very low and slow, juddering like something being wound, with another an octave under it that you
+   * feel more than hear; a thin cold echo of it comes after; and under all of it a slow clock ticks. Returns how long it lasts.
+   */
+  fourthSpeak(line: string): number {
+    const pre = 0.32;
+    // before: the whisper of it
+    this.speak(line, { f0: 150, rate: 0.6, rough: 0, breath: 1, dist: 1, gain: 0.16, wet: 0.95, fall: 0.05, pan: -0.45 });
+    // the voice, and the one under it
+    const main = this.speak(line, { f0: 44, rate: 0.6, rough: 0.55, growl: 9, breath: 0.2, dist: 6, gain: 0.66, wet: 0.7, fall: 0.5 }, pre);
+    this.speak(line, { f0: 29, rate: 0.6, rough: 0.3, growl: 6, breath: 0, dist: 9, gain: 0.34, wet: 0.45, fall: 0.5, pan: 0.1 }, pre + 0.015);
+    // after: a thin cold echo of it
+    this.speak(line, { f0: 98, rate: 0.6, rough: 0.7, growl: 23, breath: 0.6, dist: 2, gain: 0.12, wet: 1, fall: 0.3, pan: 0.5 }, pre + 0.42);
+    // a slow clock under it
+    const n = Math.max(2, Math.round((main + pre) * 1.6));
+    this.rattle({ n, gap: 0.62, f: 1100, f2: 700, q: 9, gain: 0.07, dur: 0.05, wet: 0.8, type: 'bandpass', spread: 0.1 });
+    // and the ground under that
+    this.vocal({ dur: main + pre + 0.6, pitch: [[0, 36], [1, 27]], wave: 'sine', sub: 0.8, body: 0.3, gain: 0.2, wet: 0.35, env: [0.4, 0.8], lp: 300 });
+    return main + pre;
+  }
+
+  /**
+   * Its roar is not an animal's. A cluster of throats a semitone apart drags down through the floor, juddering slowly, with
+   * a chime of something like glass high above it, and a long breath drawn in backwards before it.
+   */
+  fourthRoar() {
+    // the breath in
+    this.whisper({ dur: 0.9, gain: 0.14, wet: 0.9, rate: 14, pan: 0.3 });
+    this.vocal({
+      dur: 3.4,
+      delay: 0.75,
+      pitch: [[0, 78], [0.2, 64], [0.6, 46], [1, 26]],
+      formants: [[0, [520, 880, 2300]], [0.4, [430, 760, 2200]], [1, [300, 600, 1900]]],
+      q: 5,
+      rough: { hz: 8, depth: 0.95 },
+      vib: { hz: 0.7, cents: 60 },
+      jitter: 0.04,
+      breath: 0.3,
+      sub: 0.6,
+      body: 1,
+      dist: 7,
+      gain: 0.42,
+      wet: 0.85,
+      layers: [1, 1.059, 0.5, 0.749],
+      lp: 2600,
+    });
+    // something like glass, very high, not quite in tune with itself
+    this.bell(2960, 3.2, 0.05, { delay: 0.9, wet: 0.95, pan: -0.5 });
+    this.bell(3136, 3.0, 0.045, { delay: 0.95, wet: 0.95, pan: 0.5 });
+    this.rattle({ n: 7, gap: 0.42, f: 900, f2: 600, q: 9, gain: 0.08, dur: 0.05, delay: 1.0, wet: 0.8, type: 'bandpass', spread: 0.1 });
+  }
+
+  /** a shorter one: it closes again */
+  fourthGrowl() {
+    this.vocal({
+      dur: 1.6,
+      pitch: [[0, 52], [0.5, 46], [1, 32]],
+      formants: [[0, [460, 800, 2200]], [1, [320, 640, 2000]]],
+      q: 5,
+      rough: { hz: 7, depth: 0.9 },
+      breath: 0.25,
+      sub: 0.5,
+      body: 0.9,
+      dist: 6,
+      gain: 0.32,
+      wet: 0.75,
+      layers: [1, 1.059, 0.5],
+      lp: 2400,
+    });
+    this.rattle({ n: 3, gap: 0.45, f: 900, q: 9, gain: 0.06, dur: 0.05, wet: 0.8, type: 'bandpass', spread: 0.1 });
   }
 }

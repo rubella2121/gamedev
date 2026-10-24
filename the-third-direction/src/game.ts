@@ -31,6 +31,9 @@ export class Game {
   private act2!: Act2;
   private last = 0;
   private paused = false;
+  /** paused by the player (the pause button), and by the page being hidden */
+  private userPaused = false;
+  private sysPaused = false;
   private runStart = 0;
   private res = '';
   private showcaseRun = false;
@@ -76,6 +79,19 @@ export class Game {
 
     this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
     this.act2.onEnd = () => this.onEnd();
+    this.ui.onPause = () => this.pause();
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+        if (this.userPaused) this.resume();
+        else if (this.canPause()) this.pause();
+      }
+    });
+    // (where the driver can, shaders are built off the main thread: see Act2.prewarm)
+    this.act2.warmUp = (scene, camera) => {
+      if (this.renderer.extensions.has('KHR_parallel_shader_compile')) void this.renderer.compileAsync(scene, camera).catch(() => undefined);
+      else this.renderer.compile(scene, camera);
+    };
     this.act1.onBoom = () => this.beginBoom(0, true);
     // (the forest's glimpses of the 3D world are drawn through the tear itself now: see drawForest)
     this.act1.onTeaserFlash = null;
@@ -160,7 +176,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
-      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : this.playGlimpses()),
+      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : id === 'fourth' ? this.playFourth() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -264,12 +280,48 @@ export class Game {
     this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
   }
 
+  /** the page went to the background (or came back): the game stops while nobody can see it */
   private setPaused(p: boolean) {
-    this.paused = p;
+    this.sysPaused = p;
     // a trailer that was interrupted does not come back: it would be out of step with its music
     if (p && this.state === 'trailer') this.trailer.skip();
+    this.applyPause();
+  }
+
+  /** stopped if the page is hidden or the player paused (coming back to the page never undoes the player's pause) */
+  private applyPause() {
+    const p = this.sysPaused || this.userPaused;
+    if (p === this.paused) return;
+    this.paused = p;
     if (this.audio.ctx) void (p ? this.audio.ctx.suspend() : this.audio.ctx.resume());
     this.last = 0;
+  }
+
+  /** while you are playing (the forest, a 3D fight, the ending), not on the home page or the end card */
+  private canPause(): boolean {
+    return (this.state === 'act1' || this.state === 'boom' || this.state === 'arena' || this.state === 'ending') && !this.act1.previewMode;
+  }
+
+  /** the pause button, or P / Esc: everything stops, and the pause menu opens */
+  pause() {
+    if (this.userPaused || !this.canPause()) return;
+    this.userPaused = true;
+    this.applyPause();
+    this.ui.pauseButton(false);
+    this.ui.showPause({
+      onResume: () => this.resume(),
+      onHome: () => {
+        this.resume();
+        this.home();
+      },
+    });
+  }
+
+  resume() {
+    if (!this.userPaused) return;
+    this.userPaused = false;
+    this.ui.hidePause();
+    this.applyPause();
   }
 
   private begin() {
@@ -328,6 +380,13 @@ export class Game {
   playEnding() {
     this.showcase(this.act2.lastBoss);
     this.act2.skipToEnding();
+    this.state = 'arena';
+  }
+
+  /** New scenes: the last boss. The three are beaten and the family is together; then the Fourth comes. Not ranked. */
+  playFourth() {
+    this.showcase(this.act2.lastBoss);
+    this.act2.skipToFourth();
     this.state = 'arena';
   }
 
@@ -404,9 +463,23 @@ export class Game {
 
   /** Back to the home page (used by the end card). */
   home() {
+    // (from the end card, or from the pause menu in the middle of anything: a fight, a scene)
+    if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending') this.act2.stop();
     this.ui.narrateClear();
     this.ui.hideEnd();
     this.ui.hearts(null);
+    this.ui.light(null);
+    this.ui.bossBar(null);
+    this.ui.falls(null);
+    this.ui.hint(null);
+    this.ui.goal(null);
+    this.ui.skip(false);
+    this.ui.sub(null, null);
+    this.ui.widescreen(false);
+    this.ui.cinematic(false);
+    this.ui.fade(0, 0);
+    this.input.setAction(null);
+    this.input.setCharge(0, 0);
     this.ui.recenter(false);
     this.ui.moon(false);
     this.input.setCameraEnabled(false);
@@ -424,6 +497,7 @@ export class Game {
 
   private frame(now: number) {
     requestAnimationFrame((t) => this.frame(t));
+    this.ui.pauseButton(!this.paused && this.canPause());
     if (this.paused) return;
     const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 0.016;
     // (the 3D part tunes its resolution to the phone: see tuneRes)
