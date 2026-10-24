@@ -107,6 +107,7 @@ export class UI {
   private endCardEl: HTMLElement;
   private grain: HTMLCanvasElement;
   private grainOn = false;
+  private grainFrames: ImageData[] = [];
   private cineTimer = 0;
   /** the trailer is playing: no HUD, no hints, no story lines of the game itself */
   private mute = false;
@@ -161,8 +162,8 @@ export class UI {
     this.cineEl.innerHTML = '<div class="cvig"></div><div class="bar top"></div><div class="bar bot"></div>';
     this.grain = document.createElement('canvas');
     this.grain.className = 'cgrain';
-    this.grain.width = 72;
-    this.grain.height = 128;
+    this.grain.width = 270;
+    this.grain.height = 480;
     this.cineEl.appendChild(this.grain);
     this.cardEl2 = mk('tcard');
     this.endCardEl = mk('tend');
@@ -318,22 +319,29 @@ export class UI {
     }
   }
 
-  /** film grain: a tiny noise canvas redrawn a few times a second, scaled up and blended over the picture */
+  /** film grain: a few frames of fine noise, made once and cycled a few times a second, blended over the picture */
   private startGrain() {
     if (this.grainOn) return;
     this.grainOn = true;
     const g = this.grain.getContext('2d');
     if (!g) return;
-    const img = g.createImageData(this.grain.width, this.grain.height);
+    if (!this.grainFrames.length) {
+      for (let k = 0; k < 4; k++) {
+        const img = g.createImageData(this.grain.width, this.grain.height);
+        const d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const v = Math.random() * 255;
+          d[i] = d[i + 1] = d[i + 2] = v;
+          d[i + 3] = 255;
+        }
+        this.grainFrames.push(img);
+      }
+    }
+    let k = 0;
     window.clearInterval(this.cineTimer);
     this.cineTimer = window.setInterval(() => {
-      const d = img.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const v = Math.random() * 255;
-        d[i] = d[i + 1] = d[i + 2] = v;
-        d[i + 3] = 255;
-      }
-      g.putImageData(img, 0, 0);
+      k = (k + 1) % this.grainFrames.length;
+      g.putImageData(this.grainFrames[k]!, 0, 0);
     }, 70);
   }
 

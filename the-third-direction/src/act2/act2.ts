@@ -9,6 +9,7 @@ import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
 import { Cut, type CamKey } from './cut';
+import { SkyRift } from './rift';
 import { animateParent } from './family';
 import { DashPool } from '../core/dash';
 import { D } from '../core/difficulty';
@@ -329,6 +330,7 @@ export class Act2 {
     c.height = H;
     c.getContext('2d')!.drawImage(frame, 0, 0);
     a.setBelow(c);
+    this.skyRift().setFlat(c);
     this.camPos.set(0, 0, 15.36);
     this.camLook.set(0, 0, 0);
     a.camera.position.copy(this.camPos);
@@ -338,6 +340,7 @@ export class Act2 {
     this.ctx.ui.hearts(null);
     this.ctx.ui.light(null);
     this.ctx.ui.bossBar(null);
+    if (this.rift) this.rift.group.visible = false;
     if (cinematic) this.startIntro();
   }
 
@@ -1213,82 +1216,66 @@ export class Act2 {
   }
 
   /**
-   * The way into 3D, as a film: the last frame of the forest hangs in the dark as a flat sheet; the camera swings round until it is a
-   * line ("everything has a back now"); it tears, the Blob drops through the void, the arena builds itself under the fall, a hard
-   * landing, the claw tip swallowed, and then a look up: Mother and Father, in a cage. Mother shouts a warning. X.
+   * The way into 3D, as a film, picking up where the rift at the Edge left off: on the cage, close, the two of them in it. A cut to the
+   * floor: high above, the rift hangs open in the sky and the Blob falls out of it, tumbling, into the Crater. A hard landing; a
+   * piece of X's claw comes through after it and is swallowed. Over its shoulder, the cage. "I'm coming." The rift flares red: X
+   * is coming through. Mother: "Behind you!" And X.
    */
   private startIntro() {
     const a = this.arena;
     const { ui, audio } = this.ctx;
-    const Y = 46;
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-    this.cubeGroup.position.set(0, Y, 0);
+    this.cubeGroup.visible = false;
+    a.setRise(1);
     a.player.visible = false;
-    a.setRise(0);
-    const orbit = (ang: number, r: number, up: number) => V(Math.sin(ang) * r, Y + up, Math.cos(ang) * r);
+    a.showPlayerClaw(0);
+    const rift = this.skyRift().group;
+    const RIFT = V(3, 30, -6);
+    rift.position.copy(RIFT);
+    rift.visible = true;
     const blob = () => a.player.position.clone();
     const L = STORY.cut.intro;
     const cage = () => this.cageLook();
     const keys: CamKey[] = [
-      { t: 0, pos: V(0, Y, 15.36), look: V(0, Y, 0), fov: 64 },
-      { t: 0.7, pos: V(0, Y, 15.36), look: V(0, Y, 0), fov: 64 },
-      { t: 2.0, pos: orbit(0.7, 19, 1.5), look: V(0, Y, 0), fov: 58 },
-      { t: 3.3, pos: orbit(1.5, 23, 2.2), look: V(0, Y, 0), fov: 54 },
-      // the fall: the camera falls with the Blob
-      { t: 3.45, cut: true, pos: () => blob().add(V(4.2, 2.6, 7.5)), look: blob, fov: 62 },
-      { t: 5.95, pos: () => blob().add(V(6.5, 5.0, 9.5)), look: blob, fov: 66 },
-      // the landing: low, close, then easing in
-      { t: 6.0, cut: true, pos: V(2.8, 0.55, START_Z + 4.4), look: V(0, 0.95, START_Z), fov: 58 },
-      { t: 8.0, pos: V(1.7, 0.9, START_Z + 3.7), look: V(0, 1.05, START_Z), fov: 52 },
-      // over the shoulder, up at something hanging in the dark
-      { t: 8.05, cut: true, pos: V(-1.7, 1.7, START_Z + 4.6), look: cage, fov: 52 },
-      { t: 9.6, pos: V(-1.3, 1.45, START_Z + 3.9), look: cage, fov: 40 },
-      // close on the cage
-      { t: 9.65, cut: true, pos: () => cage().add(V(-5.2, -0.6, 13.5)), look: cage, fov: 44 },
-      { t: 11.2, pos: () => cage().add(V(-4.2, -0.2, 11.2)), look: cage, fov: 42 },
+      // where the rift's own picture ended: the cage, close
+      { t: 0, pos: () => cage().add(V(-2.9, -0.55, 9.1)), look: cage, fov: 44 },
+      { t: 0.55, pos: () => cage().add(V(-2.75, -0.45, 8.6)), look: cage, fov: 44 },
+      // from the floor, up: it falls out of the sky
+      { t: 0.6, cut: true, pos: V(5.5, 1.6, START_Z + 9), look: () => blob().add(V(0, 0.6, 0)), fov: 62 },
+      { t: 2.45, pos: V(4.5, 1.3, START_Z + 7.5), look: () => blob().add(V(0, 0.8, 0)), fov: 56 },
+      // the landing: low, close
+      { t: 2.5, cut: true, pos: V(2.8, 0.55, START_Z + 4.4), look: V(0, 0.95, START_Z), fov: 58 },
+      { t: 4.3, pos: V(1.7, 0.9, START_Z + 3.7), look: V(0, 1.05, START_Z), fov: 52 },
+      // over its shoulder, to the cage
+      { t: 4.35, cut: true, pos: V(-1.5, 2.5, START_Z + 4.3), look: cage, fov: 52 },
+      { t: 5.8, pos: V(-1.15, 2.3, START_Z + 3.7), look: cage, fov: 42 },
+      // the rift flares: he is coming through after you
+      { t: 5.85, cut: true, pos: V(0.5, 3.2, START_Z + 9), look: RIFT.clone(), fov: 60 },
+      { t: 7.2, pos: V(0.3, 2.6, START_Z + 7.5), look: RIFT.clone().add(V(0, -3, 0)), fov: 56 },
     ];
     let landed = false;
+    let flare = 0;
     const c = new Cut(
-      11.2,
+      7.2,
       keys,
       [
         { at: 0.25, fn: (s) => !s && audio.rumble() },
         {
           at: 0.6,
           fn: (s) => {
-            if (s) return;
-            audio.boom();
-            ui.flash(0.5, 450);
-            this.shake = 0.8;
-          },
-        },
-        { at: 0.95, fn: (s) => this.line(L.apart, s) },
-        { at: 2.6, fn: (s) => this.line(L.back, s) },
-        {
-          at: 3.4,
-          fn: (s) => {
-            // it tears: the picture flies apart and the Blob drops through it
-            if (!s) {
-              audio.slam();
-              audio.crumble();
-              this.shake = 0.6;
-            }
-            for (const d of this.cubeData) {
-              const r = Math.hypot(d.x, d.y) || 1;
-              const sp = 30 + Math.random() * 90;
-              d.vx = (d.x / r) * sp + (Math.random() - 0.5) * 40;
-              d.vy = (d.y / r) * sp * 0.7 + Math.random() * 60;
-              d.vz = (Math.random() - 0.5) * 260;
-            }
             a.player.visible = true;
+            if (s) return;
+            audio.whoosh();
+            ui.flash(0.35, 260);
           },
         },
+        { at: 1.0, fn: (s) => this.line(L.back, s) },
         {
-          at: 6.0,
+          at: 2.5,
           fn: (s) => {
             landed = true;
             if (s) return;
-            a.burst3(0, 0.2, START_Z, 18, [0x3a2a62, 0x46346f, 0xf2d36b], 6);
+            a.burst3(0, 0.2, START_Z, 18, [0x3a2f22, 0x356a4c, 0xf2d36b], 6);
             audio.hit();
             audio.thump(1);
             ui.flash(0.25, 250);
@@ -1296,7 +1283,7 @@ export class Act2 {
           },
         },
         {
-          at: 7.4,
+          at: 3.7,
           fn: (s) => {
             this.shard.visible = false;
             if (s) return;
@@ -1307,23 +1294,37 @@ export class Act2 {
             a.burst3(0.2, 1.1, START_Z + 0.2, 10, [0xf4efe0, 0x120a1c, 0xff2a40], 3);
           },
         },
-        { at: 7.7, fn: (s) => this.line(L.swallow, s) },
-        { at: 8.5, fn: (s) => this.line(L.see, s) },
-        { at: 9.9, fn: (s) => this.line(L.warn, s) },
-        { at: 10.4, fn: (s) => !s && audio.rumble() },
+        { at: 3.9, fn: (s) => this.line(L.swallow, s) },
+        { at: 4.6, fn: (s) => this.line(L.coming, s) },
+        {
+          at: 5.85,
+          fn: (s) => {
+            flare = 1;
+            if (s) return;
+            audio.v.xRoar();
+            audio.rumble();
+            this.shake = 0.8;
+          },
+        },
+        { at: 6.2, fn: (s) => this.line(L.behind, s) },
       ],
       () => {
         // X: the boss's own entrance takes it from here
         this.cubeGroup.visible = false;
         this.shard.visible = false;
+        rift.visible = false;
         a.setRise(1);
+        a.player.visible = true;
         a.player.position.set(0, 0, START_Z);
+        a.player.rotation.set(0, 0, 0);
+        a.player.scale.setScalar(1);
         a.showPlayerClaw(1);
         this.camPos.copy(BOOM_POS);
         this.camLook.copy(BOOM_LOOK);
         ui.flash(0.95, 700);
         audio.sting();
-        this.startBoss(2600);
+        // (his name card waits for the game's own title to go: 0.4s + 2.6s)
+        this.startBoss(3100);
         this.shake = 1.2;
         window.setTimeout(() => {
           ui.title();
@@ -1331,44 +1332,38 @@ export class Act2 {
         }, 400);
       },
       (t, dt) => {
-        // the sheet trembles, then flies apart and shrinks away
-        if (t < 3.4) {
-          const k = t > 0.6 ? 0.06 : 0.02;
-          this.cubeGroup.position.set((Math.random() - 0.5) * k, Y + (Math.random() - 0.5) * k, 0);
-        } else {
-          this.layoutCubes(dt);
-          const fade = unlerp(4.6, 6.2, t);
-          if (fade > 0) for (const d of this.cubeData) d.s = Math.max(0.001, 1 - fade);
-          if (t > 6.3) this.cubeGroup.visible = false;
-        }
-        // the fall: from the hole in the sheet down onto the floor that builds itself under it
-        a.setRise(smooth(unlerp(4.0, 5.9, t)));
+        // the rift in the sky: it faces you, breathes, and flares red when he comes
+        rift.quaternion.copy(a.camera.quaternion);
+        const pulse = 1 + 0.03 * Math.sin(t * 5);
+        rift.scale.setScalar((t < 0.6 ? 0.6 + t : 1.2) * pulse * (1 + flare * 0.35 * Math.min(1, (t - 5.85) * 2)));
+        this.skyRift().update(this.time, flare > 0 ? Math.min(1, (t - 5.85) * 1.5) : 0);
+        // the fall: out of the rift, tumbling, down onto the floor
         const p = a.player;
-        if (t >= 3.4 && !landed) {
-          const u = Math.min(1, (t - 3.4) / 2.6);
-          p.position.set(0, (Y - 1) * (1 - u * u), lerp(1.2, START_Z, smooth(u)));
-          p.rotation.set(u * 7.5, Math.PI * 0.2, u * 2);
+        if (t >= 0.6 && !landed) {
+          const u = Math.min(1, (t - 0.6) / 1.9);
+          p.position.set(lerp(RIFT.x, 0, u), RIFT.y * (1 - u * u), lerp(RIFT.z, START_Z, smooth(u)));
+          p.rotation.set(u * 6.5, Math.PI * 0.2, u * 2);
         } else if (landed) {
-          if (t < 6.05) a.jellyKick(-0.9);
+          if (t < 2.55) a.jellyKick(-0.9);
           p.position.set(0, 0, START_Z);
-          // it faces us, then turns to the thing in the sky
-          const turn = smooth(unlerp(7.9, 8.4, t));
+          // it faces us, then turns to the cage
+          const turn = smooth(unlerp(4.1, 4.5, t));
           p.rotation.set(0, lerp(0, Math.atan2(a.cage.hang.x, a.cage.hang.z - START_Z), turn), 0);
-          const squash = t < 6.5 ? 1 - (6.5 - t) * 0.6 : 1;
+          const squash = t < 3.0 ? 1 - (3.0 - t) * 0.6 : 1;
           p.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
         }
-        if (t >= 6.6) p.scale.setScalar(1);
+        if (t >= 3.1) p.scale.setScalar(1);
         a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
-        // the claw tip comes flying in, and is swallowed
-        if (t >= 6.7 && t < 7.4) {
+        // a piece of his claw comes through after you, and is swallowed
+        if (t >= 3.0 && t < 3.7) {
           this.shard.visible = true;
-          const u2 = unlerp(6.7, 7.4, t);
-          this.shard.position.set(lerp(0, 0.2, u2), lerp(14, 1.1, u2 * u2), lerp(BOSS_Z + 4, START_Z + 0.2, u2));
+          const u2 = unlerp(3.0, 3.7, t);
+          this.shard.position.set(lerp(RIFT.x, 0.2, u2), lerp(RIFT.y, 1.1, u2 * u2), lerp(RIFT.z, START_Z + 0.2, u2));
           this.shard.rotation.set(u2 * 9, u2 * 5, 0);
         }
-        a.showPlayerClaw(t >= 7.4 ? easeOutBack(Math.min(1, (t - 7.4) / 0.7)) : 0);
+        a.showPlayerClaw(t >= 3.7 ? easeOutBack(Math.min(1, (t - 3.7) / 0.7)) : 0);
         // the moth finds you after the landing
-        if (t >= 7.9) {
+        if (t >= 4.3) {
           this.mothP.lerp(new THREE.Vector3(1.5, 2.4, START_Z - 0.8), 1 - Math.exp(-4 * dt));
           a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true);
         }
@@ -1376,6 +1371,16 @@ export class Act2 {
     );
     this.mothP.set(-6, 9, START_Z - 6);
     this.playCut(c);
+  }
+
+  /** the rift in the sky the Blob falls out of (made the first time it is needed) */
+  private rift: SkyRift | null = null;
+  private skyRift(): SkyRift {
+    if (!this.rift) {
+      this.rift = new SkyRift();
+      this.arena.world.add(this.rift.group);
+    }
+    return this.rift;
   }
 
   /** a boss has fallen: its lock on the cage breaks, and the family speaks (i = 0 after X, 1 after The Collector) */
@@ -1714,6 +1719,105 @@ export class Act2 {
     a.camera.lookAt(BOOM_LOOK);
     a.update(0, this.time);
   }
+
+  /* ---------------------------------------------------------------- */
+  /* glimpses: the 3D world seen through a tear in the forest          */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Get the Crater ready to be glimpsed from the forest (see game.ts, which draws it through the tear). The shots come closer each
+   * time a guardian falls: the crater in its mist, the Moonwell, the cage far up, X himself, Mother's face; and at the Edge, the
+   * portal: the cage close, the two of them in it.
+   */
+  prepareGlimpse(shot: number) {
+    const a = this.arena;
+    if (this.cut) this.endCut(false);
+    this.cubeGroup.visible = false;
+    this.shard.visible = false;
+    a.cage.reset();
+    a.cage.auto = true;
+    a.cage.drop = 0;
+    a.setRise(1);
+    a.player.visible = false;
+    a.moth.visible = false;
+    for (const b of this.bosses) b.hide();
+    a.hideShadow();
+    a.marks.hideAll();
+    a.lanes.forEach((l) => (l.visible = false));
+    a.pinned.forEach((m) => (m.visible = true));
+    a.setClearing(0);
+    a.tint(0);
+    a.setRedLight(0);
+    this.warm.visible = false;
+    this.lights.forEach((l) => (l.visible = false));
+    this.features.show(false);
+    this.glimpseShot = shot;
+    // X, if he is built: towering at the far side, his eyes on you
+    if (shot === 4) {
+      const x = this.bosses[0] as XBoss;
+      if (x.ready()) {
+        x.show();
+        x.model.root.position.y = -3.5;
+        x.model.setWide(1);
+        x.model.lookAt(0, 2, 6);
+      } else this.glimpseShot = 1;
+    }
+  }
+
+  /** move the glimpse on: `u` 0..1 through it (the camera drifts), `dt` for whatever lives in the Crater */
+  glimpse(u: number, dt: number) {
+    const a = this.arena;
+    this.time += dt;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const cage = a.cage.world.add(V(0, 1.7, 0));
+    const e = smooth(u);
+    let pos: THREE.Vector3;
+    let look: THREE.Vector3;
+    let fov = 50;
+    switch (this.glimpseShot) {
+      case 1:
+        pos = V(2, 7.5, 30).lerp(V(0, 6.6, 26), e);
+        look = V(0, 2.5, -8);
+        break;
+      case 2:
+        pos = V(-7.6, 2.6, 7.2).lerp(V(-9.2, 2.6, 5.2), e);
+        look = V(-18.6, 1.5, -5.5);
+        break;
+      case 3:
+        pos = V(1.5, 1.3, 8).lerp(V(1.1, 1.5, 6.6), e);
+        look = cage;
+        fov = 46;
+        break;
+      case 4: {
+        pos = V(0.5, 5.5, 5).lerp(V(0, 6.2, 2.5), e);
+        look = V(0, 12.5, -27.5);
+        fov = 58;
+        const x = this.bosses[0] as XBoss;
+        if (x.ready()) x.model.update(dt, this.time);
+        break;
+      }
+      case 5: {
+        const m = a.cage.mother.g.getWorldPosition(new THREE.Vector3()).add(V(0, 1.1, 0));
+        pos = m.clone().add(V(-1.7, 0.35, 4.8).lerp(V(-1.3, 0.45, 4.0), e));
+        look = m;
+        fov = 40;
+        break;
+      }
+      default:
+        // the portal at the Edge: the cage, close, and the two of them in it
+        pos = cage.clone().add(V(-3.1, -0.7, 10).lerp(V(-2.7, -0.4, 8.2), e));
+        look = cage;
+        fov = 44;
+    }
+    // (a tall screen sees as much width as a wide one would: see update)
+    const asp = Math.min(1, a.camera.aspect);
+    a.camera.fov = Math.min(92, (2 * Math.atan(Math.tan((fov * Math.PI) / 360) / Math.pow(asp, 0.85)) * 180) / Math.PI);
+    a.camera.updateProjectionMatrix();
+    a.camera.position.copy(pos);
+    a.camera.lookAt(look);
+    a.update(dt, this.time);
+  }
+  private glimpseShot = 1;
 
   /** Debug / showcase: skip straight to the start of a boss's fight (and a phase of it). */
   /** The trailer: the arena stands risen and the boss's entrance begins, `skip` seconds in, with no HUD and no name card. */

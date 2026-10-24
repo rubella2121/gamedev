@@ -1,3 +1,4 @@
+import { PortalLayer } from './cinematic/portal';
 import * as THREE from 'three';
 import { Act2 } from './act2/act2';
 import { Forest } from './forest/forest';
@@ -31,7 +32,6 @@ export class Game {
   private last = 0;
   private paused = false;
   private runStart = 0;
-  private flash3D = 0;
   private res = '';
   private showcaseRun = false;
   private trailer!: Trailer;
@@ -77,10 +77,9 @@ export class Game {
     this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
     this.act2.onEnd = () => this.onEnd();
     this.act1.onBoom = () => this.beginBoom(0, true);
-    this.act1.onTeaserFlash = () => {
-      this.act2.prepareTeaser();
-      this.flash3D = 0.2;
-    };
+    // (the forest's glimpses of the 3D world are drawn through the tear itself now: see drawForest)
+    this.act1.onTeaserFlash = null;
+    this.scene2d.add(this.portal.mesh);
     this.trailer = new Trailer({
       ui: this.ui,
       audio: this.audio,
@@ -212,13 +211,49 @@ export class Game {
       this.fastT += dt;
       this.slowT = 0;
     } else this.slowT = this.fastT = 0;
-    if (this.slowT > 1.5 && this.hdBudget > W * H) {
-      this.hdBudget = Math.max(W * H, this.hdBudget * 0.7);
+    // (never below twice the forest's own size: the 3D part should not look like pixel art, even on a slow phone)
+    if (this.slowT > 1.5 && this.hdBudget > 4 * W * H) {
+      this.hdBudget = Math.max(4 * W * H, this.hdBudget * 0.7);
       this.slowT = 0;
     } else if (this.fastT > 4 && this.hdBudget < 1.2e6) {
       this.hdBudget = Math.min(1.2e6, this.hdBudget * 1.25);
       this.fastT = 0;
     }
+  }
+
+  /** the 3D world, through the forest */
+  private portal = new PortalLayer(W, H);
+  private glimpseShot = -1;
+
+  /**
+   * The forest. When it is torn open (a guardian has just fallen, or the rift at the Edge), the screen is drawn at its real
+   * resolution: the forest stays crisp pixel art, and through the opening the real 3D world shows, smooth and deep.
+   */
+  private drawForest(dt: number) {
+    const pv = this.state === 'act1' ? this.act1.portalView() : null;
+    if (!pv) {
+      if (this.glimpseShot >= 0) {
+        this.glimpseShot = -1;
+        this.portal.set(null, 0);
+      }
+      this.setRes(1);
+      this.act1.render();
+      this.tex2d.needsUpdate = true;
+      this.renderer.render(this.scene2d, this.cam2d);
+      return;
+    }
+    this.setRes('hd');
+    if (pv.shot !== this.glimpseShot) {
+      this.glimpseShot = pv.shot;
+      this.act2.prepareGlimpse(pv.shot);
+    }
+    this.act2.glimpse(pv.u, dt);
+    if (this.act2.arena.takeShadowDirty()) this.renderer.shadowMap.needsUpdate = true;
+    this.portal.capture(this.renderer, this.act2.arena.scene, this.act2.arena.camera);
+    this.act1.render();
+    this.tex2d.needsUpdate = true;
+    this.portal.set(pv.view, performance.now() / 1000);
+    this.renderer.render(this.scene2d, this.cam2d);
   }
 
   /** draw the 3D part (and its shadows, when the Crater asks for them) */
@@ -269,6 +304,18 @@ export class Game {
         if (r && r.rank) rankEl.innerHTML = `rank <b>#${r.rank}</b>${r.total ? ` of ${r.total}` : ''}`;
       });
     }
+  }
+
+  /** Debug: go to the Edge of the forest (every guardian down), where X comes down and the rift opens. */
+  debugEdge() {
+    this.begin();
+    this.act1.skipOpening();
+    this.act1.debugEdge();
+  }
+
+  /** Debug: the glimpse of the 3D world that follows the `n`th guardian (1..5), right now. */
+  debugGlimpse(n: number) {
+    this.act1.debugGlimpse(n);
   }
 
   /** Debug: jump to the boom (builds a fake edge frame first). */
@@ -376,15 +423,7 @@ export class Game {
         this.renderer.clear();
       }
     } else if (this.state === 'act1' || this.state === 'menu' || this.state === 'splash') {
-      this.setRes(1);
-      this.act1.render();
-      this.tex2d.needsUpdate = true;
-      if (this.flash3D > 0) {
-        this.flash3D -= dt;
-        this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
-      } else {
-        this.renderer.render(this.scene2d, this.cam2d);
-      }
+      this.drawForest(dt);
     }
   }
 

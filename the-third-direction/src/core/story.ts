@@ -157,6 +157,20 @@ export const STORY = {
     at(9.6, thought('I want to see.', 1700)),
   ] as readonly Timed[],
 
+  /**
+   * The Edge, the way into 3D: the stars open (they were his eyes), X comes down into the flat world, and a short fight that cannot
+   * be won. When he has you, Mother calls; you look up, the sky tears open on the real world, and you run into it.
+   */
+  edgeFight: {
+    open: [at(0.4, world('the forest ends.', 1600)), at(2.3, world('the stars are blinking out, one by one.', 2300)), at(4.6, thought('They were never stars.', 1900))] as readonly Timed[],
+    /** X speaks (his own voice, on screen as a caption) */
+    x: { hello: 'there you are.', mid: 'hold still, little line.', late: 'so flat. so small.', pin: 'stay.' },
+    through: thought('My light goes straight through him.', 2200),
+    look: warm('Look up!', 2200),
+    see: thought('Mother? Father?', 1900),
+    run: warm('Run to us!', 2200),
+  },
+
   /* ------------------------------ the boom ------------------------------ */
 
   /** in seconds from the moment the boom begins (the white flash is at 0.55, you land at 2.2, the claw tip hits at 4.3) */
@@ -190,12 +204,12 @@ export const STORY = {
    * Collector's cage: they speak in the present now, not as memories.
    */
   cut: {
+    /** through the rift: the fall into the Crater, the landing, the cage, and X coming after */
     intro: {
-      apart: { who: null, text: 'the world comes apart.', ms: 2200 },
-      back: { who: 'The Blob', text: 'Everything has a back now.', ms: 2400 },
+      back: { who: 'The Blob', text: 'Everything has a back now.', ms: 2200 },
       swallow: { who: 'The Blob', text: 'I swallowed a piece of him.', ms: 2200 },
-      see: { who: 'The Blob', text: 'Mother? Father?', ms: 1800 },
-      warn: { who: 'Mother', text: "Don't look up!", ms: 1600 },
+      coming: { who: 'The Blob', text: "I'm coming.", ms: 1800 },
+      behind: { who: 'Mother', text: 'Behind you!', ms: 1600 },
     },
     /** when a boss falls, its lock on the cage breaks: [after X, after The Collector] */
     locks: [
@@ -221,7 +235,7 @@ export const STORY = {
       moon: { who: null, text: 'the moon blinks. the moth is home.', ms: 2600 },
     },
   } as {
-    intro: Record<'apart' | 'back' | 'swallow' | 'see' | 'warn', SubLine>;
+    intro: Record<'back' | 'swallow' | 'coming' | 'behind', SubLine>;
     locks: SubLine[][];
     ending: Record<'last' | 'mother' | 'blob' | 'flicker' | 'home' | 'touch' | 'grows' | 'look' | 'can' | 'moon', SubLine>;
   },
