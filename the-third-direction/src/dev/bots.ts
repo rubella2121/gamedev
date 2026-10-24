@@ -59,6 +59,17 @@ export function installBots(game: Game) {
         if (Math.hypot(x - bx, y - by) < 16) d += 8;
       }
       if (g.mode === 'spin' && Math.hypot(x - g.x, (y - g.y) / 0.8) < 60) d += 12;
+      // the lunge: its line while it shows, and its path while he runs it
+      if ((g.mode === 'windup' && g.attack === 'lunge') || g.mode === 'lunge') {
+        const L = g.lunge;
+        const ex = L.ex + g.face * 46;
+        const ey = L.ey;
+        const vx = ex - L.sx;
+        const vy = ey - L.sy;
+        const l2 = vx * vx + vy * vy || 1;
+        const u = Math.max(0, Math.min(1, ((x - L.sx) * vx + (y - L.sy) * vy) / l2));
+        if (Math.hypot(x - (L.sx + vx * u), y - (L.sy + vy * u)) < 30) d += 10;
+      }
     } else if (name === 'Toll Queen') {
       if (g.mode === 'dive') {
         const bx = g.qx + g.dive.dx * 290 * ahead;
@@ -300,6 +311,9 @@ export function installBots(game: Game) {
       else if (Math.hypot(p.x - w.x, p.y - w.y) < 200 && Math.hypot(p.x - g.x, p.y - g.y) > 90) lanceAt(w.x, w.y);
       return { goal: [g.x + (p.x > g.x ? 46 : -46), g.y + 6] };
     }
+    // caged: out through the gap
+    const c = g.cage;
+    if (c && Math.hypot((p.x - c.x) / 36, (p.y - c.y) / 26) < 1.1) return { goal: [c.x + Math.cos(c.gap) * 70, c.y + Math.sin(c.gap) * 50] };
     // the wheel: stand well off
     if (g.mode === 'spin' || (g.mode === 'windup' && g.attack === 'wheel')) {
       const ax = p.x - g.x;
