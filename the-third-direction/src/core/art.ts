@@ -523,7 +523,7 @@ export function updateParticles(list: Particle[], dt: number) {
   }
 }
 
-export function drawParticles(p: Pix, list: Particle[], camY: number, camX = 0) {
+export function drawParticles(p: Pix, list: Particle[], camX: number, camY: number) {
   for (const q of list) {
     const a = clamp(q.life / q.max, 0, 1);
     p.alpha(a < 0.35 ? a * 2.5 : 1);
