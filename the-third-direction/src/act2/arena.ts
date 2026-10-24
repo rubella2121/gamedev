@@ -162,6 +162,10 @@ export class Arena {
   readonly cage = new Cage();
   private mothModel!: Moth3D;
   private mothYaw = 0;
+  /** where it was last frame, and how fast it is going (smoothed), to face the way it flies */
+  private mothLast = new THREE.Vector3();
+  private mothLastT = -1;
+  private mothVel = new THREE.Vector2();
   private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
 
@@ -502,12 +506,28 @@ export class Arena {
     this.moth.visible = show;
     const bob = Math.sin(t * 3) * 0.12 * (1 - calm);
     this.moth.position.set(x, y + bob, z);
-    // it turns to look at you (the camera), a little lazily
+    const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+    const dt = t - this.mothLastT;
+    const step = this.mothLastT >= 0 && dt > 0 && dt < 0.5;
+    if (step) {
+      const k = 1 - Math.exp(-6 * dt);
+      this.mothVel.x += ((x - this.mothLast.x) / dt - this.mothVel.x) * k;
+      this.mothVel.y += ((z - this.mothLast.z) / dt - this.mothVel.y) * k;
+    }
+    this.mothLast.set(x, y, z);
+    this.mothLastT = t;
+    // hovering, it looks the way you look (away from the camera), gazing about, and every so often glances back at you;
+    // flying, it faces where it is going
     const cam = this.camera.position;
-    const want = Math.atan2(cam.x - x, cam.z - z);
-    let d = want - this.mothYaw;
-    d = Math.atan2(Math.sin(d), Math.cos(d));
-    this.mothYaw += d * 0.12;
+    const away = Math.atan2(x - cam.x, z - cam.z);
+    const ph = (t % 9) / 9;
+    const glance = ph > 0.86 ? Math.sin(((ph - 0.86) / 0.14) * Math.PI) : 0;
+    const idle = away + Math.sin(t * 0.37) * 0.8 + Math.sin(t * 0.91 + 1) * 0.3 + glance * 2.6;
+    const sp = this.mothVel.length();
+    const fly = Math.atan2(this.mothVel.x, this.mothVel.y);
+    const w = Math.min(1, Math.max(0, (sp - 0.6) / 1.4));
+    const want = idle + wrap(fly - idle) * w;
+    if (step) this.mothYaw += wrap(want - this.mothYaw) * (1 - Math.exp(-6 * dt));
     const m = this.mothModel;
     m.root.rotation.set(-0.12 + Math.cos(t * 3) * 0.08 * (1 - calm), this.mothYaw, Math.sin(t * 1.7) * 0.06);
     // the wingbeat: the forewings lead, the hindwings follow a beat behind and beat less
