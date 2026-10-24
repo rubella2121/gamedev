@@ -341,13 +341,41 @@ export function installBots(game: Game) {
       }
       return { goal: [p.x, p.y], stand: true };
     }
+    // a ring coming: walk to its gap, at the distance you are now (what a person does: find the gap and wait in it)
+    const FL = 0.72;
+    let next: Any = null;
+    let nd = 1e9;
+    for (const h of g.hz.list) {
+      if (h.kind !== 'ring' || !h.gap) continue;
+      const R = g.hz.ringR(h);
+      const d = Math.hypot(p.x - h.x, (p.y - h.y) / FL);
+      if (d > R - 2 && d - R < nd) {
+        nd = d - R;
+        next = h;
+      }
+    }
+    if (next && nd < 150) {
+      const d = Math.max(60, Math.hypot(p.x - next.x, (p.y - next.y) / FL));
+      const gx = clamp(next.x + Math.cos(next.gap.a) * d, A.x - 120, A.x + 120);
+      const gy = clamp(next.y + Math.sin(next.gap.a) * d * FL, A.y - 30, A.y + 180);
+      return { goal: [gx, gy] };
+    }
     if (g.mode === 'toll' || g.mode === 'stagger' || g.mode === 'rise') return { goal: [clamp(g.qx, A.x - 50, A.x + 50), g.qy + 96] };
     if (g.mode === 'crash' && !g.hitDone) {
       const d = Math.hypot(p.x - g.qx, (p.y - g.qy) / 0.8);
       if (d <= 36 + 30 - 8) pulse();
       return { goal: [g.qx, g.qy + 18] };
     }
-    if (g.mode === 'warn' || g.mode === 'dive') return { goal: [p.x, p.y] };
+    if (g.mode === 'warn' || g.mode === 'dive') {
+      // out of her lane, sideways, the way with more room (what a person does when the gold line appears)
+      const d = g.dive;
+      const px = -d.dy;
+      const py = d.dx;
+      const side = (p.x - g.qx) * px + (p.y - g.qy) * py >= 0 ? 1 : -1;
+      const gx = clamp(p.x + px * side * 48, A.x - 110, A.x + 110);
+      const gy = clamp(p.y + py * side * 48, A.y - 20, A.y + 170);
+      return { goal: [gx, gy] };
+    }
     return { goal: [p.x, p.y], stand: true };
   }
 
