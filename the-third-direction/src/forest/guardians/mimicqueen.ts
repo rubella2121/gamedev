@@ -18,6 +18,11 @@ import { whip } from './draw';
  */
 
 const ACCENT = '#ff8aa8';
+/** how far in front of her the lure lies when it falls (it used to lie at her mouth, a long way from where the pull left you) */
+const LURE_DOWN = 30;
+/** how close a Lance or a pulse must come to the fallen lure */
+const LURE_LANCE_R = 22;
+const LURE_PULSE_R = 32;
 const PETAL = '#7fd8f5';
 
 type Step =
@@ -31,9 +36,9 @@ type Step =
   | { k: 'exposed'; secs: number };
 
 const SCRIPTS: Step[][] = [
-  [{ k: 'seeds', n: 4 }, { k: 'wait', secs: 1.2 }, { k: 'rings', n: 3 }, { k: 'wait', secs: 0.9 }, { k: 'pull', secs: 1.9, spd: 40 }, { k: 'exposed', secs: 3.0 }],
-  [{ k: 'seeds', n: 5 }, { k: 'spiral', secs: 3.4 }, { k: 'vines', n: 3 }, { k: 'wait', secs: 0.8 }, { k: 'pull', secs: 2.1, spd: 46, extra: 'ring' }, { k: 'exposed', secs: 2.8 }],
-  [{ k: 'seeds', n: 6 }, { k: 'fan', n: 3 }, { k: 'rings', n: 2 }, { k: 'vines', n: 4 }, { k: 'pull', secs: 2.3, spd: 52, extra: 'vines' }, { k: 'exposed', secs: 2.4 }],
+  [{ k: 'seeds', n: 4 }, { k: 'wait', secs: 1.2 }, { k: 'rings', n: 3 }, { k: 'wait', secs: 0.9 }, { k: 'pull', secs: 1.9, spd: 40 }, { k: 'exposed', secs: 4.4 }],
+  [{ k: 'seeds', n: 5 }, { k: 'spiral', secs: 3.4 }, { k: 'vines', n: 3 }, { k: 'wait', secs: 0.8 }, { k: 'pull', secs: 2.1, spd: 46, extra: 'ring' }, { k: 'exposed', secs: 4.2 }],
+  [{ k: 'seeds', n: 6 }, { k: 'fan', n: 3 }, { k: 'rings', n: 2 }, { k: 'vines', n: 4 }, { k: 'pull', secs: 2.3, spd: 52, extra: 'vines' }, { k: 'exposed', secs: 3.8 }],
 ];
 
 interface Bloom {
@@ -175,8 +180,9 @@ export class MimicQueen extends Guardian {
     this.bloomT += dt;
     // the lure sways; it glows when it is about to pull
     const sway = Math.sin(this.t * 2.2) * 3;
+    // (exposed, her lure falls forward onto the ground in front of her, toward you: close enough to reach in time)
     const tx = this.exposed ? this.qx - 6 : this.pulling ? this.qx - 3 + Math.sin(this.t * 6) * 7 : this.qx - 8 + sway;
-    const ty = this.exposed ? this.qy - 14 : this.pulling ? this.qy - 56 + Math.cos(this.t * 7) * 3 : this.qy - 66 + Math.cos(this.t * 2.6) * 2;
+    const ty = this.exposed ? this.qy + LURE_DOWN : this.pulling ? this.qy - 56 + Math.cos(this.t * 7) * 3 : this.qy - 66 + Math.cos(this.t * 2.6) * 2;
     this.lure.x += (tx - this.lure.x) * (1 - Math.exp(-(this.exposed ? 7 : 12) * dt));
     this.lure.y += (ty - this.lure.y) * (1 - Math.exp(-(this.exposed ? 7 : 12) * dt));
     this.lure.glow += ((this.pulling ? 1.3 : this.exposed ? 1 : 0.55) - this.lure.glow) * (1 - Math.exp(-6 * dt));
@@ -219,6 +225,11 @@ export class MimicQueen extends Guardian {
       this.pulling = false;
       this.exposed = true;
       this.hitDone = false;
+      if (this.downN < 3) {
+        this.downN++;
+        hub.ui.hint('her lure is down: hit it!');
+        window.setTimeout(() => hub.ui.hintIs('her lure is down: hit it!') && hub.ui.hint(null), 3000);
+      }
       hub.audio.v.mimicSnarl();
       hub.audio.chime();
       hub.ui.flash(0.25, 200);
@@ -316,6 +327,7 @@ export class MimicQueen extends Guardian {
     }
   }
   private skipExposed = false;
+  private downN = 0;
 
   /* ---------------------------------------------------------------- */
   /* attacks                                                           */
@@ -488,8 +500,23 @@ export class MimicQueen extends Guardian {
         this.hub.audio.kill();
       }
     }
-    if (this.exposed && !this.hitDone && this.pulseReach(this.lure.x, this.lure.y, R, x, y, 22)) this.hurtLure();
+    if (this.exposed && !this.hitDone && this.pulseReach(this.lure.x, this.lure.y, R, x, y, LURE_PULSE_R)) this.hurtLure();
+    else if (!this.exposed && this.state === 'fight' && this.pulseReach(this.qx, this.qy - 30, R, x, y, 34)) this.notYet();
   }
+
+  /** you hit her when she cannot be hurt: say how she can be (the first times), and let the petals ring */
+  private notYet() {
+    const now = this.t;
+    if (now - this.notYetT < 1.2) return;
+    this.notYetT = now;
+    this.hub.audio.v.glassPing(1.3);
+    if (this.notYetN < 2) {
+      this.notYetN++;
+      this.hub.ui.caption('her petals turn it aside. only her lure can be hurt, when it falls.', 3200);
+    }
+  }
+  private notYetT = -9;
+  private notYetN = 0;
 
   onLance(l: Lance): boolean {
     for (const b of this.blooms) {
@@ -499,7 +526,7 @@ export class MimicQueen extends Guardian {
       }
     }
     this.shots.clearIn(l.x, l.y, 7, true);
-    if (this.exposed && !this.hitDone && dist(l.x, l.y, this.lure.x, this.lure.y) < 13) {
+    if (this.exposed && !this.hitDone && dist(l.x, l.y, this.lure.x, this.lure.y) < LURE_LANCE_R) {
       this.hurtLure();
       return true;
     }
@@ -507,6 +534,7 @@ export class MimicQueen extends Guardian {
     const lureOut = this.exposed && !this.hitDone;
     if (!lureOut && this.sink < 0.5 && Math.abs(l.x - this.qx) < 38 && l.y > this.qy - 124 && l.y < this.qy - 30) {
       burst(this.hub.parts, l.x, l.y, 5, [PETAL, '#ffffff'], 40, 0);
+      this.notYet();
       return true;
     }
     return false;

@@ -16,6 +16,19 @@ export class Input {
   releasedAfter = 0;
   /** true on the press that is the second tap of a quick double tap */
   doubleTap = false;
+  /**
+   * Aiming: hold the action button and drag it, and the light flies the way you dragged (screen directions: x right, y down).
+   * `aiming` while the drag is far enough to mean it; `aimedRelease` on the frame the button comes up after an aimed drag.
+   */
+  aiming = false;
+  aimX = 0;
+  aimY = -1;
+  aimedRelease = false;
+  private aimOX = 0;
+  private aimOY = 0;
+  private aimDX = 0;
+  private aimDY = 0;
+  private aimNow = false;
   usingTouch = false;
   moveEnabled = true;
   /** 3D camera: drag on the right side (any drag with a mouse), or Q / E. */
@@ -73,13 +86,18 @@ export class Input {
       this.usingTouch = e.pointerType !== 'mouse' || this.usingTouch;
       this.btnId = e.pointerId;
       this.latchT = 0.07;
+      this.startAim(e);
       try { this.btn.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
       this.btn.classList.add('down');
+    });
+    this.btn.addEventListener('pointermove', (e) => {
+      if (e.pointerId === this.btnId) this.moveAim(e);
     });
     const btnUp = (e: PointerEvent) => {
       if (e.pointerId !== this.btnId) return;
       this.btnId = -1;
       this.btn.classList.remove('down');
+      this.endAim();
     };
     this.btn.addEventListener('pointerup', btnUp);
     this.btn.addEventListener('pointercancel', btnUp);
@@ -100,6 +118,8 @@ export class Input {
 
   private releaseAll() {
     this.keys.clear();
+    this.aimNow = false;
+    this.endAim();
     this.camId = -1;
     this.joyId = -1;
     this.btnId = -1;
@@ -130,6 +150,7 @@ export class Input {
       if (this.actionEnabled && this.btnId < 0) {
         this.btnId = e.pointerId;
         this.latchT = 0.07;
+        this.startAim(e);
         try { this.layer.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
         this.btn.classList.add('down');
       }
@@ -149,6 +170,10 @@ export class Input {
   }
 
   private onMove(e: PointerEvent) {
+    if (e.pointerId === this.btnId) {
+      this.moveAim(e);
+      return;
+    }
     if (e.pointerId === this.camId) {
       this.camDX += e.clientX - this.camLX;
       this.camDY += e.clientY - this.camLY;
@@ -180,7 +205,50 @@ export class Input {
     if (e.pointerId === this.btnId) {
       this.btnId = -1;
       this.btn.classList.remove('down');
+      this.endAim();
     }
+  }
+
+  /* ---- aiming: drag the button ---- */
+
+  private startAim(e: PointerEvent) {
+    this.aimOX = e.clientX;
+    this.aimOY = e.clientY;
+    this.aimDX = this.aimDY = 0;
+    this.aimNow = false;
+  }
+
+  private moveAim(e: PointerEvent) {
+    const dx = e.clientX - this.aimOX;
+    const dy = e.clientY - this.aimOY;
+    const l = Math.hypot(dx, dy);
+    // (a small wobble of the thumb is still a tap or a hold, not an aim)
+    const dead = Math.max(14, this.btn.clientWidth * 0.22);
+    if (l >= dead) {
+      this.aimNow = true;
+      this.aimX = dx / l;
+      this.aimY = dy / l;
+    } else if (l < dead * 0.6) this.aimNow = false;
+    // the button follows the finger, a little way, and never off the screen
+    const max = this.btn.clientWidth * 0.55 || 40;
+    const k = l > max ? max / l : 1;
+    const par = this.btn.offsetParent as HTMLElement | null;
+    const left = this.btn.offsetLeft;
+    const top = this.btn.offsetTop;
+    const w = this.btn.offsetWidth;
+    const pw = par ? par.clientWidth : 1e4;
+    const ph = par ? par.clientHeight : 1e4;
+    this.aimDX = clamp(dx * k, -left, pw - left - w);
+    this.aimDY = clamp(dy * k, -top, ph - top - w);
+    this.btn.style.setProperty('--dx', `${this.aimDX}px`);
+    this.btn.style.setProperty('--dy', `${this.aimDY}px`);
+    this.btn.classList.toggle('aim', l > 2);
+  }
+
+  private endAim() {
+    this.btn.style.setProperty('--dx', '0px');
+    this.btn.style.setProperty('--dy', '0px');
+    this.btn.classList.remove('aim');
   }
 
   /** Show the contextual action button with a label, or hide it with null. */
@@ -189,6 +257,8 @@ export class Input {
     if (label === null) {
       this.btn.classList.remove('show', 'down');
       this.btnId = -1;
+      this.aimNow = false;
+      this.endAim();
     } else {
       this.btn.textContent = label;
       this.btn.classList.add('show');
@@ -265,6 +335,10 @@ export class Input {
       this.actionHold = 0;
     }
     this.releasedAfter = this.actionReleased ? this.lastHold : 0;
+    // aiming lasts while the button is down and dragged; the release after an aim is an aimed throw
+    this.aimedRelease = this.actionReleased && this.aiming;
+    this.aiming = this.actionDown && this.btnId >= 0 && this.aimNow;
+    if (!this.actionDown) this.aimNow = false;
     if (this.actionReleased) this.lastTapShort = this.lastHold < 0.2;
     this.prevDown = this.actionDown;
   }

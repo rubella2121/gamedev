@@ -29,6 +29,10 @@ const PLAYER_SPEED = 7.6;
 const START_Z = 12;
 /** hold the button this long for a Lance, and this long (with a full meter) for a Nova */
 const LANCE_T = 0.5;
+/** an aimed Lance (the button dragged the way it should fly) is ready sooner: the aiming is the wind-up */
+const AIM_T = 0.3;
+/** the dots that show where an aimed Lance will fly */
+const AIM_DOTS = 18;
 const NOVA_T = 1.3;
 const LANCE_SPEED = 36;
 const NOVA_R = 9.5;
@@ -101,6 +105,10 @@ export class Act2 {
   private lances: Lance3[] = [];
   private nova: (Nova3 & { hit: boolean }) | null = null;
   private lancesOut: { x: number; y: number; z: number; vx: number; vy: number; vz: number }[] = [];
+  /** the aim line: dots along the floor the way an aimed Lance will fly */
+  private aimDots!: THREE.InstancedMesh;
+  /** turned the way the button is dragged */
+  private aimFace = false;
 
   // the fight
   readonly bosses: Boss3D[] = [];
@@ -186,6 +194,13 @@ export class Act2 {
     }
     this.solids = [...a.pillarData];
     this.features = new Features(a);
+    const dg = new THREE.CircleGeometry(0.24, 12);
+    dg.rotateX(-Math.PI / 2);
+    this.aimDots = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), AIM_DOTS);
+    this.aimDots.frustumCulled = false;
+    this.aimDots.visible = false;
+    this.aimDots.userData['noGround'] = true;
+    a.world.add(this.aimDots);
 
     const self = this;
     this.env = {
@@ -516,7 +531,7 @@ export class Act2 {
         this.arenaStory = true;
         for (const s of STORY.arena) window.setTimeout(() => this.state === 'fight' && say(ui, s.line), s.after);
       }
-      window.setTimeout(() => ui.hint('hold + let go: lance   double-tap: dash'), 3600);
+      window.setTimeout(() => ui.hint('drag the button to aim a lance   double-tap: dash'), 3600);
       window.setTimeout(() => ui.hint(null), 9600);
     }
     this.quietStart = false;
@@ -774,12 +789,14 @@ export class Act2 {
     this.arena.burst3(pl.x, 0.5, pl.z, 8, [0xf2d36b, 0xfff1a6, 0xffffff], 4);
   }
 
-  private castLance() {
+  /** `aim`: thrown the way the button was dragged (the help with the aim is much narrower: it goes where you meant) */
+  private castLance(aim?: { x: number; z: number }) {
     const pl = this.pl;
+    if (aim) this.yaw = Math.atan2(aim.x, aim.z);
     let dx = Math.sin(this.yaw);
     let dz = Math.cos(this.yaw);
     let vy = 0;
-    const tg = this.nearestWeak(0.75, { x: pl.x, z: pl.z, yaw: this.yaw });
+    const tg = this.nearestWeak(aim ? 0.2 : 0.75, { x: pl.x, z: pl.z, yaw: this.yaw });
     if (tg) {
       const l = tg.d || 1;
       dx = (tg.w.x - pl.x) / l;
@@ -887,6 +904,38 @@ export class Act2 {
   /* the fight                                                         */
   /* ---------------------------------------------------------------- */
 
+  /** a direction on the screen (x right, y down) as a direction along the floor, the way the camera looks */
+  private screenToFloor(sx: number, sy: number): { x: number; z: number } {
+    const f = this.camFwd();
+    const x = -f.z * sx + f.x * -sy;
+    const z = f.x * sx + f.z * -sy;
+    const l = Math.hypot(x, z) || 1;
+    return { x: x / l, z: z / l };
+  }
+
+  /** the dots along the floor where an aimed Lance will fly (faint while it charges, bright when it is ready); null hides them */
+  private showAim(dir: { x: number; z: number } | null, ready: boolean) {
+    const m = this.aimDots;
+    if (!dir) {
+      m.visible = false;
+      return;
+    }
+    m.visible = true;
+    const pl = this.pl;
+    for (let i = 0; i < AIM_DOTS; i++) {
+      const d = 1.1 + i * 0.7;
+      const x = pl.x + dir.x * d;
+      const z = pl.z + dir.z * d;
+      this.tmp.position.set(x, groundY(x, z) + 0.12, z);
+      this.tmp.scale.setScalar((ready ? 1.2 : 0.75) * (1 - (i / AIM_DOTS) * 0.45));
+      this.tmp.rotation.set(0, 0, 0);
+      this.tmp.updateMatrix();
+      m.setMatrixAt(i, this.tmp.matrix);
+    }
+    m.instanceMatrix.needsUpdate = true;
+    (m.material as THREE.MeshBasicMaterial).opacity = ready ? 1 : 0.5;
+  }
+
   private updatePlayer(dt: number) {
     const { input, audio } = this.ctx;
     const pl = this.pl;
@@ -928,11 +977,19 @@ export class Act2 {
       const full = this.light >= 3;
       let stage: 0 | 1 | 2 = 0;
       let u = 0;
-      if (h > 0.18) {
+      const aim = input.aiming ? this.screenToFloor(input.aimX, input.aimY) : null;
+      if (aim) {
+        // dragging the button aims a Lance: you turn that way, and dots on the floor show where it will fly
+        this.lastFace = Math.atan2(aim.x, aim.z);
+        stage = h >= AIM_T ? 1 : 0;
+        u = clamp(h / AIM_T, 0, 1);
+      } else if (h > 0.18) {
         if (full && h >= NOVA_T) stage = 2;
         else if (h >= LANCE_T) stage = 1;
         u = h < LANCE_T ? (h - 0.18) / (LANCE_T - 0.18) : full ? clamp((h - LANCE_T) / (NOVA_T - LANCE_T), 0, 1) : 1;
       }
+      this.showAim(aim, h >= AIM_T);
+      this.aimFace = aim !== null;
       if (stage !== this.chargeStage) {
         if (stage === 1) audio.charge1();
         if (stage === 2) audio.charge2();
@@ -941,7 +998,10 @@ export class Act2 {
       input.setCharge(u, stage);
       if (input.actionReleased) {
         const r = input.releasedAfter;
-        if (full && r >= NOVA_T) this.castNova();
+        this.showAim(null, false);
+        if (input.aimedRelease) {
+          if (r >= AIM_T) this.castLance(this.screenToFloor(input.aimX, input.aimY));
+        } else if (full && r >= NOVA_T) this.castNova();
         else if (r >= LANCE_T) this.castLance();
         this.chargeStage = 0;
         input.setCharge(0, 0);
@@ -949,6 +1009,8 @@ export class Act2 {
     } else {
       pl.vx *= 0.9;
       pl.vz *= 0.9;
+      this.showAim(null, false);
+      this.aimFace = false;
       if (this.chargeStage !== 0) {
         this.chargeStage = 0;
         input.setCharge(0, 0);
@@ -1067,7 +1129,7 @@ export class Act2 {
     this.bob += dt * (5 + sp * 1.3);
     // face the way you run; stand facing where the camera looks; a strike turns you to its target
     let targetYaw: number;
-    if (this.strikeT > 0 || this.dashT > 0) targetYaw = this.lastFace;
+    if (this.strikeT > 0 || this.dashT > 0 || this.aimFace) targetYaw = this.lastFace;
     else if (sp > 0.6) targetYaw = Math.atan2(pl.vx, pl.vz);
     else {
       const f = this.camFwd();
