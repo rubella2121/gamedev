@@ -14,12 +14,13 @@ import { Guardian } from './base';
  * and the crack in his back (X's mark) splits open and glows. Strike it, as often as you can, before it closes.
  *   ROOT SNARE      he stamps and roots crawl out of him and hunt you along the ground, thorns bursting up behind them; each
  *                   one splits in two halfway. They turn slower than you walk: step aside late. A tree stops them.
- *   MANDIBLE LUNGE  a red line follows you, then locks; he dashes down it and snaps his jaws at its end. Then again, quicker.
+ *   MANDIBLE LUNGE  a red line follows you, then locks; he dashes down it and snaps his jaws at its end (from the second
+ *                   phase, twice, the second quicker).
  *                   If he lunges into a tree he sticks in it, and his back opens.
- *   THORN RAIN      his crown shakes and thorns fall where their shadows are: three waves that follow you.
+ *   THORN RAIN      his crown shakes and thorns fall where their shadows are: two waves that follow you (three, last).
  *   ROOT CAGE       roots burst up in a ring round you with one gap, and he lunges at you: out through the gap, or pulse the
  *                   roots apart.
- *   THORN WHEEL     he curls up and spins, three (then four) turning arms of thorns, rolling after you; halfway it turns
+ *   THORN WHEEL     he curls up and spins, three turning arms of thorns, rolling slowly after you; halfway it turns
  *                   the other way. After it he is dizzy and open for longer.
  * Each phase adds to the mix. A Nova knocks him out of whatever he is doing and opens his back.
  */
@@ -67,22 +68,22 @@ type KMode = 'enter' | 'walk' | 'windup' | 'roots' | 'rain' | 'lunge' | 'snap' |
 /** what he does in each phase before his back opens (the first round of a phase is the shorter one) */
 const PLAN: Attack[][][] = [
   [['roots', 'lunge'], ['roots2', 'lunge']],
-  [['rain', 'cage', 'roots2'], ['cage', 'rain', 'lunge']],
-  [['roots3', 'rain', 'wheel'], ['cage', 'lunge', 'roots3', 'wheel']],
+  [['rain', 'roots2'], ['cage', 'rain']],
+  [['roots2', 'rain', 'wheel'], ['cage', 'roots3', 'wheel']],
 ];
 
 /** a root: how fast it crawls (px/s, the Blob walks at 66), how fast it turns (rad/s), how long it lives (s), when it splits */
-const ROOT = { speed: 58, turn: 1.7, life: 2.8, step: 0.08, warn: 0.3, r: 9, split: 1.0, fork: 0.6 };
-/** the thorn rain: waves, thorns in a wave, shadow size, how long a shadow shows, time between waves */
-const RAIN = { waves: 3, n: 5, r: 13, warn: 0.95, gap: 0.45 };
+const ROOT = { speed: 50, turn: 1.4, life: 2.4, step: 0.08, warn: 0.32, r: 9, split: 1.0, fork: 0.6 };
+/** the thorn rain: waves (the last phase one more), thorns in a wave, shadow size, how long a shadow shows, time between waves */
+const RAIN = { waves: 2, n: 4, r: 13, warn: 1.1, gap: 0.55 };
 /** the lunge: the line shows this long (the second one less), follows you for this much of it, then he dashes */
-const LUNGE = { tele: 0.75, tele2: 0.5, lock: 0.65, dash: 0.3, len: 170, wd: 11, bite: 22, after: 0.35 };
+const LUNGE = { tele: 1.1, tele2: 0.85, lock: 0.5, dash: 0.4, len: 150, wd: 11, bite: 16, after: 0.5 };
 /** the root cage: its size, how many posts, the gap (half width, rad), the warning, how long it stands */
-const CAGE = { rx: 36, ry: 26, posts: 30, gapW: 0.42, tele: 0.55, up: 2.6 };
+const CAGE = { rx: 36, ry: 26, posts: 30, gapW: 0.62, tele: 0.75, up: 2.2 };
 /** the thorn wheel: arms, how fast it turns (rad/s), thorns per second per arm, thorn speed, how long, how fast it rolls */
-const WHEEL = { arms: 3, turn: 1.7, rate: 6, speed: 84, len: 3.6, roll: 30 };
+const WHEEL = { arms: 3, turn: 1.5, rate: 5, speed: 74, len: 3.4, roll: 22 };
 /** how long his back stays open: after an ordinary round, after the wheel, after a Nova or a tree */
-const OPEN = { round: 2.6, wheel: 3.2, nova: 2.2 };
+const OPEN = { round: 3.0, wheel: 3.6, nova: 2.4 };
 
 let treeImgs: HTMLCanvasElement[] | null = null;
 
@@ -157,7 +158,7 @@ export class ThornbackKing extends Guardian {
   private walkTo = { x: 0, y: 0 };
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Thornback King', 'when his back cracks open, strike', ACCENT, [3, 4, 4], onVictory);
+    super(hub, a, 'Thornback King', 'when his back cracks open, strike', ACCENT, [3, 3, 4], onVictory);
     this.x = a.x;
     this.y = a.boss.y;
     if (!treeImgs) treeImgs = [11, 12, 13, 14, 15].map((i) => makeTree(900 + i * 13, 92 + (i % 3) * 6));
@@ -302,7 +303,7 @@ export class ThornbackKing extends Guardian {
       v.kingClack(3);
     } else if (this.attack === 'rain') v.kingClack(2);
     else if (this.attack === 'lunge') {
-      this.lungesLeft = 2;
+      this.lungesLeft = this.phase === 0 ? 1 : 2;
       this.aimLunge(LUNGE.tele);
     } else if (this.attack === 'cage') {
       v.kingBellow();
@@ -445,12 +446,12 @@ export class ThornbackKing extends Guardian {
       this.raiseCage();
       this.attack = 'lunge';
       this.lungesLeft = 1;
-      this.aimLunge(LUNGE.tele);
+      this.aimLunge(LUNGE.tele + 0.15);
     } else {
       this.mode = 'spin';
       this.wheelA = Math.atan2(pl.y - this.y, pl.x - this.x);
       this.wheelEmit = 0;
-      this.wheelArms = this.rounds > 1 ? WHEEL.arms + 1 : WHEEL.arms;
+      this.wheelArms = WHEEL.arms;
       hub.audio.rumble();
     }
   }
@@ -459,13 +460,14 @@ export class ThornbackKing extends Guardian {
 
   private doRain(dt: number) {
     this.rainNext -= dt;
-    if (this.rainWave < RAIN.waves && this.rainNext <= 0) {
+    const waves = RAIN.waves + (this.phase >= 2 ? 1 : 0);
+    if (this.rainWave < waves && this.rainNext <= 0) {
       this.rainNext = RAIN.gap;
       this.rainWave++;
       this.rainOn(this.pl.x, this.pl.y);
       this.hub.audio.snap();
     }
-    if (this.rainWave >= RAIN.waves && this.mt > (RAIN.waves - 1) * RAIN.gap + RAIN.warn * D.tele + 0.3) this.gap();
+    if (this.rainWave >= waves && this.mt > (waves - 1) * RAIN.gap + RAIN.warn * D.tele + 0.3) this.gap();
   }
 
   /** a wave of thorns: one on you, the rest around you, never shoulder to shoulder */
@@ -523,7 +525,7 @@ export class ThornbackKing extends Guardian {
     this.face = dx >= 0 ? 1 : -1;
     L.sx = this.x;
     L.sy = this.y;
-    const len = Math.min(LUNGE.len, d + 34);
+    const len = Math.min(LUNGE.len, d + 20);
     let ex = this.x;
     let ey = this.y;
     for (let s = 4; s <= len; s += 4) {
