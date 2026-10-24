@@ -5,10 +5,13 @@ import { groundDecals } from './ground';
 import { CollectorBoss } from './bosses/collector';
 import { MashBoss } from './bosses/mash';
 import { XBoss } from './bosses/xboss';
+import { FourthBoss } from './bosses/fourth';
+import { Fold, FOLD_R } from './fold';
+import { Allies } from './allies';
 import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
-import { Cut, type CamKey } from './cut';
+import { Cut, type Beat, type CamKey } from './cut';
 import { SkyRift } from './rift';
 import { animateParent } from './family';
 import { DashPool } from '../core/dash';
@@ -221,6 +224,12 @@ export class Act2 {
     // the bosses, in the order you meet them
     const x = new XBoss(this.env, a.world, () => this.bossDown());
     this.bosses.push(x, new CollectorBoss(this.env, a.world, () => this.bossDown()), new MashBoss(this.env, a.world, () => this.bossDown()));
+    // the last of them: not one of the three (it is fought after the cage is open, in its own place, with the family)
+    this.fourth = new FourthBoss(this.env, a.world, () => this.fourthFled());
+    this.fold = new Fold(a.scene);
+    this.allies = new Allies(a.cage.mother, a.cage.father);
+    this.fourth.allies = () => (this.inFold ? this.allies.positions() : []);
+    this.fourth.onAllyHit = (i, fx, fz) => this.allies.knock(i, fx, fz, this.arena);
     this.boss = x;
     for (const b of this.bosses) void b.build(this.slicer);
   }
@@ -241,6 +250,7 @@ export class Act2 {
   begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
     const a = this.arena;
     this.endDeathFilm();
+    this.leaveFold();
     this.state = 'boom';
     this.cineIntro = cinematic;
     if (this.cut) this.endCut(false);
@@ -457,10 +467,10 @@ export class Act2 {
     this.state = 'fight';
     this.falls.reset();
     this.quietStart = startOver;
-    this.boss = this.bosses[this.bi]!;
+    this.boss = this.inFold ? this.fourth : this.bosses[this.bi]!;
     this.hud = false;
     this.control = false;
-    this.features.show(true);
+    this.features.show(!this.inFold);
     this.features.reset();
     this.hearts = this.maxHearts;
     this.light = 0;
@@ -513,13 +523,13 @@ export class Act2 {
 
   private resetSolids() {
     this.solids.length = 0;
-    this.solids.push(...this.arena.pillarData);
+    if (!this.inFold) this.solids.push(...this.arena.pillarData);
   }
 
   /** in the fern thicket: what hunts by sight cannot see you (a strike or a bolt gives you away for a moment) */
   get hidden(): boolean {
     const pl = this.pl;
-    return !pl.dead && this.strikeT <= 0 && this.revealT <= 0 && Math.hypot(pl.x - FERNS.x, pl.z - FERNS.z) < FERNS.r;
+    return !this.inFold && !pl.dead && this.strikeT <= 0 && this.revealT <= 0 && Math.hypot(pl.x - FERNS.x, pl.z - FERNS.z) < FERNS.r;
   }
   private revealT = 0;
 
@@ -960,12 +970,13 @@ export class Act2 {
     this.dvx *= decay;
     this.dvz *= decay;
     const rr = Math.hypot(pl.x, pl.z);
-    if (rr > ARENA_R - 0.9) {
-      pl.x *= (ARENA_R - 0.9) / rr;
-      pl.z *= (ARENA_R - 0.9) / rr;
+    const edge = this.inFold ? FOLD_R - 0.9 : ARENA_R - 0.9;
+    if (rr > edge) {
+      pl.x *= edge / rr;
+      pl.z *= edge / rr;
     }
-    // the boss's side of the floor ends where he stands
-    if (pl.z < FAR_Z) pl.z = FAR_Z;
+    // the boss's side of the floor ends where he stands (the Fold is round all the way)
+    if (!this.inFold && pl.z < FAR_Z) pl.z = FAR_Z;
     // columns are solid: pillars, pins, jars
     for (const s of this.solids) {
       if (!s.alive) continue;
@@ -1003,7 +1014,7 @@ export class Act2 {
       if (this.deadT <= 0) this.resetPhase();
       return;
     }
-    this.features.update(dt, this.fenv);
+    if (!this.inFold) this.features.update(dt, this.fenv);
     const b = this.boss;
     if (!this.hud && b.state === 'fight') this.beginFight();
     if (this.hud && (b.state === 'dying' || b.state === 'gone')) {
@@ -1024,6 +1035,7 @@ export class Act2 {
       }
     }
     b.update(dt);
+    if (this.inFold) this.updateAllies(dt);
     this.updateRig(dt);
     this.updateMoth(dt);
     void a;
@@ -1222,12 +1234,13 @@ export class Act2 {
   /** a subtitled line, and a soft voice for it (the family speak gently; the world has no voice) */
   private line(l: SubLine, skipping = false) {
     if (skipping) return;
-    const colour = l.who === 'Mother' ? '#ffb0d8' : l.who === 'Father' ? '#ffd27a' : l.who === 'The Blob' ? '#fff1a6' : '#cfeee8';
+    const colour = l.who === 'Mother' ? '#ffb0d8' : l.who === 'Father' ? '#ffd27a' : l.who === 'The Blob' ? '#fff1a6' : l.who === 'The Fourth' ? '#c9b8ff' : '#cfeee8';
     this.ctx.ui.sub(l.who, l.text, l.ms, colour);
     const v = this.ctx.audio.v;
     if (l.who === 'Mother') v.speak(l.text, { f0: 232, rate: 1.0, breath: 0.65, rough: 0.05, gain: 0.16, wet: 0.7, fall: 0.15 });
     else if (l.who === 'Father') v.speak(l.text, { f0: 132, rate: 0.95, breath: 0.5, rough: 0.12, gain: 0.18, wet: 0.65, fall: 0.2 });
     else if (l.who === 'The Blob') v.speak(l.text, { f0: 330, rate: 1.15, breath: 0.55, gain: 0.12, wet: 0.6, fall: 0.1 });
+    else if (l.who === 'The Fourth') v.speak(l.text, { f0: 62, rate: 0.72, breath: 0.35, rough: 0.5, gain: 0.2, wet: 0.95, fall: 0.35 });
   }
 
   /** where the cage's people are, for the camera (the middle of the cage, at their height) */
@@ -1393,6 +1406,13 @@ export class Act2 {
     this.playCut(c);
   }
 
+  /** the Fourth, its Fold, and the family fighting beside you there */
+  private fourth!: FourthBoss;
+  private fold!: Fold;
+  private allies!: Allies;
+  /** in the Fold (the Crater is folded away; the floor is flat and round) */
+  inFold = false;
+
   /** the rift in the sky the Blob falls out of (made the first time it is needed) */
   private rift: SkyRift | null = null;
   private skyRift(): SkyRift {
@@ -1467,7 +1487,11 @@ export class Act2 {
    * Father step out to the Blob. The camera goes round the three of them while the pinned things flicker out and drift home, the
    * clearing grows back, and then, from behind the family, it tilts up: the moon blinks and the moth goes home.
    */
-  private beginEnding() {
+  /**
+   * The ending comes in two parts now, with the Fourth between them: the reunion (the lock, the cage, the hug, round the family)
+   * and, after the Fourth has got away, home (the clearing grows back, the moon, the moth). One timeline; `part` picks its half.
+   */
+  private beginEnding(part: 'reunion' | 'home' = 'reunion') {
     this.state = 'ending';
     this.et = 0;
     this.control = false;
@@ -1535,13 +1559,11 @@ export class Act2 {
       { t: 21.6, pos: V(0, 1.6, 11.5), look: V(0, 40, -70), fov: 62 },
       { t: 25, pos: V(0, 1.5, 11.9), look: V(0, 44, -72), fov: 62 },
     ];
-    let mFrom: THREE.Vector3 | null = null;
-    let fFrom: THREE.Vector3 | null = null;
+    // (home: they are already together)
+    let mFrom: THREE.Vector3 | null = part === 'home' ? MUM.clone() : null;
+    let fFrom: THREE.Vector3 | null = part === 'home' ? DAD.clone() : null;
     let bFrom = V(this.pl.x, 0, this.pl.z);
-    const c = new Cut(
-      25,
-      keys,
-      [
+    const beats: Beat[] = [
         {
           at: 2.2,
           fn: (s) => {
@@ -1598,12 +1620,26 @@ export class Act2 {
         { at: 19.6, fn: (s) => this.line(L.can, s) },
         { at: 21.6, fn: (s) => !s && ui.moonBlink() },
         { at: 22.2, fn: (s) => this.line(L.moon, s) },
-      ],
+    ];
+    // the reunion ends going round the family; home begins as the clearing grows back
+    const SPLIT = 14.05;
+    const off = part === 'home' ? SPLIT : 0;
+    const keysP = part === 'home' ? keys.filter((k) => k.t >= SPLIT).map((k) => ({ ...k, t: k.t - SPLIT })) : keys.filter((k) => k.t < SPLIT);
+    const beatsP = part === 'home' ? beats.filter((b) => b.at >= SPLIT - 0.1).map((b) => ({ ...b, at: Math.max(0, b.at - SPLIT) })) : beats.filter((b) => b.at < SPLIT - 0.1);
+    const c = new Cut(
+      part === 'home' ? 25 - SPLIT : SPLIT,
+      keysP,
+      beatsP,
       () => {
+        if (part === 'reunion') {
+          this.beginArrival();
+          return;
+        }
         this.state = 'end';
         this.onEnd?.();
       },
-      (t, dt) => {
+      (t0, dt) => {
+        const t = t0 + off;
         T = t;
         this.et = t;
         // the cage: it falls, it lands, the door lifts
@@ -1664,6 +1700,398 @@ export class Act2 {
 
   /* ---------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------- */
+  /* the Fourth                                                        */
+  /* ---------------------------------------------------------------- */
+
+  /** into the Fold: the Crater is folded away and the family stands on the clock's face */
+  private enterFold() {
+    const a = this.arena;
+    this.inFold = true;
+    this.fold.enter(a);
+    this.features.show(false);
+    this.warm.visible = false;
+    this.lights.forEach((l) => (l.visible = false));
+    a.hideShadow();
+    a.marks.hideAll();
+    for (const b of this.bosses) b.hide();
+    this.pl.x = 0;
+    this.pl.z = 8;
+    this.pl.vx = this.pl.vz = 0;
+    a.player.position.set(0, 0, 8);
+    a.player.rotation.set(0, Math.PI, 0);
+    a.player.visible = true;
+    this.yaw = Math.PI;
+    this.allies.place({ x: -2.4, z: 9.4 }, { x: 2.6, z: 9.6 });
+    this.resetSolids();
+  }
+
+  /** out of the Fold: the Crater is back, as it was */
+  private leaveFold() {
+    this.fourth.hide();
+    if (!this.inFold) return;
+    this.inFold = false;
+    this.fold.exit(this.arena);
+    this.resetSolids();
+  }
+
+  private updateAllies(dt: number) {
+    const { ui, audio } = this.ctx;
+    this.allies.update(dt, {
+      arena: this.arena,
+      time: this.time,
+      player: { x: this.pl.x, z: this.pl.z, dead: this.pl.dead },
+      boss: this.fourth,
+      hearts: this.hearts,
+      maxHearts: this.maxHearts,
+      heal: () => {
+        this.hearts = Math.min(this.maxHearts, this.hearts + 1);
+        ui.hearts(this.hearts, this.maxHearts);
+        audio.warm();
+      },
+      say: (who, text) => this.line({ who, text, ms: 1800 }),
+    });
+  }
+
+  /** the family where the reunion left them (the Blob in the middle, Mother and Father either side) */
+  private familyAtHome() {
+    const a = this.arena;
+    const cg = a.cage;
+    this.pl.x = 0;
+    this.pl.z = 2.2;
+    a.player.position.set(0, groundY(0, 2.2), 2.2);
+    cg.mother.g.position.set(-1.3, 0, 0.4);
+    cg.father.g.position.set(1.3, 0, 0.2);
+  }
+
+  /**
+   * The Fourth comes. Time stops (the moth hangs still in the air, the music stops), something opens in the sky and unfolds out
+   * of it, a cube turning through itself with an eye in it; it speaks; Mother steps in; and the world folds, and they are
+   * standing on a clock in the dark. Then the fight.
+   */
+  private beginArrival() {
+    const a = this.arena;
+    const { ui, audio } = this.ctx;
+    const L = STORY.cut.fourth;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const f = this.fourth;
+    const cg = a.cage;
+    this.state = 'ending';
+    // (off to the side of the cage, so its lifted door is never in the way)
+    const SKY = V(9, 18, -6);
+    const LOW = V(6.5, 7.8, -3.5);
+    const fam = V(0, 1.1, 1.6);
+    const at = () => f.model.root.position.clone();
+    f.place(SKY.x, SKY.y, SKY.z, 0.001);
+    f.look(0, 1, 0);
+    f.show();
+    let frozen = false;
+    let folded = false;
+    const keys: CamKey[] = [
+      // the family, still holding on; and then everything stops
+      { t: 0, pos: V(3.6, 2.2, 7.6), look: fam, fov: 46 },
+      { t: 1.6, pos: V(3.2, 2.0, 7.0), look: fam, fov: 46 },
+      // up: something opens in the sky and unfolds
+      { t: 1.65, cut: true, pos: V(-2.2, 1.2, 6.6), look: V(7, 14, -5), fov: 58 },
+      { t: 4.6, pos: V(-1.2, 1.0, 6.0), look: at, fov: 54 },
+      // it, close: its eye
+      { t: 4.65, cut: true, pos: () => at().add(V(-3.2, -1.2, 7.6)), look: at, fov: 42 },
+      { t: 7.4, pos: () => at().add(V(-2.4, -0.9, 6.2)), look: at, fov: 40 },
+      // the family looks up at it
+      { t: 7.45, cut: true, pos: V(-2.6, 1.0, 7.6), look: V(4, 5, -3), fov: 56 },
+      { t: 9.2, pos: V(-2.4, 0.9, 7.0), look: V(5, 6, -3.5), fov: 56 },
+      // folded: the new place, wide, then down to them
+      { t: 9.25, cut: true, pos: V(0, 11, 24), look: V(0, 1, -2), fov: 58 },
+      { t: 12.6, pos: V(0, 6.5, 17), look: V(0, 2.5, -3), fov: 56 },
+    ];
+    const beats: Beat[] = [
+      {
+        at: 0.3,
+        fn: (s) => {
+          frozen = true;
+          if (s) return;
+          audio.setLullaby(0, 0.25);
+          audio.setDrone(0.25, 0.4);
+          audio.tone(220, 1.2, 'sine', 0.08, 110);
+        },
+      },
+      { at: 0.6, fn: (s) => this.line(L.stop, s) },
+      {
+        at: 1.7,
+        fn: (s) => {
+          if (s) return;
+          audio.rumble();
+          ui.flash(0.3, 300);
+        },
+      },
+      { at: 3.4, fn: (s) => !s && audio.v.xRoar() },
+      { at: 4.9, fn: (s) => this.line(L.meant, s) },
+      { at: 6.7, fn: (s) => this.line(L.seen, s) },
+      { at: 7.7, fn: (s) => this.line(L.beside, s) },
+      {
+        at: 8.7,
+        fn: (s) => {
+          this.line(L.fold, s);
+          if (s) return;
+          audio.boom();
+          audio.slam();
+          this.shake = 1.2;
+          ui.flash(1, 900);
+        },
+      },
+      {
+        at: 9.25,
+        fn: () => {
+          // under the flash: the world folds away
+          folded = true;
+          this.enterFold();
+          f.place(0, 6, -4, 1);
+        },
+      },
+      { at: 10.6, fn: (s) => this.line(L.where, s) },
+    ];
+    const c = new Cut(
+      12.6,
+      keys,
+      beats,
+      () => {
+        // the fight
+        if (!folded) {
+          this.enterFold();
+          f.place(0, 6, -4, 1);
+        }
+        this.startBoss(700);
+      },
+      (t, dt) => {
+        this.et = 14;
+        const p = a.player;
+        if (!folded) {
+          // it unfolds out of the sky and comes down
+          const u = smooth(unlerp(1.7, 4.6, t));
+          const pos = new THREE.Vector3().lerpVectors(SKY, LOW, u);
+          f.place(pos.x, pos.y, pos.z, Math.max(0.001, u));
+          f.pose(dt, lerp(4, 1.2, u), V(0, 1.2, 2.2));
+          // they look up at it; Mother leans out in front at the end
+          const look = smooth(unlerp(1.8, 3.0, t));
+          for (const [r, seed, reach] of [[cg.mother, 1, 0.5], [cg.father, 2.7, 0.4]] as [typeof cg.mother, number, number][]) {
+            const q = r.g.position;
+            r.g.rotation.y = lerp(Math.atan2(-q.x, 2.2 - q.z), Math.atan2(at().x - q.x, at().z - q.z), look);
+            animateParent(r, dt, this.time, 0, reach * look + (1 - look) * 0.8, 0, seed);
+          }
+          p.rotation.y = lerp(Math.PI, Math.atan2(at().x, at().z - 2.2), look);
+          this.bob += dt * 4;
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          // the moth hangs where it was when time stopped
+          if (!frozen) this.updateMoth(dt);
+        } else {
+          f.place(0, 6 + Math.sin(this.time * 1.3) * 0.25, -4, 1);
+          f.pose(dt, 1.2, V(0, 1.2, 8));
+          this.bob += dt * 4;
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          this.allies.update(dt, { arena: a, time: this.time, player: { x: this.pl.x, z: this.pl.z, dead: false }, boss: f, hearts: this.hearts, maxHearts: this.maxHearts, heal: () => {}, say: () => {} });
+          this.mothP.lerp(this.tmpV.set(this.pl.x - 1.4, 2.1, this.pl.z + 0.4), 1 - Math.exp(-3 * dt));
+          a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true, 0.4, 1, 0);
+        }
+      },
+    );
+    this.playCut(c);
+  }
+
+  /** the beams of light from the three of them to its eye, at the end (made the first time) */
+  private familyBeams: THREE.Mesh[] = [];
+
+  /**
+   * It cannot be killed here. Its last light gone, it cracks; the three of them light it up at once; it tears a way out of the
+   * Fold, says it will be back (it has already been back), and is gone. The Fold unfolds, and they are home. Then the rest of
+   * the ending.
+   */
+  private fourthFled() {
+    const a = this.arena;
+    const { ui, input, audio } = this.ctx;
+    const L = STORY.cut.fourth;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const f = this.fourth;
+    // tidy the fight away
+    this.state = 'ending';
+    this.trapped = false;
+    a.marks.hideAll();
+    a.setLances([]);
+    this.lances = [];
+    this.nova = null;
+    input.setCharge(0, 0);
+    this.shield.disarm();
+    this.falls.reset();
+    ui.falls(null);
+    ui.bossBar(null);
+    const P = f.model.root.position.clone();
+    const EYE = V(P.x, Math.max(P.y, 2.5), P.z);
+    const RISE = V(0, 8.5, -7);
+    const fam = V(0, 1.1, 1.6);
+    if (!this.familyBeams.length) {
+      for (const col of [0xfff1a6, 0xff9ac8, 0xffcf5a]) {
+        const g = new THREE.CylinderGeometry(0.08, 0.08, 1, 6, 1, true);
+        g.translate(0, 0.5, 0);
+        const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(1.6), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        m.visible = false;
+        m.userData['noGround'] = true;
+        a.world.add(m);
+        this.familyBeams.push(m);
+      }
+    }
+    const beamFrom = () => [V(this.pl.x, 1, this.pl.z), ...this.allies.positions().map((q) => V(q.x, 1.4, q.z))];
+    const setBeams = (u: number, to: THREE.Vector3) => {
+      const from = beamFrom();
+      this.familyBeams.forEach((m, i) => {
+        const o = from[i]!;
+        const d = to.clone().sub(o);
+        const len = d.length();
+        m.visible = u > 0.01;
+        m.position.copy(o);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+        m.scale.set(1 + u, Math.max(0.001, len * u), 1 + u);
+      });
+    };
+    let home = false;
+    const rift = this.skyRift();
+    const keys: CamKey[] = [
+      // its eye, cracking
+      { t: 0, pos: EYE.clone().add(V(1.4, 0.3, 5.6)), look: EYE, fov: 42 },
+      { t: 1.4, pos: EYE.clone().add(V(0.9, 0.2, 4.6)), look: EYE, fov: 40 },
+      // from behind the three of them: their light, all at once
+      { t: 1.45, cut: true, pos: () => V(this.pl.x * 0.6 + 1.2, 1.7, this.pl.z + 6.5), look: EYE, fov: 52 },
+      { t: 3.0, pos: () => V(this.pl.x * 0.6 + 0.8, 1.6, this.pl.z + 5.8), look: EYE, fov: 50 },
+      // it rises and tears a way out
+      { t: 3.05, cut: true, pos: V(0, 2.2, 12), look: V(0, 7.5, -6), fov: 58 },
+      { t: 6.5, pos: V(0, 2.0, 11), look: V(0, 8.5, -8), fov: 56 },
+      // home
+      { t: 6.55, cut: true, pos: V(3.6, 2.2, 7.6), look: fam, fov: 46 },
+      { t: 9.4, pos: V(3.0, 2.0, 6.8), look: fam, fov: 46 },
+    ];
+    const beats: Beat[] = [
+      {
+        at: 0.1,
+        fn: (s) => {
+          this.line(L.crack, s);
+          if (!s) audio.v.xRoar();
+        },
+      },
+      {
+        at: 1.5,
+        fn: (s) => {
+          if (s) return;
+          audio.warm();
+          audio.chime();
+          ui.flash(0.4, 300);
+        },
+      },
+      {
+        at: 2.6,
+        fn: (s) => {
+          if (s) return;
+          audio.boom();
+          this.shake = 1;
+          a.burst3(EYE.x, EYE.y, EYE.z, 40, [0xffe9a0, 0xff9ac8, 0xffcf5a, 0xffffff], 10);
+        },
+      },
+      {
+        at: 3.1,
+        fn: (s) => {
+          setBeams(0, EYE);
+          rift.group.visible = true;
+          rift.group.position.set(0, 9, -10);
+          if (!s) audio.rumble();
+        },
+      },
+      { at: 3.6, fn: (s) => this.line(L.notEnd, s) },
+      { at: 5.0, fn: (s) => this.line(L.back, s) },
+      {
+        at: 6.3,
+        fn: (s) => {
+          if (!s) {
+            audio.boom();
+            ui.flash(1, 900);
+          }
+        },
+      },
+      {
+        at: 6.55,
+        fn: () => {
+          // the Fold unfolds: home
+          home = true;
+          rift.group.visible = false;
+          setBeams(0, EYE);
+          this.leaveFold();
+          this.familyAtHome();
+        },
+      },
+      { at: 7.4, fn: (s) => this.line(L.gone, s) },
+    ];
+    const c = new Cut(
+      9.4,
+      keys,
+      beats,
+      () => {
+        this.familyBeams.forEach((m) => (m.visible = false));
+        rift.group.visible = false;
+        if (!home) {
+          this.leaveFold();
+          this.familyAtHome();
+        }
+        this.beginEnding('home');
+      },
+      (t, dt) => {
+        this.et = 14;
+        const p = a.player;
+        this.bob += dt * 4;
+        if (!home) {
+          // it: cracked, stuttering; then up into its way out, smaller and smaller
+          const up = smooth(unlerp(3.1, 6.2, t));
+          const pos = new THREE.Vector3().lerpVectors(EYE, RISE, up);
+          f.place(pos.x, pos.y, pos.z, Math.max(0.001, 1 - smooth(unlerp(5.4, 6.3, t))));
+          f.look(clamp(t / 1.2, 0, 1), 1 + 0.6 * Math.sin(this.time * 30) * (t < 3 ? 1 : 0), 0);
+          f.pose(dt, t < 3 ? 6 : 3, V(this.pl.x, 1, this.pl.z));
+          // the three of them light it up at once
+          setBeams(t > 1.45 && t < 3.1 ? smooth(unlerp(1.45, 1.9, t)) * (1 - smooth(unlerp(2.7, 3.05, t))) : 0, EYE);
+          // the way out: it opens behind it, red, and closes after it
+          rift.update(this.time, 1);
+          rift.group.quaternion.copy(a.camera.quaternion);
+          rift.group.scale.setScalar(Math.max(0.001, 0.45 * smooth(unlerp(3.1, 3.8, t)) * (1 - smooth(unlerp(5.9, 6.4, t)))));
+          // the family stands and looks at it
+          p.position.set(this.pl.x, 0, this.pl.z);
+          p.rotation.y = Math.atan2(pos.x - this.pl.x, pos.z - this.pl.z);
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          this.allies.update(dt, { arena: a, time: this.time, player: { x: this.pl.x, z: this.pl.z, dead: false }, boss: f, hearts: this.hearts, maxHearts: this.maxHearts, heal: () => {}, say: () => {} });
+          this.mothP.lerp(this.tmpV.set(this.pl.x - 1.4, 2.1, this.pl.z + 0.4), 1 - Math.exp(-3 * dt));
+          a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true, 0.4, 1, 0);
+        } else {
+          // home: they hold on again
+          const cg = a.cage;
+          p.position.set(0, groundY(0, 2.2), 2.2);
+          p.rotation.y = Math.PI;
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          for (const [r, seed] of [[cg.mother, 1], [cg.father, 2.7]] as [typeof cg.mother, number][]) {
+            const q = r.g.position;
+            r.g.rotation.set(0, Math.atan2(-q.x, 2.2 - q.z), 0);
+            animateParent(r, dt, this.time, 0, 0.9, 0, seed);
+          }
+          this.updateMoth(dt);
+        }
+      },
+    );
+    this.playCut(c);
+  }
+
+  /** (tests, New scenes) straight to the Fourth: the three are beaten, the cage is open, the family is together */
+  skipToFourth() {
+    this.skipToFight(0, this.lastBoss);
+    this.bossDown();
+    const c = this.cut;
+    if (c) {
+      c.skip();
+      this.endCut(true);
+    }
+  }
+
   update(dtReal: number) {
     this.time += dtReal;
     this.t += dtReal;
@@ -1675,6 +2103,7 @@ export class Act2 {
     } else if (this.state === 'fight') this.updateFight(dt);
     else if (this.state === 'interlude') this.updateInterlude(dt);
     a.update(dt, this.time);
+    this.fold.update(dt, this.time);
 
     // camera
     if (this.state === 'fight' || this.state === 'interlude') {
@@ -1715,8 +2144,8 @@ export class Act2 {
         this.camLook.lerp(this.tmpV.set(cine.x, cine.y, cine.z), k);
       } else if (this.state === 'fight' && !this.hud) {
         const k = 1 - Math.exp(-3 * dt);
-        this.camPos.lerp(BOOM_POS, k);
-        this.camLook.lerp(BOOM_LOOK, k);
+        this.camPos.lerp(this.inFold ? this.tmpV.set(0, 6.5, 17) : BOOM_POS, k);
+        this.camLook.lerp(this.inFold ? this.tmpV.set(0, 2.5, -3) : BOOM_LOOK, k);
       } else {
         this.camPos.lerp(target, 1 - Math.exp(-14 * dt));
         this.camLook.set(pl.x + f.x * 5, 1.2, pl.z + f.z * 5);

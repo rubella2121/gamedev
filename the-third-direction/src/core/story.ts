@@ -39,7 +39,7 @@ export const say = (ui: Narrator, l: Line) => ui.narrate(l.text, l.ms, l.tone, l
 
 /** a subtitled line in a cutscene: `who` is shown over it (null: the world, in italics) */
 export interface SubLine {
-  who: 'The Blob' | 'Mother' | 'Father' | null;
+  who: 'The Blob' | 'Mother' | 'Father' | 'The Fourth' | null;
   text: string;
   ms: number;
 }
@@ -234,10 +234,24 @@ export const STORY = {
       can: { who: 'The Blob', text: 'I can look up now.', ms: 2600 },
       moon: { who: null, text: 'the moon blinks. the moth is home.', ms: 2600 },
     },
+    /** the family together, and then the Fourth: it stops time, speaks, and folds them away; and, after the fight, gets away */
+    fourth: {
+      stop: { who: null, text: 'the stars stop.', ms: 1800 },
+      meant: { who: 'The Fourth', text: 'You were not meant to get out.', ms: 2400 },
+      seen: { who: 'The Fourth', text: 'I have seen how this ends. Every time.', ms: 2600 },
+      beside: { who: 'Mother', text: 'Stay beside us.', ms: 1800 },
+      fold: { who: null, text: 'the world folds.', ms: 1800 },
+      where: { who: 'Father', text: 'Together, then.', ms: 1800 },
+      crack: { who: null, text: 'it cracks.', ms: 1600 },
+      notEnd: { who: 'The Fourth', text: 'This is not the end.', ms: 2200 },
+      back: { who: 'The Fourth', text: 'I will be back. I have already been back.', ms: 3000 },
+      gone: { who: 'Mother', text: "It's gone. For now.", ms: 2200 },
+    },
   } as {
     intro: Record<'back' | 'swallow' | 'coming' | 'behind', SubLine>;
     locks: SubLine[][];
     ending: Record<'last' | 'mother' | 'blob' | 'flicker' | 'home' | 'touch' | 'grows' | 'look' | 'can' | 'moon', SubLine>;
+    fourth: Record<'stop' | 'meant' | 'seen' | 'beside' | 'fold' | 'where' | 'crack' | 'notEnd' | 'back' | 'gone', SubLine>;
   },
 
   /* ------------------------------ the ending ------------------------------ */

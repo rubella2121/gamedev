@@ -160,7 +160,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
-      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : this.playGlimpses()),
+      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : id === 'fourth' ? this.playFourth() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -328,6 +328,13 @@ export class Game {
   playEnding() {
     this.showcase(this.act2.lastBoss);
     this.act2.skipToEnding();
+    this.state = 'arena';
+  }
+
+  /** New scenes: the last boss. The three are beaten and the family is together; then the Fourth comes. Not ranked. */
+  playFourth() {
+    this.showcase(this.act2.lastBoss);
+    this.act2.skipToFourth();
     this.state = 'arena';
   }
 

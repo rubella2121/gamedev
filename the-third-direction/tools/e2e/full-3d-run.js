@@ -5,13 +5,18 @@
   a.arena.crater.setLite(true);
   const out = { diff: document.querySelector('.dtile.on b')?.textContent, bosses: [] };
   const log = [];
-  let lastBi = -1, t0 = performance.now(), lastHearts = null, lost = 0;
+  let lastBi = -1, lastName = '', t0 = performance.now(), lastHearts = null, lost = 0;
   __bot3.run(0, 0, 3);
   const dead0 = g.stats.deaths;
   const iv = setInterval(() => {
     if (lastHearts !== null && a.hearts < lastHearts) lost += lastHearts - a.hearts;
     lastHearts = a.hearts;
-    if (a.bi !== lastBi) { log.push({ bi: a.bi, name: a.boss?.name, wall: Math.round((performance.now() - t0) / 1000), deaths: g.stats.deaths - dead0 }); lastBi = a.bi; }
+    // (a new boss: one of the three, or the Fourth after the reunion)
+    if (a.bi !== lastBi || (a.state === 'fight' && a.boss?.name !== lastName)) {
+      log.push({ bi: a.bi, name: a.boss?.name, wall: Math.round((performance.now() - t0) / 1000), deaths: g.stats.deaths - dead0 });
+      lastBi = a.bi;
+      lastName = a.boss?.name;
+    }
   }, 20);
   const t1 = performance.now();
   while (performance.now() - t1 < 1500000 && a.state !== 'end') await sleep(250);

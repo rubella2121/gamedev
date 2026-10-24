@@ -116,6 +116,17 @@ After each encounter except the Mournmoth's, X's shadow drags the creatures in, 
 - Slow motion. He doesn't scream. He flattens into a 2D pixel sprite and crumbles.
 
 ## ENDING (10:40–11:20)
+> **v6 note: the Fourth.** The ending now has a last boss in the middle of it. After the three 3D bosses the cage comes down and
+> the family holds on (the reunion); then time stops (the stars, the moth, the music) and the **Fourth** unfolds out of the sky: a
+> four-dimensional cube's shadow, turning through itself, with one eye. "You were not meant to get out." It folds the world away,
+> and the family stands on a clock's face in the dark (**the Fold**). You fight it *with* Mother and Father: they follow you, dodge,
+> and strike its eye when it comes down; Father holds it down a moment longer, Mother gives you a heart back once each phase, and a
+> strike when all three of you are at the eye counts twice. Its attacks are made of time: echoes (where you were), foresight (where
+> you will be), a ring that rolls out and rewinds, the hands of a clock, and half the floor folding shut. It cannot be killed: at
+> the end the family's three lights hit it at once, it tears a red way out ("This is not the end. I will be back. I have already
+> been back."), and the Fold unfolds. Then the ending below goes on as before. (Code: `act2/bosses/fourth.ts`, `act2/fold.ts`,
+> `act2/allies.ts`; the scenes are `beginArrival` and `fourthFled` in `act2/act2.ts`.)
+
 - The pinned sprites flicker into warm lights. Most drift away into the forest, and two settle beside you.
 - Cubes drift in and rebuild the original clearing in 3D, with the crater still there. Tiny monsters peek out from behind the roots.
 - The camera rises towards the moon. *"I can look up now."* Then the moon blinks.
