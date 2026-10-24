@@ -185,6 +185,12 @@ export class BonesZone implements Zone {
     this.hatchT = 0;
   }
 
+  objective(): string | null {
+    if (this.cleared || this.guardian) return null;
+    if (this.bar.broken < 0.85) return 'stand beside the bone barricade · the skitterbones pounce into it and break it';
+    return 'the way is open · pulse the bone nest to wake its guardian';
+  }
+
   complete() {
     this.guardian = null;
     this.cleared = true;

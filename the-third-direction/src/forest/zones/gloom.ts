@@ -134,6 +134,12 @@ export class GloomZone implements Zone {
     if (!this.cleared && !this.heart.dead) this.heart.hp = HEART.hp;
   }
 
+  objective(): string | null {
+    if (this.cleared || this.guardian) return null;
+    if (!this.gate.opening) return `light all 3 stone lamps · tap beside each before they fade · ${this.lamps.t.filter((v) => v > 0).length} of 3`;
+    return 'the gate is open · touch the gloom heart to wake its guardian';
+  }
+
   complete() {
     this.guardian = null;
     this.cleared = true;

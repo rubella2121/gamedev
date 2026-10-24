@@ -120,6 +120,11 @@ export class MarshZone implements Zone {
     if (!this.lily.done) this.lily = { next: 0, lit: [0, 0, 0, 0], done: false, wrong: 0 };
   }
 
+  objective(): string | null {
+    if (this.cleared || this.guardian) return null;
+    return 'reach the bell tower · freeze in the reeds when a bell looks at you · the gate opens as the bell rings';
+  }
+
   complete() {
     this.guardian = null;
     this.cleared = true;

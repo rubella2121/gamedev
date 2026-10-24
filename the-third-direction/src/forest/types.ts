@@ -172,6 +172,8 @@ export interface Zone {
   always?: boolean;
   /** where the zone's hidden warmth is waiting (the next thing to touch in its puzzle), or null once it is found: the moth leans toward it */
   secretSpot?(): { x: number; y: number } | null;
+  /** what to do next here, in a few plain words (shown at the top of the screen while you are in the zone), or null when done */
+  objective?(): string | null;
   /** (debug) the key positions of the zone, to check they are on walkable ground */
   debugPoints?(): { x: number; y: number; name: string }[];
 }

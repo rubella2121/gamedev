@@ -2539,6 +2539,23 @@ export class Act2 {
     for (const b of this.bosses) b.cut = true;
   }
 
+  /** everything stops (the player left for the home page in the middle of a fight or a scene) */
+  stop() {
+    if (this.cut) this.endCut(false);
+    this.endDeathFilm();
+    this.leaveDim();
+    for (const b of this.bosses) b.hide();
+    this.features.show(false);
+    this.state = 'end';
+    this.control = false;
+    this.ctx.ui.dashes(0, 0, 0);
+    const au = this.ctx.audio;
+    au.setDrone(0, 0.3);
+    au.setHeart(0, 0);
+    au.setLullaby(0, 0);
+    au.setWind(0, 0.3);
+  }
+
   /** the last boss's number (The Mash) */
   get lastBoss() {
     return this.bosses.length - 1;

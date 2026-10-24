@@ -121,6 +121,11 @@ export class UI {
   private pumpTimer = 0;
   private heartMax = 3;
   private recenterEl: HTMLButtonElement;
+  private pauseBtn: HTMLButtonElement;
+  private pauseEl: HTMLElement | null = null;
+  private pauseShown = false;
+  /** the pause button was pressed (the game decides whether it can pause now) */
+  onPause: (() => void) | null = null;
   /** cutscene subtitles: who is talking, and what they say */
   private subEl!: HTMLElement;
   private subTimer = 0;
@@ -187,6 +192,15 @@ export class UI {
       e.stopPropagation();
       this.onRecenter?.();
     });
+    // pause: a button in the corner (forest and 3D alike), and the menu it opens
+    this.pauseBtn = mk('pausebtn', 'button') as HTMLButtonElement;
+    this.pauseBtn.setAttribute('aria-label', 'Pause');
+    this.pauseBtn.innerHTML = '<svg viewBox="0 0 10 10"><rect x="2" y="1.5" width="2.2" height="7" rx=".4"/><rect x="5.8" y="1.5" width="2.2" height="7" rx=".4"/></svg>';
+    this.pauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onPause?.();
+    });
+    this.pauseBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.startEl = mk('start hide');
     this.endEl = mk('endcard hide');
 
@@ -852,18 +866,92 @@ export class UI {
     this.startEl.append(card);
   }
 
-  /** Controls and tips, shown over the home page. */
-  private showHowTo() {
+  /**
+   * How to play: what you are trying to do, how the forest works (every zone has a puzzle that opens the way to its heart, and
+   * the heart wakes its guardian), what each zone's puzzle is, the controls, and a few tips. Over the home page, or over the
+   * game from the pause menu (`over`). `onClose` runs when it is closed.
+   */
+  showHowTo(over = false, onClose?: () => void) {
     const card = document.createElement('div');
-    card.className = 'sheet';
+    card.className = over ? 'sheet long over' : 'sheet long';
     const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
-    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.<br>In the Crater: stand still in the Moonwell to heal, hide in the ferns, and take a fallen heart if you dare.</div>`;
+    const steps = [
+      ['Follow the arrow', 'The little arrow beside you points to the next zone. There are five, and a guardian sleeps in each.'],
+      ['Solve the zone', 'Every zone has a puzzle that opens the way to its heart. The line at the top of the screen always says what to do next.'],
+      ['Wake the guardian', 'Touch the zone\'s heart and its guardian wakes. Beat it to clear the zone.'],
+      ['Take the road', 'With all five guardians down, the seal on the road breaks. Follow the red arrow to the Edge.'],
+      ['Into 3D', 'Fight the three that hold your family. Hit the glowing weak points; dash through danger; watch the floor for warnings.'],
+    ];
+    const zones = [
+      ['Gloom Hollow', 'Light all three stone lamps with a tap beside each, before the first one fades. The gate opens: touch the Gloom Heart.'],
+      ['Rootmaw Thicket', "Stand by a wall of roots until X's shadow falls on it, then run: his stomp breaks the wall. Wait by the Rootheart until it opens, and tap."],
+      ['Echo Marsh', 'Bells only see movement: freeze in the reeds when one looks your way. The reed gate opens when the bell rings. Reach the bell tower.'],
+      ['Bone Wastes', 'Stand beside the bone barricade: the skitterbones pounce straight into it and break it. Then tap the Bone Nest.'],
+      ['Moth Meadow', 'Hold the button by the cage to free the moth. Stand still beside each sleeping flower while the moth hovers. Then walk into the Lightseed.'],
+    ];
+    const list = (l: string[][], cls: string) => l.map(([b, t], i) => `<div class="${cls}"><i>${cls === 'hstep' ? i + 1 : ''}</i><div><b>${b}</b><span>${t}</span></div></div>`).join('');
+    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div>
+      <div class="hsec">The way through</div><div class="hlist">${list(steps, 'hstep')}</div>
+      <div class="hsec">The five zones</div><div class="hlist">${list(zones, 'hzone')}</div>
+      <div class="hsec">Controls</div><div class="hlist">${rows}</div>
+      <div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.<br>In the Crater: stand still in the Moonwell to heal, hide in the ferns, and take a fallen heart if you dare.<br>Pause any time with the &#10074;&#10074; button, or P / Esc.</div>`;
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Got it';
-    close.addEventListener('click', () => card.remove());
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      card.remove();
+      onClose?.();
+    });
+    card.addEventListener('pointerdown', (e) => e.stopPropagation());
     card.append(close);
-    this.startEl.append(card);
+    (over ? this.stage : this.startEl).append(card);
+  }
+
+  /** the pause button in the corner: shown while you are playing (it is hidden in cutscenes, where Skip is) */
+  pauseButton(show: boolean) {
+    if (show === this.pauseShown) return;
+    this.pauseShown = show;
+    this.pauseBtn.classList.toggle('show', show);
+  }
+
+  /** the pause menu: resume, how to play, or leave for the home page */
+  showPause(o: { onResume: () => void; onHome: () => void }) {
+    this.hidePause();
+    const el = document.createElement('div');
+    el.className = 'pausecard';
+    el.innerHTML = '<div class="ph">Paused</div>';
+    const btn = (text: string, cls: string, fn: () => void) => {
+      const b = document.createElement('button');
+      b.className = cls;
+      b.textContent = text;
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fn();
+      });
+      el.append(b);
+      return b;
+    };
+    btn('Resume', 'pbtn main', o.onResume);
+    btn('How to play', 'pbtn', () => {
+      el.classList.add('under');
+      this.showHowTo(true, () => el.classList.remove('under'));
+    });
+    btn('Quit to home', 'pbtn quiet', o.onHome);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.stage.append(el);
+    this.pauseEl = el;
+  }
+
+  hidePause() {
+    if (!this.pauseEl) return;
+    this.pauseEl.remove();
+    this.pauseEl = null;
+    this.stage.querySelectorAll('.sheet.over').forEach((e) => e.remove());
+  }
+
+  get pauseOpen(): boolean {
+    return this.pauseEl !== null;
   }
 
   showEnd(line: string, time: string, deaths: number, mode: string, newBest: boolean, onAgain: () => void, onShare: () => Promise<boolean>, onMenu: () => void): HTMLElement {

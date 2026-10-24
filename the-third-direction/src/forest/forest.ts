@@ -2318,6 +2318,14 @@ export class Forest implements Hub {
   /** The goal, in one line: how many guardians are down, or where to go once the road is open. */
   private goalText(): string {
     if (this.sealOpen) return 'the road is open · follow the red arrow';
+    // inside a zone: what to do there
+    const pl = this.player;
+    for (const z of ZONES) {
+      // (from its entrance on: the road meets a zone a little outside its ellipse)
+      if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) >= 1.35) continue;
+      const o = this.zones.find((q) => q.id === z.id)?.objective?.();
+      if (o) return o;
+    }
     return `beat the five guardians · ${this.zones.filter((z) => z.cleared).length} of 5`;
   }
 

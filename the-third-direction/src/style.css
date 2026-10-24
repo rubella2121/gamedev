@@ -96,7 +96,7 @@ body {
 }
 .skip.show { opacity: 1; visibility: visible; }
 .recenter {
-  position: absolute; right: calc(var(--u) * 4); top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); z-index: 14; pointer-events: auto; font: inherit; font-size: calc(var(--u) * 5);
+  position: absolute; right: calc(var(--u) * 4); top: calc(var(--u) * 15 + env(safe-area-inset-top, 0px)); z-index: 14; pointer-events: auto; font: inherit; font-size: calc(var(--u) * 5);
   width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%; color: rgba(232, 255, 251, 0.85); background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 300ms;
 }
@@ -309,3 +309,36 @@ body {
 .sub b { font-size: calc(var(--u) * 2.5); letter-spacing: 0.32em; text-transform: uppercase; font-weight: 700; padding-left: 0.32em; text-shadow: 0 1px 0 #000, 0 0 calc(var(--u) * 2) rgba(0, 0, 0, 0.9); }
 .sub span { font-size: calc(var(--u) * 4.1); line-height: 1.3; color: #f6f2e8; letter-spacing: 0.02em; text-shadow: 0 2px 0 #000, 0 0 calc(var(--u) * 2.4) rgba(0, 0, 0, 0.95); text-wrap: balance; }
 .sub.world span { font-style: italic; color: #cfeee8; letter-spacing: 0.06em; }
+
+/* pause: the button in the corner, and its menu */
+.pausebtn {
+  position: absolute; right: calc(var(--u) * 4); top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); z-index: 14; pointer-events: auto;
+  width: calc(var(--u) * 9); height: calc(var(--u) * 9); border-radius: 50%; padding: 0; cursor: pointer;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2); display: flex; align-items: center; justify-content: center;
+  opacity: 0; visibility: hidden; transition: opacity 300ms;
+}
+.pausebtn svg { width: 46%; height: 46%; fill: rgba(232, 255, 251, 0.9); }
+.pausebtn.show { opacity: 1; visibility: visible; }
+.cinematic .pausebtn { display: none !important; }
+.pausecard {
+  position: absolute; inset: 0; z-index: 38; pointer-events: auto; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: calc(var(--u) * 3.2); background: rgba(2, 4, 8, 0.8); backdrop-filter: blur(2px);
+}
+.pausecard.under { visibility: hidden; }
+.pausecard .ph { font-size: calc(var(--u) * 7); font-weight: 900; letter-spacing: 0.3em; text-indent: 0.3em; text-transform: uppercase; color: #f2d36b; text-shadow: 0 0 calc(var(--u) * 3) rgba(242, 211, 107, 0.35); margin-bottom: calc(var(--u) * 3); }
+.pausecard .pbtn {
+  min-width: calc(var(--u) * 52); font: inherit; font-size: calc(var(--u) * 3.4); letter-spacing: 0.22em; text-transform: uppercase; cursor: pointer;
+  color: rgba(232, 255, 251, 0.9); background: rgba(232, 255, 251, 0.06); border: 1px solid rgba(232, 255, 251, 0.3); border-radius: calc(var(--u) * 0.8); padding: calc(var(--u) * 3) calc(var(--u) * 6);
+}
+.pausecard .pbtn.main { color: #1a1206; background: #f2d36b; border-color: #f2d36b; font-weight: 900; }
+.pausecard .pbtn.quiet { color: rgba(232, 255, 251, 0.6); }
+/* how to play, long form: it scrolls */
+.sheet.long { justify-content: flex-start; overflow-y: auto; pointer-events: auto; }
+.sheet.over { z-index: 40; }
+.sheet .hsec { width: 100%; margin-top: calc(var(--u) * 2); font-size: calc(var(--u) * 2.6); letter-spacing: 0.3em; text-transform: uppercase; color: #f2d36b; border-bottom: 1px solid rgba(242, 211, 107, 0.25); padding-bottom: calc(var(--u) * 1); }
+.hstep, .hzone { display: flex; align-items: flex-start; gap: calc(var(--u) * 3); padding: calc(var(--u) * 1.8) calc(var(--u) * 2.4); background: rgba(232, 255, 251, 0.05); border: 1px solid rgba(232, 255, 251, 0.1); border-radius: calc(var(--u) * 0.8); }
+.hstep i { flex: none; width: calc(var(--u) * 6); height: calc(var(--u) * 6); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-style: normal; font-weight: 900; font-size: calc(var(--u) * 3); color: #1a1206; background: #f2d36b; }
+.hzone i { display: none; }
+.hstep b, .hzone b { display: block; font-size: calc(var(--u) * 2.6); letter-spacing: 0.2em; text-transform: uppercase; color: #9ff4ee; margin-bottom: calc(var(--u) * 0.6); }
+.hstep span, .hzone span { display: block; font-size: calc(var(--u) * 2.7); line-height: 1.45; color: rgba(232, 255, 251, 0.85); }
+.goal { padding: 0 calc(var(--u) * 12); }
