@@ -38,8 +38,11 @@ body {
   box-shadow: 0 0 calc(var(--u) * 4) rgba(242, 211, 107, 0.45);
   opacity: 0; pointer-events: none; transform: scale(0.8); transition: opacity 180ms, transform 120ms;
 }
-.abtn.show { opacity: 1; pointer-events: auto; transform: scale(1); }
-.abtn.down { transform: scale(0.93); background: rgba(255, 241, 166, 0.95); }
+.abtn { --dx: 0px; --dy: 0px; }
+.abtn.show { opacity: 1; pointer-events: auto; transform: translate(var(--dx), var(--dy)) scale(1); }
+.abtn.down { transform: translate(var(--dx), var(--dy)) scale(0.93); background: rgba(255, 241, 166, 0.95); }
+/* dragged to aim: it follows the finger, and shows which way the light will fly */
+.abtn.aim { transition: opacity 180ms; }
 
 .layer { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
 .fade { background: #000; opacity: 0; transition: opacity 400ms linear; z-index: 12; }

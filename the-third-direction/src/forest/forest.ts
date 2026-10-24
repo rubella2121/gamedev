@@ -28,6 +28,8 @@ const LOCAL_CAM = -190;
 const PULSE_R = 36;
 /** hold the button this long for a Lance, and this long (with a full meter) for a Nova */
 const LANCE_T = 0.5;
+/** an aimed Lance (the button dragged the way it should fly) is ready this much sooner: the aiming is the wind-up */
+const AIM_T = 0.3;
 const NOVA_T = 1.3;
 const LANCE_SPEED = 300;
 const NOVA_R = 84;
@@ -134,6 +136,8 @@ export class Forest implements Hub {
   private powersHinted = false;
   private ghosts: { x: number; y: number; t: number }[] = [];
   private aim = { x: 0, y: -1 };
+  /** while the button is dragged to aim: which way, and whether the Lance is ready to throw */
+  private aimShot: { x: number; y: number; ready: boolean } | null = null;
   previewMode = false;
   /** set by the game when the player pressed Play: the first-time card may show when the opening ends (never in the trailer, the showcase or the preview) */
   briefNext = false;
@@ -422,7 +426,7 @@ export class Forest implements Hub {
       this.input.setMoveEnabled(true);
       if (!this.powersHinted) {
         this.powersHinted = true;
-        window.setTimeout(() => this.ui.hint('hold + let go: lance   double-tap: dash'), 5200);
+        window.setTimeout(() => this.ui.hint('drag the button to aim a lance   double-tap: dash'), 5200);
         window.setTimeout(() => this.ui.hint(null), 11000);
       }
       tr.zone.onArrive?.();
@@ -968,17 +972,19 @@ export class Forest implements Hub {
     for (const z of this.zones) z.onPulse?.(pl.x, pl.y, PULSE_R);
   }
 
-  private castLance() {
+  /** `aimed`: thrown the way the button was dragged (only the lightest help with the aim: it goes where you meant it to) */
+  private castLance(aimed = false) {
     const pl = this.player;
-    let ax = this.aim.x;
-    let ay = this.aim.y;
-    // aim assist: if the guardian is within about 40 degrees of where you face, the lance goes for it
+    let ax = aimed ? this.input.aimX : this.aim.x;
+    let ay = aimed ? this.input.aimY : this.aim.y;
+    if (aimed) this.aim = { x: ax, y: ay };
+    // aim assist: if the guardian is within about 40 degrees of where you face (10 when you aimed), the lance goes for it
     const tg = this.fightZone?.lanceTarget?.();
     if (tg) {
       const dx = tg.x - pl.x;
       const dy = tg.y - (pl.y - 8);
       const d = Math.hypot(dx, dy) || 1;
-      if ((dx / d) * ax + (dy / d) * ay > 0.76) {
+      if ((dx / d) * ax + (dy / d) * ay > (aimed ? 0.985 : 0.76)) {
         ax = dx / d;
         ay = dy / d;
       }
@@ -1047,10 +1053,21 @@ export class Forest implements Hub {
     const full = pl.light >= 3;
     let stage: 0 | 1 | 2 = 0;
     let u = 0;
-    if (h > 0.18) {
-      if (full && h >= NOVA_T) stage = 2;
-      else if (h >= LANCE_T) stage = 1;
-      u = h < LANCE_T ? (h - 0.18) / (LANCE_T - 0.18) : full ? clamp((h - LANCE_T) / (NOVA_T - LANCE_T), 0, 1) : 1;
+    if (input.aiming) {
+      // dragging the button aims a Lance: the Blob turns that way, and the line it will fly along shows
+      this.aim = { x: input.aimX, y: input.aimY };
+      pl.lookX = input.aimX * 0.7;
+      pl.lookY = input.aimY * 0.7;
+      stage = h >= AIM_T ? 1 : 0;
+      u = clamp(h / AIM_T, 0, 1);
+      this.aimShot = { x: input.aimX, y: input.aimY, ready: h >= AIM_T };
+    } else {
+      this.aimShot = null;
+      if (h > 0.18) {
+        if (full && h >= NOVA_T) stage = 2;
+        else if (h >= LANCE_T) stage = 1;
+        u = h < LANCE_T ? (h - 0.18) / (LANCE_T - 0.18) : full ? clamp((h - LANCE_T) / (NOVA_T - LANCE_T), 0, 1) : 1;
+      }
     }
     if (stage !== this.chargeStage) {
       if (stage === 1) this.audio.charge1();
@@ -1060,7 +1077,10 @@ export class Forest implements Hub {
     input.setCharge(u, stage);
     if (input.actionReleased) {
       const r = input.releasedAfter;
-      if (full && r >= NOVA_T) this.castNova();
+      this.aimShot = null;
+      if (input.aimedRelease) {
+        if (r >= AIM_T) this.castLance(true);
+      } else if (full && r >= NOVA_T) this.castNova();
       else if (r >= LANCE_T) this.castLance();
       this.chargeStage = 0;
       input.setCharge(0, 0);
@@ -1170,6 +1190,7 @@ export class Forest implements Hub {
     this.updateSlams(dt);
 
     // --- the action button: pulse, unless a zone wants "hold"
+    if (!fighting || this.holdReq) this.aimShot = null;
     if (this.holdReq) input.setAction(this.holdReq);
     else if (fighting) this.updateAttacks(dt);
     else {
@@ -2137,6 +2158,27 @@ export class Forest implements Hub {
       drawBlob(p, g.x - this.camX, g.y - this.camY, { squash: 0.8, lookX: this.aim.x, lookY: this.aim.y, shadow: false });
     }
     p.alpha(1);
+    // the way an aimed Lance will fly: faint dots while it charges, a bright line with a head when it is ready
+    const as = this.aimShot;
+    if (as && this.player.dead <= 0) {
+      const pl = this.player;
+      const x0 = pl.x - this.camX + as.x * 10;
+      const y0 = pl.y - 8 - this.camY + as.y * 7;
+      const L = LANCE_SPEED * 0.85;
+      for (let d = 0; d < L; d += 9) {
+        const k = 1 - d / L;
+        p.alpha((as.ready ? 0.85 : 0.35) * (0.35 + 0.65 * k));
+        p.ellipse(x0 + as.x * d, y0 + as.y * d, as.ready ? 1.6 : 1.1, as.ready ? 1.6 : 1.1, as.ready ? '#ffe9a0' : C.blobLight);
+      }
+      if (as.ready) {
+        const hx = x0 + as.x * L;
+        const hy = y0 + as.y * L;
+        p.alpha(0.9);
+        p.line(hx, hy, hx - as.x * 7 + as.y * 4, hy - as.y * 7 - as.x * 4, '#ffe9a0', 2);
+        p.line(hx, hy, hx - as.x * 7 - as.y * 4, hy - as.y * 7 + as.x * 4, '#ffe9a0', 2);
+      }
+      p.alpha(1);
+    }
     for (const l of this.lances) {
       const sx = l.x - this.camX;
       const sy = l.y - this.camY;
