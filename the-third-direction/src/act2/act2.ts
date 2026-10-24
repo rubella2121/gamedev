@@ -240,6 +240,7 @@ export class Act2 {
 
   begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
     const a = this.arena;
+    this.endDeathFilm();
     this.state = 'boom';
     this.cineIntro = cinematic;
     if (this.cut) this.endCut(false);
@@ -452,6 +453,7 @@ export class Act2 {
   /* ---------------------------------------------------------------- */
 
   private startBoss(titleDelay = 900, startOver = false) {
+    this.endDeathFilm();
     this.state = 'fight';
     this.falls.reset();
     this.quietStart = startOver;
@@ -1114,8 +1116,26 @@ export class Act2 {
   /* between the bosses                                                */
   /* ---------------------------------------------------------------- */
 
+  /** a boss's death film is showing (see the camera) */
+  private deathFilm = false;
+
+  /** the death film is over (or the run was cut short): the screen goes back */
+  private endDeathFilm() {
+    if (!this.deathFilm) return;
+    this.deathFilm = false;
+    this.arena.player.visible = true;
+    const { ui } = this.ctx;
+    ui.widescreen(false);
+    ui.cinematic(false);
+    const cam = this.arena.camera;
+    cam.fov = 64;
+    cam.updateProjectionMatrix();
+  }
+
   private bossDown() {
     const { ui, input } = this.ctx;
+    // (whatever comes next, a scene or the ending, takes the screen from here)
+    this.endDeathFilm();
     this.boss.hide();
     this.features.endFight(this.fenv);
     this.trapped = false;
@@ -1664,7 +1684,31 @@ export class Act2 {
       const pl = this.pl;
       const target = new THREE.Vector3(pl.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, pl.z - f.z * this.camDist * cp);
       // during an entrance the camera stays up and back, looking at the boss
-      if (cine) {
+      if (cine?.cam) {
+        // a death the boss films itself: the HUD goes, the camera is where it says
+        if (!this.deathFilm) {
+          this.deathFilm = true;
+          const { ui, input } = this.ctx;
+          this.control = false;
+          ui.cinematic(true);
+          ui.widescreen(true);
+          ui.recenter(false);
+          input.setAction(null);
+          input.setCharge(0, 0);
+        }
+        this.camPos.copy(cine.cam.pos);
+        this.camLook.copy(cine.cam.look);
+        // you and the moth step out of the shot when the camera comes too close
+        const a = this.arena;
+        a.player.visible = a.player.position.distanceTo(this.camPos) > 9;
+        if (a.moth.position.distanceTo(this.camPos) < 9) a.moth.visible = false;
+        if (!a.player.visible) a.setShield(0, 0, this.time);
+        const cam = this.arena.camera;
+        if (cam.fov !== cine.cam.fov) {
+          cam.fov = cine.cam.fov;
+          cam.updateProjectionMatrix();
+        }
+      } else if (cine) {
         // a boss going down gets a wide shot from the middle of the floor
         const k = 1 - Math.exp(-2.4 * dt);
         this.camPos.lerp(this.tmpV.set(cine.x * 0.3, cine.y * 0.8 + 4, cine.z + cine.dist), k);

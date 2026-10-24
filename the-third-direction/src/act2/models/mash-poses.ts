@@ -217,7 +217,9 @@ export function deadPose(t: number, out: TailCtrl) {
   _b.lag = 0.4;
   _b.bristle = 0;
   for (let i = 0; i < VIA_N; i++) _b.via[i]!.copy(_a.via[i]!);
-  mixCtrl(out, _a, _b, smooth((t - 0.7) / 1.8));
+  // it holds on through the tearing, then comes down like a tree: slow, then all at once
+  const u = Math.min(1, Math.max(0, (t - 2.9) / 1.0));
+  mixCtrl(out, _a, _b, u * u);
 }
 
 /** A hit: the tail jerks up and back, thrashing. u 0..1 */

@@ -303,8 +303,11 @@ export abstract class Boss3D {
   onNova(_n: Nova3): void {}
   /** the player's claw swings (called when the swing lands, from the player's feet, facing (fx, fz)) */
   onPlayerStrike(_x: number, _z: number, _fx: number, _fz: number): void {}
-  /** where the camera should look when it is not following the player (an entrance, a death) */
-  cinematic(): { x: number; y: number; z: number; dist: number } | null {
+  /**
+   * where the camera should look when it is not following the player (an entrance, a death). With `cam`, the boss directs the
+   * shot itself (its death is a little film: the HUD goes, the camera is exactly where it says).
+   */
+  cinematic(): { x: number; y: number; z: number; dist: number; cam?: { pos: THREE.Vector3; look: THREE.Vector3; fov: number } } | null {
     return null;
   }
   /** take its model out of the world */

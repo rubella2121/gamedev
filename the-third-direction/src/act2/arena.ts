@@ -4,6 +4,7 @@ import { C } from '../core/palette';
 import { rng, TAU } from '../core/util';
 import { drawBlob } from '../core/art';
 import { Cage } from './family';
+import { buildMoth3D, type Moth3D } from './moth3d';
 import { Crater, FAR_Z, FLOOR_R, landY, type Cover } from './crater';
 import { groundY, onGround } from './ground';
 import { animateJelly, BLOB_LOOK, makeJelly, type JellyRig } from './jelly';
@@ -159,7 +160,8 @@ export class Arena {
   readonly moth = new THREE.Group();
   /** Mother and Father, in the Collector's cage, hanging over the arena: three locks, one per boss */
   readonly cage = new Cage();
-  private mothWings: THREE.Mesh[] = [];
+  private mothModel!: Moth3D;
+  private mothYaw = 0;
   private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
 
@@ -351,18 +353,13 @@ export class Arena {
 
   /** The moth, the red gaze beam, the exposed core and the root-jaws of the last phases. */
   private buildExtras() {
-    // the Mournmoth: a tiny glowing companion
-    const wingMat = new THREE.MeshBasicMaterial({ color: 0xcff6ff, side: THREE.DoubleSide, transparent: true, opacity: 0.92 });
-    for (const sx of [-1, 1]) {
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.55), wingMat);
-      w.position.set(sx * 0.4, 0, 0);
-      w.userData['side'] = sx;
-      this.moth.add(w);
-      this.mothWings.push(w);
-    }
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.5), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    this.moth.add(body);
+    // the Mournmoth: a chunky little glowing companion (see moth3d.ts)
+    const mm = buildMoth3D();
+    this.moth.add(mm.root);
+    this.mothModel = mm;
     this.mothLight = new THREE.PointLight(0xb8f0ff, 16, 9, 1.5);
+    // (below it, so it lights you and the floor, not the inside of its own body)
+    this.mothLight.position.y = -0.35;
     this.moth.add(this.mothLight);
     this.moth.visible = false;
     this.world.add(this.moth);
@@ -503,12 +500,24 @@ export class Arena {
   /** `calm` 1: resting on your head (slow small wingbeats). `fast` 1: trembling. `glow`: how bright it is. */
   setMoth(x: number, y: number, z: number, t: number, show = true, calm = 0, glow = 1, fast = 0) {
     this.moth.visible = show;
-    this.moth.position.set(x, y + Math.sin(t * 3) * 0.12 * (1 - calm), z);
-    const f = Math.sin(t * (28 - 20 * calm + 18 * fast));
-    this.mothWings.forEach((w) => {
-      const side = w.userData['side'] as number;
-      w.rotation.z = side * (0.35 + 0.55 * f * (1 - 0.6 * calm));
-    });
+    const bob = Math.sin(t * 3) * 0.12 * (1 - calm);
+    this.moth.position.set(x, y + bob, z);
+    // it turns to look at you (the camera), a little lazily
+    const cam = this.camera.position;
+    const want = Math.atan2(cam.x - x, cam.z - z);
+    let d = want - this.mothYaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    this.mothYaw += d * 0.12;
+    const m = this.mothModel;
+    m.root.rotation.set(-0.12 + Math.cos(t * 3) * 0.08 * (1 - calm), this.mothYaw, Math.sin(t * 1.7) * 0.06);
+    // the wingbeat: the forewings lead, the hindwings follow a beat behind and beat less
+    const rate = 22 - 15 * calm + 16 * fast;
+    const amp = 0.62 * (1 - 0.6 * calm);
+    for (const w of m.wings) {
+      const f = Math.sin(t * rate - (w.hind ? 0.6 : 0));
+      w.pivot.rotation.z = w.side * ((w.hind ? 0.1 : 0.25) + amp * (w.hind ? 0.75 : 1) * f);
+    }
+    (m.halo.material as THREE.SpriteMaterial).opacity = 0.3 * glow;
     this.mothLight.intensity = 16 * glow;
   }
 

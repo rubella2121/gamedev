@@ -5,7 +5,7 @@ import { ARENA_R, BOSS_Z, groundY } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
 import { halo } from '../kit/skin';
-import { MashModel } from '../models/mash';
+import { MASH_DISSOLVE, MashModel } from '../models/mash';
 import { EYE_POS, MASH_S, MASH_Z, SHELL_DOCK } from '../models/mash-layout';
 import * as P from '../models/mash-poses';
 import { copyCtrl, mixCtrl, newCtrl } from '../models/mash-tail';
@@ -58,7 +58,7 @@ const HOME_Y = 0;
 
 export class MashBoss extends Boss3D {
   protected introLen = 4.9;
-  protected dyingLen = 6.6;
+  protected dyingLen = 8.4;
   readonly model: MashModel;
   private fx: MashFx;
   private streams: StreamFX;
@@ -770,34 +770,121 @@ export class MashBoss extends Boss3D {
     this.ball.docked = true;
     m.dockShell();
     for (let i = env.solids.length - 1; i >= 0; i--) if ((env.solids[i] as { mash?: boolean }).mash) env.solids.splice(i, 1);
-    window.setTimeout(() => this.state === 'dying' && this.say('thank you.', 3400), 3800);
+    this.deathFired.clear();
+  }
+
+  /** the death's moments that have happened (each fires once) */
+  private deathFired = new Set<string>();
+  private deathOnce(key: string, at: number, fn: () => void) {
+    if (this.st >= at && !this.deathFired.has(key)) {
+      this.deathFired.add(key);
+      fn();
+    }
   }
 
   protected updateDying(dt: number) {
     const { env, model: m } = this;
     const t = this.st;
+    const a = env.arena;
     this.deadT = t;
     const h = this.hub;
     h.tailDriven = true;
     m.setDeath(t, h.tail);
     copyCtrl(m.tail.ctrl, h.tail);
-    // five lights leave: each guardian goes home
-    if (t > 2.6) this.streams.update(t - 2.6, true);
-    // the stitches tear, the pieces fall: sparks of every colour
-    if (t < 4.8 && Math.random() < dt * 14) {
+    // the stitches tear: sparks of every colour
+    if (t > 0.8 && t < 3.2 && Math.random() < dt * 16) {
       const cols = [0x6ff0ff, 0xffb35a, 0xb08cff, 0xf4efe0, 0xff7aa8];
-      env.arena.burst3((Math.random() - 0.5) * 22, 1 + Math.random() * 13, MASH_Z + (Math.random() - 0.3) * 8, 3, [cols[Math.floor(Math.random() * 5)]!, 0x07040a], 6);
+      a.burst3((Math.random() - 0.5) * 16, 1 + Math.random() * 11, MASH_Z + (Math.random() - 0.2) * 7, 3, [cols[Math.floor(Math.random() * 5)]!, 0x07040a], 6);
     }
-    env.shake(Math.max(0, 0.45 * (1 - t / 4)));
-    if (Math.floor(t * 6) !== Math.floor((t - dt) * 6) && t < 3.4 && t > 0.8) env.audio.snap();
+    if (Math.floor(t * 6) !== Math.floor((t - dt) * 6) && t < 3.0 && t > 0.8) env.audio.snap();
+    env.shake(t < 1.2 ? 0.45 : 0);
+    // it falls apart: the flower lands, the tail comes down, the bell slumps
+    const thud = (x: number, z: number, k: number) => {
+      env.audio.thump(k);
+      env.audio.slam();
+      env.shake(0.6 + 0.5 * k);
+      a.burst3(x, 0.4, z, 22, [0x3a2f22, 0x356a4c, 0x1a1410], 8);
+    };
+    this.deathOnce('crack', 2.95, () => {
+      env.audio.crumble();
+      env.audio.v.mashRoar();
+    });
+    this.deathOnce('bloom', 3.9, () => thud(0, -18.5, 0.8));
+    this.deathOnce('tail', 3.9, () => thud(8, -38, 1));
+    this.deathOnce('bell', 4.0, () => thud(0, MASH_Z + 4, 1.2));
+    // one by one, each piece burns white and goes, into its guardian's light
+    const pieces: [keyof typeof MASH_DISSOLVE, number, number, number, number][] = [
+      ['tendrils', 0, 1.2, MASH_Z, 0x6ff0ff],
+      ['tail', 5, 2.5, -33, 0xf4efe0],
+      ['shell', -12.8, 4, -23.8, 0xffb35a],
+      ['bell', 0, 4, MASH_Z + 1, 0xb08cff],
+      ['bloom', 0, 4.5, -19, 0xff7aa8],
+      ['eye', 0, 2.7, -15.4, 0xffffff],
+    ];
+    for (const [key, x, y, z, col] of pieces) {
+      this.deathOnce('go-' + key, MASH_DISSOLVE[key] + 0.15, () => {
+        a.burst3(x, y, z, key === 'tendrils' ? 30 : 46, [col, 0xffffff, col], key === 'eye' ? 12 : 9);
+        env.audio.chime();
+        if (key === 'eye') {
+          env.ui.flash(0.55, 600);
+          env.audio.warm();
+        }
+      });
+    }
+    // and the five lights leave it: each guardian goes home
+    if (t > 4.6) this.streams.update(t - 4.6, true);
+    this.deathOnce('thanks', 6.4, () => {
+      env.audio.v.mashSpeak('thank you.');
+      env.ui.sub('The Mash', 'thank you.', 2600, '#ff9fb8');
+    });
+    // a ring of light rolls out over the floor from where it was
+    if (t > 6.6 && t < 8.3) {
+      const u = (t - 6.6) / 1.7;
+      a.marks.set(12, true, 0, MASH_Z + 6, 3 + u * 34, { col: 0xfff0c8, fill: 0, alpha: 0.9 * (1 - u) });
+    } else if (t >= 8.3) a.marks.set(12, false);
     void h;
   }
 
+  /** the death, as a film: four shots (see updateDying for what happens in each) */
+  private deathCam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 50 };
+
   cinematic() {
     // (the camera goes to (0.3 x, 0.8 y + 4, z + dist) and looks at (x, y, z): from far enough out the whole width is in view)
-    if (this.state === 'dying') return { x: 0, y: 9, z: MASH_Z, dist: 46 };
-    return null;
+    if (this.state !== 'dying') return null;
+    const t = this.st;
+    const c = this.deathCam;
+    const E = EYE_POS;
+    const eye = new THREE.Vector3(E.x * MASH_S, E.y * MASH_S + 0.2, MASH_Z + E.z * MASH_S);
+    if (t < 1.2) {
+      // its eye, close, as it convulses
+      const u = smooth(t / 1.2);
+      c.pos.set(lerp(3.2, 2.4, u), eye.y + 0.9, eye.z + lerp(14, 12, u));
+      c.look.copy(eye);
+      c.fov = 45;
+    } else if (t < 3.0) {
+      // low, from in front, pushing in, as the stitches tear and the patches light up (clear of the standing stones)
+      const u = smooth((t - 1.2) / 1.8);
+      c.pos.set(lerp(-1, 0.5, u), lerp(3, 2.6, u), lerp(18, 13, u));
+      c.look.set(0, 8, MASH_Z);
+      c.fov = 55;
+    } else if (t < 4.8) {
+      // high and wide, from the front: it comes apart
+      const u = smooth((t - 3.0) / 1.8);
+      c.pos.set(0, lerp(15, 13, u), lerp(14, 11, u));
+      c.look.set(0, 4, MASH_Z + 2);
+      c.fov = 55;
+    } else {
+      // low on the floor: the pieces go to light, and the camera follows the lights up to the cage
+      const u = smooth((t - 4.8) / 3.6);
+      c.pos.set(1, lerp(2.0, 1.6, u), lerp(10, 12, u));
+      const up = smooth((t - 6.4) / 2.0);
+      const cg = this.env.arena.cage.world;
+      c.look.set(lerp(0, cg.x * 0.6, up), lerp(5, 18, up), lerp(MASH_Z, -40, up));
+      c.fov = lerp(56, 60, u);
+    }
+    return { x: 0, y: 9, z: MASH_Z, dist: 46, cam: c };
   }
+
 }
 
 const easeOutBack = (t: number) => {

@@ -52,14 +52,16 @@ const GAZE_SEQ: (number | 'glare')[] = [3.7, 'glare', 3.1, 'glare', 2.7, 2.4];
 /** aiming, locked (it blinks), firing: seconds, for each shot of a glare */
 const GLARE = { aim: 0.75, lock: 0.28, fire: 0.24, shots: 3 };
 /** a maw chase: how many, how far apart in time, how far ahead of you */
-const CHASE = { n: 7, gap: 0.3, lead: 0.42, T: 0.7 };
+const CHASE = { n: 6, gap: 0.45, lead: 0.3, T: 0.95 };
+/** how close to a maw's middle you must be when it shuts to be bitten (its teeth reach a little further, for show) */
+const MAW_BITE = 1.4;
 const JAW_STEPS: { n: number; r: number; T: number; chase?: boolean }[] = [
-  { n: 3, r: 2.8, T: 1.0 },
+  { n: 3, r: 3.4, T: 1.3 },
   { n: 0, r: 0, T: CHASE.T, chase: true },
-  { n: 4, r: 2.6, T: 0.9 },
-  { n: 4, r: 2.2, T: 0.8 },
+  { n: 4, r: 3.3, T: 1.2 },
+  { n: 4, r: 3.1, T: 1.1 },
   { n: 0, r: 0, T: CHASE.T * 0.9, chase: true },
-  { n: 4, r: 2.0, T: 0.7 },
+  { n: 4, r: 3.0, T: 1.0 },
 ];
 const KINDS: Kind[] = ['foot', 'rake', 'gaze', 'jaws'];
 export const X_PIPS = [3, 3, 3, 4];
@@ -784,7 +786,7 @@ export class XBoss extends Boss3D {
           env.audio.snap();
           env.shake(0.35);
           a.burst3(j.x, 0.5, j.z, 10, [0x4a3a28, 0x6a5640, 0xd8d0b8], 6);
-          if (Math.hypot(pl.x - j.x, pl.z - j.z) < 1.7) env.hurt(pl.x - j.x, pl.z - j.z);
+          if (Math.hypot(pl.x - j.x, pl.z - j.z) < MAW_BITE) env.hurt(pl.x - j.x, pl.z - j.z);
         }
         const e = clamp((ft - j.t0 - T) / 0.18, 0, 1);
         if (ft - j.t0 - T < 0.4) m.setJawSlot(slot, true, j.x, j.z, 1, e);
@@ -860,7 +862,7 @@ export class XBoss extends Boss3D {
           env.shake(0.6);
           this.jawT.forEach((j) => {
             a.burst3(j.x, 0.5, j.z, 10, [0x4a3a28, 0x6a5640, 0xd8d0b8], 6);
-            if (Math.hypot(pl.x - j.x, pl.z - j.z) < 1.7) env.hurt(pl.x - j.x, pl.z - j.z);
+            if (Math.hypot(pl.x - j.x, pl.z - j.z) < MAW_BITE) env.hurt(pl.x - j.x, pl.z - j.z);
           });
         }
       } else {
