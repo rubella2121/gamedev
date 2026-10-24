@@ -405,7 +405,7 @@ def big(img, t, t0, t1, text, col):
 def world(img, t, t0, t1, text, col):
     a = env(t, t0, t1, 0.9, 0.5)
     p = smooth((t - t0) / 1.1)
-    m, g = sprite(text, SERIF, 66, 0.02, 10)
+    m, g = sprite(text, SERIF, 78, 0.02, 10)
     soft = m.filter(ImageFilter.GaussianBlur(6 * SC * (1 - p) + 0.1))
     y = OH * 0.7
     put(img, g, OW / 2, y, col, a * 0.6, add=True)
