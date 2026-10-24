@@ -236,22 +236,31 @@ export const STORY = {
     },
     /** the family together, and then the Fourth: it stops time, speaks, and folds them away; and, after the fight, gets away */
     fourth: {
-      stop: { who: null, text: 'the stars stop.', ms: 1800 },
-      meant: { who: 'The Fourth', text: 'You were not meant to get out.', ms: 2400 },
-      seen: { who: 'The Fourth', text: 'I have seen how this ends. Every time.', ms: 2600 },
-      beside: { who: 'Mother', text: 'Stay beside us.', ms: 1800 },
-      fold: { who: null, text: 'the world folds.', ms: 1800 },
-      where: { who: 'Father', text: 'Together, then.', ms: 1800 },
-      crack: { who: null, text: 'it cracks.', ms: 1600 },
-      notEnd: { who: 'The Fourth', text: 'This is not the end.', ms: 2200 },
-      back: { who: 'The Fourth', text: 'I will be back. I have already been back.', ms: 3000 },
-      gone: { who: 'Mother', text: "It's gone. For now.", ms: 2200 },
+      still: { who: null, text: 'and then nothing moves.', ms: 2000 },
+      meant: { who: 'The Fourth', text: 'You were never meant to leave.', ms: 2600 },
+      behind: { who: 'Mother', text: 'Get behind me!', ms: 1500 },
+      hold: { who: 'Father', text: 'Hold on to us!', ms: 1500 },
+      no: { who: 'Mother', text: 'No—!', ms: 1200 },
+    },
+    dimension: {
+      mother: { who: 'The Blob', text: 'Mother?', ms: 1600 },
+      father: { who: 'The Blob', text: 'Father?', ms: 1500 },
+      none: { who: null, text: 'no one answers.', ms: 1800 },
+      where: { who: 'The Blob', text: 'Where is this?', ms: 2000 },
+      lookUp: { who: 'The Blob', text: "I don't want to look up anymore.", ms: 2800 },
+      goal: { who: null, text: 'a light, far off. go to it.', ms: 3200 },
+      door: { who: null, text: 'it was never a door.', ms: 2200 },
+      there: { who: 'The Fourth', text: 'There you are.', ms: 1800 },
+      out: { who: 'The Fourth', text: 'You let them out.', ms: 2000 },
+      mine: { who: 'The Fourth', text: 'So now you are mine.', ms: 2000 },
+      welcome: { who: 'The Fourth', text: 'Welcome to the fourth direction.', ms: 2600 },
     },
   } as {
     intro: Record<'back' | 'swallow' | 'coming' | 'behind', SubLine>;
     locks: SubLine[][];
     ending: Record<'last' | 'mother' | 'blob' | 'flicker' | 'home' | 'touch' | 'grows' | 'look' | 'can' | 'moon', SubLine>;
-    fourth: Record<'stop' | 'meant' | 'seen' | 'beside' | 'fold' | 'where' | 'crack' | 'notEnd' | 'back' | 'gone', SubLine>;
+    fourth: Record<'still' | 'meant' | 'behind' | 'hold' | 'no', SubLine>;
+    dimension: Record<'mother' | 'father' | 'none' | 'where' | 'lookUp' | 'goal' | 'door' | 'there' | 'out' | 'mine' | 'welcome', SubLine>;
   },
 
   /* ------------------------------ the ending ------------------------------ */

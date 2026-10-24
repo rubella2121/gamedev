@@ -1,5 +1,6 @@
 import type { Game } from '../game';
 import { groundY as groundAt } from '../act2/ground';
+import { ROUTE } from '../act2/dimension';
 
 /**
  * A playing bot for the 3D bosses (test builds only). It plays through the real game: the joystick for movement, the
@@ -8,6 +9,7 @@ import { groundY as groundAt } from '../act2/ground';
  *
  *   __bot3.run(bossIndex, phase, speed)    go into that boss's fight at that phase and play it
  *   __bot3.report()                        what is happening
+ *   __bot3.route(speed)                    walk the Fourth Dimension to the gate (from wherever you are in it)
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -79,7 +81,92 @@ export function installBots3d(game: Game) {
     return c;
   }
 
+  /* ---- the dimension: walk the way, dash the gaps, ride the mover ---- */
+  let routeOn = false;
+  let wp = 0;
+  const route = { falls: 0, dashes: 0, rides: 0, wasFalling: false };
+  function routeTick() {
+    const pl = a2.pl;
+    const d = a2.dim;
+    const falling = a2.fallT > 0;
+    if (falling && !route.wasFalling) route.falls++;
+    // awake again after a fall: back to the nearest point of the way
+    if (!falling && route.wasFalling) {
+      let bi = 0;
+      let bd = 1e9;
+      ROUTE.forEach((w, i) => {
+        const dd = Math.hypot(w.x - pl.x, w.z - pl.z);
+        if (dd < bd) {
+          bd = dd;
+          bi = i;
+        }
+      });
+      wp = bi;
+    }
+    route.wasFalling = falling;
+    if (a2.state !== 'dimension' || !a2.control || a2.cut || falling) {
+      input.joyX = input.joyY = 0;
+      return;
+    }
+    const w = ROUTE[wp];
+    if (!w) {
+      input.joyX = input.joyY = 0;
+      return;
+    }
+    // on the mover: stand in its middle until it docks at the far side
+    const gx = w.ride === 'off' ? w.x : w.x;
+    const gz = w.ride === 'off' ? d.moverZ : w.z;
+    const dx = gx - pl.x;
+    const dz = gz - pl.z;
+    const dist = Math.hypot(dx, dz);
+    // the folds: wait outside a strip while its floor is up
+    const nz = pl.z + (dz / (dist || 1)) * 1.6;
+    if (d.folds && d.folds.some((f: Any, i: number) => f.ang > 0.2 && Math.abs(nz - [-46.5, -52.5][i]!) < 2.2 && Math.abs(pl.z - [-46.5, -52.5][i]!) > 1.7)) {
+      input.joyX = input.joyY = 0;
+      return;
+    }
+    if (w.ride === 'board') {
+      if (dist > 0.4) setMove(dx / dist, dz / dist);
+      else {
+        input.joyX = input.joyY = 0;
+        if (d.moverAt === 'near') {
+          wp++;
+          route.rides++;
+        }
+      }
+      return;
+    }
+    if (w.ride === 'off') {
+      if (dist > 0.5) setMove(dx / dist, dz / dist);
+      else input.joyX = input.joyY = 0;
+      if (d.moverAt === 'far' && dist < 1.2) wp++;
+      return;
+    }
+    if (dist > 0.35) {
+      setMove(dx / dist, dz / dist);
+      return;
+    }
+    if (w.dash) {
+      const n = ROUTE[wp + 1]!;
+      if (a2.dashCd > 0 || a2.dashT > 0 || !a2.dashPool.can()) {
+        input.joyX = input.joyY = 0;
+        return;
+      }
+      const l = Math.hypot(n.x - pl.x, n.z - pl.z) || 1;
+      a2.yaw = Math.atan2((n.x - pl.x) / l, (n.z - pl.z) / l);
+      input.joyX = input.joyY = 0;
+      input.moveX = input.moveY = 0;
+      a2.startDash();
+      route.dashes++;
+    }
+    wp++;
+  }
+
   function tick() {
+    if (routeOn) {
+      routeTick();
+      return;
+    }
     if (!on) return;
     const boss = a2.boss;
     const pl = a2.pl;
@@ -115,7 +202,7 @@ export function installBots3d(game: Game) {
     // light and wells
     // (the Moonwell is far, up on a terrace, and slow: the trip is only worth it on the last heart)
     const lowHearts = a2.hearts <= 1 && a2.hearts < a2.maxHearts;
-    if (!target && lowHearts && !a2.inFold) {
+    if (!target && lowHearts) {
       let bw: Any = null;
       let bwd = 1e9;
       for (const w of a2.features.wells) {
@@ -213,7 +300,23 @@ export function installBots3d(game: Game) {
       stats.deaths0 = g0.stats.deaths;
       return 'attached';
     },
+    /** walk the Fourth Dimension to the gate */
+    route(speed = 1) {
+      routeOn = true;
+      wp = 0;
+      route.falls = route.dashes = route.rides = 0;
+      route.wasFalling = false;
+      started = performance.now();
+      g0.debugSpeed = speed;
+      g0.debugRenderEvery = speed > 1 ? 6 : 1;
+      return 'walking';
+    },
+    routeReport() {
+      const pl = a2.pl;
+      return { st: a2.state, wp, of: ROUTE.length, x: Math.round(pl.x * 10) / 10, z: Math.round(pl.z * 10) / 10, cp: a2.dim.cp, mover: a2.dim.moverAt, gate: a2.gateCut, seconds: Math.round((performance.now() - started) / 100) / 10, fps: g0.fps, ...route };
+    },
     stop() {
+      routeOn = false;
       on = false;
       input.joyX = input.joyY = 0;
       g0.debugSpeed = 1;

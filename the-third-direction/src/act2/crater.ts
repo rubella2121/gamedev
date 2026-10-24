@@ -1044,6 +1044,17 @@ export class Crater {
     for (const o of this.skyObjs) o.visible = on;
   }
 
+  /** the moon and the stars go out (k = 0) and come back (k = 1) */
+  dimSky(k: number) {
+    for (const o of this.skyObjs) {
+      const m = (o as THREE.Mesh).material as THREE.Material & { opacity: number };
+      if (!(o as THREE.Sprite).isSprite && !(o as THREE.Points).isPoints) continue;
+      if (m.userData['op0'] === undefined) m.userData['op0'] = m.opacity;
+      m.transparent = true;
+      m.opacity = m.userData['op0'] * k;
+    }
+  }
+
   setLite(on: boolean) {
     this.lite = on;
     this.group.visible = this.shown && !on && this.group.position.y > -25.9;

@@ -116,16 +116,31 @@ After each encounter except the Mournmoth's, X's shadow drags the creatures in, 
 - Slow motion. He doesn't scream. He flattens into a 2D pixel sprite and crumbles.
 
 ## ENDING (10:40–11:20)
-> **v6 note: the Fourth.** The ending now has a last boss in the middle of it. After the three 3D bosses the cage comes down and
-> the family holds on (the reunion); then time stops (the stars, the moth, the music) and the **Fourth** unfolds out of the sky: a
-> four-dimensional cube's shadow, turning through itself, with one eye. "You were not meant to get out." It folds the world away,
-> and the family stands on a clock's face in the dark (**the Fold**). You fight it *with* Mother and Father: they follow you, dodge,
-> and strike its eye when it comes down; Father holds it down a moment longer, Mother gives you a heart back once each phase, and a
-> strike when all three of you are at the eye counts twice. Its attacks are made of time: echoes (where you were), foresight (where
-> you will be), a ring that rolls out and rewinds, the hands of a clock, and half the floor folding shut. It cannot be killed: at
-> the end the family's three lights hit it at once, it tears a red way out ("This is not the end. I will be back. I have already
-> been back."), and the Fold unfolds. Then the ending below goes on as before. (Code: `act2/bosses/fourth.ts`, `act2/fold.ts`,
-> `act2/allies.ts`; the scenes are `beginArrival` and `fourthFled` in `act2/act2.ts`.)
+> **v7 note: the Fourth Dimension.** The ending is no longer the end. The reunion plays, the clearing grows back, Mother says "Look
+> up." and the Blob says "I can look up now." Then nothing moves. The lullaby bends and stops, the moon goes out, and where it was
+> the **Fourth** unfolds out of the sky: a four-dimensional cube's shadow (thick beams of violet light turning through each other,
+> a block of light at every corner, the moments just past trailing after them), a dark ball of blocks inside it, and in the ball one
+> slit of an eye, which opens. "You were never meant to leave." Mother steps in front of the Blob ("Get behind me!"), the floor
+> cracks, a cold tear opens over the Blob and pulls it up, turning over, while Father shouts "Hold on to us!" and Mother "No—!".
+> White, then black. Only the Blob goes; the parents and the moth stay behind.
+>
+> In the dark: "Mother?" "Father?" No one answers. It wakes flattened on a glossy black slab, and the camera rises behind it to
+> show **the Fourth Dimension**: broken slabs of dark blocks over a drop with no bottom, monoliths cracked with cold light, an empty
+> frame too big to be a door, columns rising from nothing, towers hanging upside down from rocks in the air, landmasses the wrong
+> way up, a bruised sky with cracks of light in it, and a moon with a face, its slanted eyes white, dark streaks running down from
+> them. Its eyes open. "I don't want to look up anymore."
+>
+> Then you walk it (the same movement, camera and dash as the fights; no hearts, no enemies): "a light, far off. go to it." Five
+> gaps to dash, a slab that rides across the drop, a place where the floor folds over from its edge like a page (wait for it to lift
+> again), cells with their bars snapped, a long broken bridge north, and a plaza where the light goes straight up into an enormous
+> empty cage. A dash that ends over nothing drops you into the dark; you wake where you last stood. Far off, tall thin shapes stand
+> on the columns and watch; when you look away, they are somewhere else. Now and then something flashes far off.
+>
+> The gate is a cube turning through itself, and its line of light is an eye. "It was never a door." It opens. "There you are."
+> "You let them out." "So now you are mine." The moon's eyes widen. "Welcome to the fourth direction." Black. The end card reads
+> *it is still watching.* (Code: `act2/fourth-model.ts`, `act2/dimension.ts`; the scenes are `beginTaking`, `enterDimension` and
+> `beginGate` in `act2/act2.ts`. The earlier version, a fight beside Mother and Father in a place called the Fold, is in the git
+> history: `act2/bosses/fourth.ts`, `act2/fold.ts`, `act2/allies.ts`.)
 
 - The pinned sprites flicker into warm lights. Most drift away into the forest, and two settle beside you.
 - Cubes drift in and rebuild the original clearing in 3D, with the crater still there. Tiny monsters peek out from behind the roots.
