@@ -380,8 +380,11 @@ export class ThornbackKing extends Guardian {
         hub.hurt(this.x, this.y, 1);
         this.hurtCd = 0.9;
       }
-      pl.x += Math.sign(dx || 1) * 70 * dt;
-      pl.y += Math.sign(dy || 1) * 40 * dt;
+      // (never into a tree, a root or the edge of the clearing: a shove that would is not made)
+      const sx = pl.x + Math.sign(dx || 1) * 70 * dt;
+      const sy = pl.y + Math.sign(dy || 1) * 40 * dt;
+      if (hub.canStand(sx, pl.y)) pl.x = sx;
+      if (hub.canStand(pl.x, sy)) pl.y = sy;
     }
   }
 
@@ -617,7 +620,8 @@ export class ThornbackKing extends Guardian {
     const pl = this.pl;
     const hub = this.hub;
     c.t = 0;
-    for (const p of c.posts) if (Math.hypot(p.x - pl.x, (p.y - pl.y) / 0.8) < 8) p.alive = false;
+    // (no post comes up under you or touching you: you could not walk out of it)
+    for (const p of c.posts) if (Math.abs(p.x - pl.x) < 9 && Math.abs(p.y - pl.y) < 7) p.alive = false;
     hub.audio.crumble();
     hub.shake(5);
     for (const p of c.posts) if (p.alive && Math.random() < 0.4) burst(hub.parts, p.x, p.y - 4, 2, [C.root, C.rootLight, '#3a2a1e'], 40, 1, 80);
