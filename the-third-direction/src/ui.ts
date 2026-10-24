@@ -828,8 +828,8 @@ export class UI {
       const scenes: { id: 'edge' | 'glimpses' | 'ending' | 'fourth'; name: string; sub: string; colour: string }[] = [
         { id: 'edge', name: 'The Edge', sub: 'X comes into the forest · the portal · the fall into 3D', colour: '#9ff4ee' },
         { id: 'glimpses', name: 'The glimpses', sub: 'the 3D world through the tears, all five', colour: '#f2d36b' },
-        { id: 'fourth', name: 'The Fourth Dimension', sub: 'it comes for you · a world after the ending', colour: '#9fb8ff' },
-        { id: 'ending', name: 'The ending', sub: 'the last lock breaks · the family, free · and then', colour: '#ff9fb8' },
+        { id: 'fourth', name: 'The Fourth', sub: 'it takes all three of you · fight it together', colour: '#b9a2ff' },
+        { id: 'ending', name: 'The ending', sub: 'the last lock breaks · the family, free', colour: '#ff9fb8' },
       ];
       for (const sc of scenes) {
         const btn = document.createElement('button');

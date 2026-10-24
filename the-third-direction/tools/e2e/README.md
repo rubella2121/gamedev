@@ -17,14 +17,10 @@ QS='?debug' node tools/e2e.mjs dist-standalone tools/e2e/gestures-3d.json /tmp/o
   under it), and Escape ends the trailer and shows the home page.
 * `forest-bot.json` (+ `forest-bot-run.js`): the bot plays one forest guardian at 3x speed and prints deaths, the fewest hearts it had, and its dashes. Change
   `'gloom'` on the `window.__id` line to `thicket`, `marsh`, `bones` or `meadow`. One guardian per page load: a second arena in the same run does not start.
-* `full-3d.json` (+ `full-3d-run.js`): the bot plays all three 3D bosses back to back (X, The Collector, The Mash), watches the
-  ending and the Fourth taking the Blob, then walks the Fourth Dimension to its gate (`__bot3.route`: dashing the gaps, riding the
-  mover, waiting out the folds), all at 3x speed, and prints when each boss began, the hearts lost, the deaths, `dimension` (it got
-  there), `route` (its falls, dashes and rides) and whether the end card was reached. Change `.dtile:nth-child(2)` to `1` / `3` for Gentle / Nightmare.
+* `full-3d.json` (+ `full-3d-run.js`): the bot plays all three 3D bosses back to back (X, The Collector, The Mash), then (after the
+  reunion) the Fourth in the Fourth Dimension beside Mother and Father, at 3x speed, and prints
+  when each one began, the hearts lost, the deaths and whether the ending was reached. Change `.dtile:nth-child(2)` to `1` / `3` for Gentle / Nightmare.
   Takes 4-8 minutes on a computer without a GPU. Normal: no deaths, about 270 s wall time; Nightmare: a few deaths, still finishes.
-* `dimension.json`: New scenes → The Fourth Dimension. Screenshots of the Fourth coming (`a*`), the Blob waking (`b*`), a tour of
-  the slabs (`c*`, by moving the Blob there), the gate (`d*`) and the end card (`e-end`). Expected last line: `game` and `act2` both
-  `end`, `line` "it is still watching.", no errors. (`full-3d.json` walks the dimension for real, with the route bot.)
 * `edge-transition.json`: the Edge with no input at all. X's short 2D fight cannot kill you, he pins you, the portal opens and pulls you in by
   itself, and the 3D intro hands over to the X fight. Expected: modes `edge, xfight, pinned, rift, dive, done`, `minH` 1 or more, then `arena` / `fight`
   with boss 0, and no errors. Run with `STACK=1` to have page errors printed with their stack.

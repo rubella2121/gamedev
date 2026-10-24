@@ -300,7 +300,7 @@ export class Game {
     const s = this.summary();
     // the showcase skips the story, so its time is never recorded or ranked
     const newBest = !this.showcaseRun && recordTime(D.id, this.elapsed);
-    const rankEl = this.ui.showEnd(this.act2.endLine, s.time, s.deaths, D.label, newBest, () => this.restart(), () => shareRun(s.time, s.deaths), () => this.home());
+    const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, D.label, newBest, () => this.restart(), () => shareRun(s.time, s.deaths), () => this.home());
     if (!this.showcaseRun && D.ranked) {
       void submitClearTime(this.elapsed, s.deaths).then((r) => {
         if (r && r.rank) rankEl.innerHTML = `rank <b>#${r.rank}</b>${r.total ? ` of ${r.total}` : ''}`;
@@ -331,10 +331,10 @@ export class Game {
     this.state = 'arena';
   }
 
-  /** New scenes: the Fourth Dimension. The three are beaten and the family is free; the Fourth comes and takes the Blob. Not ranked. */
+  /** New scenes: the last boss. The three are beaten and the family is together; then the Fourth comes. Not ranked. */
   playFourth() {
     this.showcase(this.act2.lastBoss);
-    this.act2.skipToTaking();
+    this.act2.skipToFourth();
     this.state = 'arena';
   }
 

@@ -5,8 +5,9 @@ import { groundDecals } from './ground';
 import { CollectorBoss } from './bosses/collector';
 import { MashBoss } from './bosses/mash';
 import { XBoss } from './bosses/xboss';
-import { Dimension, GATE, SLABS, WAKE } from './dimension';
-import { FourthModel } from './fourth-model';
+import { FourthBoss } from './bosses/fourth';
+import { FourthWorld, WORLD_R as FOLD_R } from './fourth-world';
+import { Allies } from './allies';
 import { Features, type FeatureEnv } from './features';
 import type { Boss3D, Env, Lance3, Nova3, Solid, Weak } from './fight';
 import { Slicer } from './kit/sdf';
@@ -22,7 +23,7 @@ import { MothMood, MothShield } from '../core/mothbond';
 import { Falls, type Verdict } from '../core/falls';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
-type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'dimension' | 'end';
+type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
 
 const PLAYER_SPEED = 7.6;
 const START_Z = 12;
@@ -38,9 +39,6 @@ const BOOM_POS = new THREE.Vector3(0, 9, 27);
 const BOOM_LOOK = new THREE.Vector3(0, 8, -14);
 /** The fight camera: a little flatter than before, so the whole monster fits. */
 const CAM_PITCH = 0.5;
-/** in the dimension the camera is lower and looks further ahead: there is a long way to see */
-const DIM_PITCH = 0.3;
-const DIM_DIST = 10.5;
 
 export class Act2 {
   readonly arena = new Arena();
@@ -226,12 +224,12 @@ export class Act2 {
     // the bosses, in the order you meet them
     const x = new XBoss(this.env, a.world, () => this.bossDown());
     this.bosses.push(x, new CollectorBoss(this.env, a.world, () => this.bossDown()), new MashBoss(this.env, a.world, () => this.bossDown()));
-    // after them: the Fourth, and the place it takes you to
-    this.dim = new Dimension(a.scene);
-    this.dim.onFoldRise = () => {
-      if (this.state === 'dimension' && this.dim.pullAt(this.pl.x, this.pl.z)) ctx.audio.creak();
-    };
-    this.fourthM = new FourthModel(a.world);
+    // the last of them: not one of the three (it is fought after the cage is open, in its own place, with the family)
+    this.fourth = new FourthBoss(this.env, a.world, () => this.fourthFled());
+    this.dim = new FourthWorld(a.scene);
+    this.allies = new Allies(a.cage.mother, a.cage.father);
+    this.fourth.allies = () => (this.inDim ? this.allies.positions() : []);
+    this.fourth.onAllyHit = (i, fx, fz) => this.allies.knock(i, fx, fz, this.arena);
     this.boss = x;
     for (const b of this.bosses) void b.build(this.slicer);
   }
@@ -252,7 +250,7 @@ export class Act2 {
   begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
     const a = this.arena;
     this.endDeathFilm();
-    this.leaveDimension();
+    this.leaveDim();
     this.state = 'boom';
     this.cineIntro = cinematic;
     if (this.cut) this.endCut(false);
@@ -469,10 +467,10 @@ export class Act2 {
     this.state = 'fight';
     this.falls.reset();
     this.quietStart = startOver;
-    this.boss = this.bosses[this.bi]!;
+    this.boss = this.inDim ? this.fourth : this.bosses[this.bi]!;
     this.hud = false;
     this.control = false;
-    this.features.show(true);
+    this.features.show(!this.inDim);
     this.features.reset();
     this.hearts = this.maxHearts;
     this.light = 0;
@@ -510,8 +508,6 @@ export class Act2 {
 
   /** can the Blob move by (dx, dz) from (x, z)? Not up a cliff: a rise steeper than a ramp, checked in small steps */
   private canStep(x: number, z: number, dx: number, dz: number): boolean {
-    // in the dimension the floor ends at the edge of the slab (only a dash goes past it)
-    if (this.state === 'dimension') return this.dashT > 0 || this.dim.floorAt(x + dx, z + dz);
     const d = Math.hypot(dx, dz);
     if (d < 1e-6) return true;
     const n = Math.max(1, Math.ceil(d / 0.12));
@@ -527,14 +523,13 @@ export class Act2 {
 
   private resetSolids() {
     this.solids.length = 0;
-    if (this.state === 'dimension') for (const d of this.dim.solids) this.solids.push({ ...d, alive: true });
-    else this.solids.push(...this.arena.pillarData);
+    if (!this.inDim) this.solids.push(...this.arena.pillarData);
   }
 
   /** in the fern thicket: what hunts by sight cannot see you (a strike or a bolt gives you away for a moment) */
   get hidden(): boolean {
     const pl = this.pl;
-    return this.state !== 'dimension' && !pl.dead && this.strikeT <= 0 && this.revealT <= 0 && Math.hypot(pl.x - FERNS.x, pl.z - FERNS.z) < FERNS.r;
+    return !this.inDim && !pl.dead && this.strikeT <= 0 && this.revealT <= 0 && Math.hypot(pl.x - FERNS.x, pl.z - FERNS.z) < FERNS.r;
   }
   private revealT = 0;
 
@@ -545,12 +540,6 @@ export class Act2 {
 
   /** Swing the camera behind the player, looking at the boss. */
   private resetCamera() {
-    if (this.state === 'dimension') {
-      // behind you, the way you face
-      this.camYaw = this.yaw + Math.PI;
-      this.camPitch = DIM_PITCH;
-      return;
-    }
     const dx = 0 - this.pl.x;
     const dz = BOSS_Z + 1.5 - this.pl.z;
     this.camYaw = Math.atan2(-dx, -dz);
@@ -725,7 +714,6 @@ export class Act2 {
   }
 
   private resolveStrike() {
-    if (this.state === 'dimension') return;
     const pl = this.pl;
     const fx = Math.sin(this.lastFace);
     const fz = Math.cos(this.lastFace);
@@ -770,7 +758,6 @@ export class Act2 {
   }
 
   private castLance() {
-    if (this.state === 'dimension') return;
     const pl = this.pl;
     let dx = Math.sin(this.yaw);
     let dz = Math.cos(this.yaw);
@@ -968,12 +955,6 @@ export class Act2 {
     ox += this.pullX * dt;
     oz += this.pullZ * dt;
     this.pullX = this.pullZ = 0;
-    // in the dimension: the mover carries you, and the folding place pulls you sideways
-    if (this.state === 'dimension') {
-      const d = this.dim;
-      if (d.onMover(pl.x, pl.z) && !dashing) oz += d.moverStep;
-      if (d.pullAt(pl.x, pl.z) > 0) ox += (1.4 + 0.9 * Math.sin(this.time * 0.7)) * dt;
-    }
     // the edge of a terrace is a cliff: you can drop down it, not climb it (try the whole step, then each half of it)
     if (!this.canStep(pl.x, pl.z, ox, oz)) {
       if (this.canStep(pl.x, pl.z, ox, 0)) oz = 0;
@@ -989,13 +970,13 @@ export class Act2 {
     this.dvx *= decay;
     this.dvz *= decay;
     const rr = Math.hypot(pl.x, pl.z);
-    const edge = ARENA_R - 0.9;
-    if (this.state !== 'dimension' && rr > edge) {
+    const edge = this.inDim ? FOLD_R - 0.9 : ARENA_R - 0.9;
+    if (rr > edge) {
       pl.x *= edge / rr;
       pl.z *= edge / rr;
     }
-    // the boss's side of the floor ends where he stands
-    if (this.state !== 'dimension' && pl.z < FAR_Z) pl.z = FAR_Z;
+    // the boss's side of the floor ends where he stands (the Fold is round all the way)
+    if (!this.inDim && pl.z < FAR_Z) pl.z = FAR_Z;
     // columns are solid: pillars, pins, jars
     for (const s of this.solids) {
       if (!s.alive) continue;
@@ -1033,7 +1014,7 @@ export class Act2 {
       if (this.deadT <= 0) this.resetPhase();
       return;
     }
-    this.features.update(dt, this.fenv);
+    if (!this.inDim) this.features.update(dt, this.fenv);
     const b = this.boss;
     if (!this.hud && b.state === 'fight') this.beginFight();
     if (this.hud && (b.state === 'dying' || b.state === 'gone')) {
@@ -1054,6 +1035,7 @@ export class Act2 {
       }
     }
     b.update(dt);
+    if (this.inDim) this.updateAllies(dt);
     this.updateRig(dt);
     this.updateMoth(dt);
     void a;
@@ -1079,7 +1061,7 @@ export class Act2 {
     while (dy > Math.PI) dy -= TAU;
     while (dy < -Math.PI) dy += TAU;
     this.yaw += dy * (1 - Math.exp(-14 * dt));
-    p.position.set(pl.x, groundY(pl.x, pl.z) + this.fallY, pl.z);
+    p.position.set(pl.x, groundY(pl.x, pl.z), pl.z);
     p.rotation.y = this.yaw;
     p.visible = pl.invuln > 0 && this.dashT <= 0 ? Math.floor(this.time * 14) % 2 === 0 : true;
     const f = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
@@ -1253,12 +1235,13 @@ export class Act2 {
   private line(l: SubLine, skipping = false) {
     if (skipping) return;
     const colour = l.who === 'Mother' ? '#ffb0d8' : l.who === 'Father' ? '#ffd27a' : l.who === 'The Blob' ? '#fff1a6' : l.who === 'The Fourth' ? '#c9b8ff' : '#cfeee8';
-    this.ctx.ui.sub(l.who, l.text, l.ms, colour);
+    // (held long enough to read without hurrying: the longer the line, the longer it stays)
+    this.ctx.ui.sub(l.who, l.text, Math.max(l.ms * 1.6, 1600 + l.text.length * 85), colour);
     const v = this.ctx.audio.v;
     if (l.who === 'Mother') v.speak(l.text, { f0: 232, rate: 1.0, breath: 0.65, rough: 0.05, gain: 0.16, wet: 0.7, fall: 0.15 });
     else if (l.who === 'Father') v.speak(l.text, { f0: 132, rate: 0.95, breath: 0.5, rough: 0.12, gain: 0.18, wet: 0.65, fall: 0.2 });
     else if (l.who === 'The Blob') v.speak(l.text, { f0: 330, rate: 1.15, breath: 0.55, gain: 0.12, wet: 0.6, fall: 0.1 });
-    else if (l.who === 'The Fourth') v.speak(l.text, { f0: 62, rate: 0.72, breath: 0.35, rough: 0.5, gain: 0.2, wet: 0.95, fall: 0.35 });
+    else if (l.who === 'The Fourth') v.fourthSpeak(l.text);
   }
 
   /** where the cage's people are, for the camera (the middle of the cage, at their height) */
@@ -1424,21 +1407,12 @@ export class Act2 {
     this.playCut(c);
   }
 
-  /** the Fourth (what can be seen of it here: a cube turning through itself, and an eye) and the place it takes you to */
-  private fourthM!: FourthModel;
-  private dim!: Dimension;
-  /** falling into the drop (or folded flat): how far down, how fast, how long until you wake again */
-  private fallT = 0;
-  private fallY = 0;
-  private fallV = 0;
-  private fallKind: 'drop' | 'fold' = 'drop';
-  private fellOnce = false;
-  private dimT = 0;
-  private gateCut = false;
-  /** the camera leans in the folding place */
-  private roll = 0;
-  /** the end card's line */
-  endLine = 'i can look up now.';
+  /** the Fourth, its Fold, and the family fighting beside you there */
+  private fourth!: FourthBoss;
+  private dim!: FourthWorld;
+  private allies!: Allies;
+  /** in the Fold (the Crater is folded away; the floor is flat and round) */
+  inDim = false;
 
   /** the rift in the sky the Blob falls out of (made the first time it is needed) */
   private rift: SkyRift | null = null;
@@ -1515,9 +1489,8 @@ export class Act2 {
    * clearing grows back, and then, from behind the family, it tilts up: the moon blinks and the moth goes home.
    */
   /**
-   * The ending plays in two parts, one after the other: the reunion (the lock, the cage, the hug, round the family) and home
-   * (the clearing grows back, "Look up.", "I can look up now."). Then, before the moon can blink, the Fourth comes (see
-   * beginTaking). One timeline; `part` picks its half.
+   * The ending comes in two parts now, with the Fourth between them: the reunion (the lock, the cage, the hug, round the family)
+   * and, after the Fourth has got away, home (the clearing grows back, the moon, the moth). One timeline; `part` picks its half.
    */
   private beginEnding(part: 'reunion' | 'home' = 'reunion') {
     this.state = 'ending';
@@ -1651,19 +1624,20 @@ export class Act2 {
     ];
     // the reunion ends going round the family; home begins as the clearing grows back
     const SPLIT = 14.05;
-    // (home ends as the Blob says it can look up now: then the moon goes out, and the Fourth comes)
-    const HOME_END = 21.5;
     const off = part === 'home' ? SPLIT : 0;
     const keysP = part === 'home' ? keys.filter((k) => k.t >= SPLIT).map((k) => ({ ...k, t: k.t - SPLIT })) : keys.filter((k) => k.t < SPLIT);
-    const beatsP = part === 'home' ? beats.filter((b) => b.at >= SPLIT - 0.1 && b.at < HOME_END).map((b) => ({ ...b, at: Math.max(0, b.at - SPLIT) })) : beats.filter((b) => b.at < SPLIT - 0.1);
+    const beatsP = part === 'home' ? beats.filter((b) => b.at >= SPLIT - 0.1).map((b) => ({ ...b, at: Math.max(0, b.at - SPLIT) })) : beats.filter((b) => b.at < SPLIT - 0.1);
     const c = new Cut(
-      part === 'home' ? HOME_END - SPLIT : SPLIT,
+      part === 'home' ? 25 - SPLIT : SPLIT,
       keysP,
       beatsP,
       () => {
-        // after the clearing grows back and the Blob looks up: the Fourth
-        if (part === 'reunion') this.beginEnding('home');
-        else this.beginTaking();
+        if (part === 'reunion') {
+          this.beginArrival();
+          return;
+        }
+        this.state = 'end';
+        this.onEnd?.();
       },
       (t0, dt) => {
         const t = t0 + off;
@@ -1726,534 +1700,550 @@ export class Act2 {
   }
 
   /* ---------------------------------------------------------------- */
-  /* the Fourth, and where it takes you                                */
+
+  /* ---------------------------------------------------------------- */
+  /* the Fourth                                                        */
   /* ---------------------------------------------------------------- */
 
-  /** the fog the Crater had before the Fourth came, to give it back */
-  private fogKeep: { color: number; density: number } | null = null;
-
-  private restoreFog() {
-    const f = this.arena.scene.fog as THREE.FogExp2 | null;
-    if (this.fogKeep && f && 'density' in f) {
-      f.color.setHex(this.fogKeep.color);
-      f.density = this.fogKeep.density;
-    }
-    this.fogKeep = null;
-  }
-
-  /** back to the Crater, as it was (a new run, a glimpse, the trailer) */
-  private leaveDimension() {
+  /** into the Fold: the Crater is folded away and the family stands on the clock's face */
+  private enterDim() {
     const a = this.arena;
-    this.fourthM.root.visible = false;
-    this.restoreFog();
-    this.dim.exit(a);
-    a.crater.dimSky(1);
-    if (this.rift) this.rift.setCool(0x9ff4ee);
-    this.fallT = 0;
-    this.fallY = 0;
-    this.gateCut = false;
-    this.roll = 0;
-    this.endLine = 'i can look up now.';
-    a.player.scale.setScalar(1);
-  }
-
-  /**
-   * The Fourth comes. The family is free and the clearing has grown back; the Blob has just said it can look up now. Then
-   * nothing moves. The lullaby bends and stops. The moon goes out, and where it was, something unfolds out of the sky: a cube
-   * turning through itself, a ball of dark in it, and in the ball an eye, which opens. It speaks. Mother steps in front of the
-   * Blob; the floor cracks; a tear opens over the Blob and pulls it up, and the family reach for it, and cannot hold on.
-   * White, then black. Only the Blob goes.
-   */
-  private beginTaking() {
-    const a = this.arena;
-    const { ui, audio } = this.ctx;
-    const L = STORY.cut.fourth;
-    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-    const f = this.fourthM;
-    const cg = a.cage;
-    this.state = 'ending';
-    this.et = 0;
-    const FOURTH = V(0, 34, -55);
-    const BLOB = V(this.pl.x, 0, this.pl.z);
-    const MUM = cg.mother.g.position.clone();
-    const DAD = cg.father.g.position.clone();
-    const SHIELD = V(BLOB.x - 0.35, 0, BLOB.z - 1.1);
-    const fog = a.scene.fog as THREE.FogExp2;
-    if (!this.fogKeep && fog && 'density' in fog) this.fogKeep = { color: fog.color.getHex(), density: fog.density };
-    const rift = this.skyRift();
-    rift.setCool(0xbcd8ff);
-    rift.showFlat(false);
-    const RIFT = V(BLOB.x, 7.2, BLOB.z);
-    f.size = 0;
-    f.eyeOpen = 0.02;
-    f.glowK = 0;
-    f.root.position.copy(FOURTH);
-    f.root.visible = false;
-    let lift = 0;
-    let gone = false;
-    const keys: CamKey[] = [
-      // still on the sky, where the moon was
-      { t: 0, pos: V(0, 1.6, 11.6), look: V(0, 42, -71), fov: 62 },
-      { t: 2.0, pos: V(0, 1.6, 11.6), look: V(0, 40, -70), fov: 62 },
-      { t: 4.6, pos: V(0, 1.4, 11.2), look: FOURTH.clone(), fov: 50 },
-      // its eye
-      { t: 4.65, cut: true, pos: V(3.5, 22, -6), look: FOURTH.clone(), fov: 40 },
-      { t: 7.3, pos: V(2.4, 24, -13), look: FOURTH.clone(), fov: 33 },
-      // the family, from in front, looking up into its light
-      { t: 7.35, cut: true, pos: V(BLOB.x + 7.5, 3.4, BLOB.z - 6), look: V(BLOB.x - 0.3, 1.2, BLOB.z - 0.5), fov: 46 },
-      { t: 9.15, pos: V(BLOB.x + 7, 3.2, BLOB.z - 5.5), look: V(BLOB.x - 0.3, 1.4, BLOB.z - 0.5), fov: 44 },
-      // the tear, and the Blob going up into it
-      { t: 9.2, cut: true, pos: V(BLOB.x + 9, 2.4, BLOB.z + 8.5), look: V(BLOB.x, 3.2, BLOB.z), fov: 56 },
-      { t: 11.7, pos: V(BLOB.x + 8.2, 3.6, BLOB.z + 7.8), look: () => RIFT.clone().add(V(0, -1.5, 0)), fov: 52 },
-      { t: 13, pos: V(BLOB.x + 8.2, 3.6, BLOB.z + 7.8), look: () => RIFT.clone(), fov: 52 },
-    ];
-    const c = new Cut(
-      13,
-      keys,
-      [
-        {
-          at: 0.1,
-          fn: (s) => {
-            if (s) return;
-            // the lullaby bends, and stops
-            audio.setLullaby(0.6, 1);
-            window.setTimeout(() => audio.setLullaby(0, 1), 900);
-          },
-        },
-        { at: 0.5, fn: (s) => this.line(L.still, s) },
-        {
-          at: 1.3,
-          fn: (s) => {
-            ui.moon(false);
-            if (s) return;
-            audio.thump(0.6);
-          },
-        },
-        {
-          at: 2.0,
-          fn: (s) => {
-            f.root.visible = true;
-            if (s) return;
-            audio.rumble();
-            audio.setDrone(0.32, 2);
-            ui.flash(0.25, 600);
-          },
-        },
-        {
-          at: 5.0,
-          fn: (s) => {
-            if (s) return;
-            audio.sting();
-            this.shake = 0.4;
-          },
-        },
-        { at: 5.6, fn: (s) => this.line(L.meant, s) },
-        { at: 7.6, fn: (s) => this.line(L.behind, s) },
-        {
-          at: 8.4,
-          fn: (s) => {
-            if (s) return;
-            // the floor cracks round them; pieces of it rise
-            for (let i = 0; i < 6; i++) a.burst3(BLOB.x + Math.sin(i) * 2.5, 0.2, BLOB.z + Math.cos(i * 1.7) * 2.5, 10, [0x0d1019, 0x1b2236, 0x3fd2f2], 5);
-            audio.crumble();
-            audio.thump(1);
-            this.shake = 0.7;
-          },
-        },
-        {
-          at: 9.0,
-          fn: (s) => {
-            rift.group.visible = true;
-            if (s) return;
-            audio.whoosh();
-            ui.flash(0.3, 300);
-          },
-        },
-        { at: 9.5, fn: (s) => this.line(L.hold, s) },
-        { at: 10.9, fn: (s) => this.line(L.no, s) },
-        {
-          at: 11.7,
-          fn: (s) => {
-            gone = true;
-            if (s) return;
-            ui.flash(1, 200);
-            ui.fade(1, 150);
-            audio.setDrone(0, 0.2);
-            audio.setWind(0, 0.2);
-            audio.thump(1);
-          },
-        },
-      ],
-      () => {
-        rift.group.visible = false;
-        f.root.visible = false;
-        a.player.visible = true;
-        a.player.rotation.set(0, 0, 0);
-        a.player.scale.setScalar(1);
-        this.restoreFog();
-        a.crater.dimSky(1);
-        ui.fade(1, 0);
-        this.enterDimension();
-      },
-      (t, dt) => {
-        // the moon goes out (the Crater's, in the sky; the one on the screen goes with ui.moon)
-        a.crater.dimSky(1 - smooth(unlerp(1.0, 1.8, t)));
-        // the fog thickens and goes cold
-        if (this.fogKeep) {
-          const k = smooth(unlerp(2, 9, t));
-          fog.color.setHex(this.fogKeep.color).lerp(this.tmpC.setHex(0x05070f), k);
-          fog.density = lerp(this.fogKeep.density, 0.032, k);
-        }
-        // it unfolds out of the sky, turning through itself; its eye opens
-        f.size = 2.4 * easeOutBack(unlerp(2.0, 4.4, t));
-        f.ang = this.time * 0.35;
-        f.glowK = smooth(unlerp(2.0, 3.5, t));
-        f.eyeOpen = Math.max(0.02, smooth(unlerp(5.0, 5.6, t)));
-        f.root.position.set(FOURTH.x, FOURTH.y + Math.sin(this.time * 0.5) * 0.4, FOURTH.z);
-        const bp = a.player.position;
-        f.lookAt(bp.x, bp.y + 1, bp.z);
-        f.update(this.time);
-        // the tear over the Blob
-        rift.group.position.copy(RIFT);
-        rift.group.quaternion.copy(a.camera.quaternion);
-        rift.group.scale.setScalar(Math.max(0.001, 0.32 * easeOutBack(unlerp(9.0, 9.6, t)) * (1 + 0.04 * Math.sin(this.time * 9))));
-        rift.update(this.time, 0);
-        // the Blob: it looks up; then it is pulled up off the floor, turning over, into the tear
-        lift = smooth(unlerp(9.4, 11.7, t));
-        const p = a.player;
-        p.visible = !gone;
-        p.position.set(BLOB.x + Math.sin(this.time * 7) * 0.05 * lift, lift * (RIFT.y - 0.6), BLOB.z);
-        p.rotation.set(lift * lift * 4, Math.PI, lift * 1.2);
-        p.scale.set(1 - lift * 0.25, 1 + lift * 0.3, 1 - lift * 0.25);
-        a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
-        if (t > 8.4 && t < 9.4) this.shake = Math.max(this.shake, 0.15);
-        // Mother steps in front of it; then they both reach up for it
-        const step = smooth(unlerp(7.6, 8.4, t));
-        cg.mother.g.position.lerpVectors(MUM, SHIELD, step * (1 - smooth(unlerp(9.6, 10.6, t))));
-        cg.father.g.position.copy(DAD).lerp(V(BLOB.x + 0.8, 0, BLOB.z - 0.2), smooth(unlerp(9.6, 10.6, t)));
-        if (t > 9.6) cg.mother.g.position.lerp(V(BLOB.x - 0.8, 0, BLOB.z - 0.1), smooth(unlerp(9.6, 10.6, t)));
-        for (const r of [cg.mother, cg.father]) {
-          const q = r.g.position;
-          r.g.rotation.y = t < 7.6 ? Math.PI : Math.atan2(BLOB.x - q.x, BLOB.z - q.z) * (1 - lift) + Math.PI * lift;
-        }
-        const reach = t > 9.4 ? 1 : t > 7.6 ? 0.5 : 0.1;
-        animateParent(cg.mother, dt, this.time, step > 0 && step < 1 ? 1 : 0, reach, t > 9.6 ? 0.6 : 0, 1);
-        animateParent(cg.father, dt, this.time, t > 9.6 && t < 10.6 ? 1 : 0, reach, t > 9.6 ? 0.5 : 0, 2.7);
-        // the moth comes back down to them, and stays
-        this.et = 0;
-        this.updateMoth(dt);
-      },
-    );
-    this.playCut(c);
-  }
-
-  /** the Blob, alone, in the place the Fourth has taken it to */
-  private enterDimension() {
-    const a = this.arena;
-    const { ui, input, audio } = this.ctx;
-    this.state = 'dimension';
-    this.dimT = 0;
-    this.gateCut = false;
-    this.fallT = 0;
-    this.fallY = 0;
-    this.roll = 0;
-    this.endLine = 'it is still watching.';
-    for (const b of this.bosses) b.hide();
+    this.inDim = true;
+    this.dim.enter(a);
     this.features.show(false);
     this.warm.visible = false;
     this.lights.forEach((l) => (l.visible = false));
     a.hideShadow();
     a.marks.hideAll();
-    a.setShield(0, 0, this.time);
-    ui.moon(false);
-    ui.hearts(null);
-    ui.light(null);
-    ui.bossBar(null);
-    ui.falls(null);
-    this.dim.enter(a);
-    this.dim.moonEyes = 0;
-    this.resetSolids();
-    const pl = this.pl;
-    pl.x = WAKE.x;
-    pl.z = WAKE.z;
-    pl.vx = pl.vz = 0;
-    pl.dead = false;
-    pl.invuln = 0;
-    this.dvx = this.dvz = 0;
-    this.dashT = this.dashCd = 0;
-    this.dashPool.reset();
-    this.lances = [];
-    this.nova = null;
-    a.setLances([]);
-    a.setNova(false);
-    this.yaw = Math.PI;
-    this.camYaw = 0;
-    this.camPitch = DIM_PITCH;
-    this.camDist = DIM_DIST;
-    a.player.visible = true;
+    for (const b of this.bosses) b.hide();
+    this.pl.x = 0;
+    this.pl.z = 8;
+    this.pl.vx = this.pl.vz = 0;
+    a.player.position.set(0, 0, 8);
     a.player.rotation.set(0, Math.PI, 0);
-    a.player.scale.setScalar(1);
-    a.showPlayerClaw(1);
-    audio.setWind(0.22, 6);
-    audio.setDrone(0.1, 8);
-    const L = STORY.cut.dimension;
-    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-    const W = V(WAKE.x, 0, WAKE.z);
-    const moon = () => this.dim.moonPoint(this.arena.camera.position);
-    let rise = 0;
-    const keys: CamKey[] = [
-      // black; then, close on the floor, the Blob lying where it fell
-      { t: 0, pos: W.clone().add(V(2.6, 0.8, 3.6)), look: W.clone().add(V(0, 0.3, 0)), fov: 46 },
-      { t: 6.0, pos: W.clone().add(V(2.3, 0.9, 3.3)), look: W.clone().add(V(0, 0.45, 0)), fov: 46 },
-      // up and back, round behind it: the place
-      { t: 6.05, cut: true, pos: W.clone().add(V(0.6, 1.3, 3.2)), look: W.clone().add(V(0, 1.2, -6)), fov: 52 },
-      { t: 10.2, pos: W.clone().add(V(-1.5, 6.5, 12)), look: V(-8, 6, -80), fov: 64 },
-      // and up, to what is in the sky
-      { t: 13.4, pos: W.clone().add(V(-1.5, 6.2, 12.2)), look: moon, fov: 58 },
-      { t: 14.6, pos: W.clone().add(V(-1.5, 6.2, 12.2)), look: moon, fov: 56 },
-    ];
-    const c = new Cut(
-      14.6,
-      keys,
-      [
-        { at: 0.8, fn: (s) => this.line(L.mother, s) },
-        { at: 2.6, fn: (s) => this.line(L.father, s) },
-        { at: 4.2, fn: (s) => this.line(L.none, s) },
-        { at: 4.4, fn: (s) => !s && ui.fade(0, 1800) },
-        { at: 6.6, fn: (s) => this.line(L.where, s) },
-        { at: 10.6, fn: (s) => !s && audio.thump(0.4) },
-        { at: 11.4, fn: (s) => this.line(L.lookUp, s) },
-      ],
-      () => {
-        ui.fade(0, 300);
-        this.dim.moonEyes = 1;
-        a.player.position.set(WAKE.x, 0, WAKE.z);
-        a.player.scale.setScalar(1);
-        a.player.rotation.set(0, Math.PI, 0);
-        this.yaw = Math.PI;
-        this.camYaw = 0;
-        this.camPitch = DIM_PITCH;
-        const f = this.camFwd();
-        const cp = Math.cos(this.camPitch);
-        this.camPos.set(WAKE.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, WAKE.z - f.z * this.camDist * cp);
-        this.camLook.set(WAKE.x + f.x * 12, 2.2, WAKE.z + f.z * 12);
-        this.control = true;
-        input.setMoveEnabled(true);
-        input.setCameraEnabled(true);
-        input.setAction('dash');
-        ui.recenter(true, () => this.resetCamera());
-        ui.caption(L.goal.text, 3200, true);
-        window.setTimeout(() => this.state === 'dimension' && !this.gateCut && ui.hint('double-tap: dash across the gaps'), 3400);
-        window.setTimeout(() => ui.hint(null), 10400);
-      },
-      (t, dt) => {
-        // it lies flattened where it fell; it stirs; it gets up
-        rise = smooth(unlerp(5.0, 6.0, t));
-        const p = a.player;
-        const sq = lerp(0.45, 1, rise);
-        p.position.set(W.x, 0, W.z);
-        p.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
-        p.rotation.set(0, t < 6.05 ? 0.4 : Math.PI, 0);
-        if (t > 2.0 && t < 2.3) a.jellyKick(-0.5);
-        if (t > 5.0 && t < 5.1) a.jellyKick(-1.6);
-        a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
-        // something in the sky opens its eyes
-        this.dim.moonEyes = smooth(unlerp(12.6, 13.6, t));
-      },
-    );
-    this.playCut(c);
+    a.player.visible = true;
+    this.yaw = Math.PI;
+    this.allies.place({ x: -2.4, z: 9.4 }, { x: 2.6, z: 9.6 });
+    this.resetSolids();
   }
 
-  /** walking the dimension: the controls, the drop, the folds, the slabs you reach, and the gate */
-  private updateDimension(dt: number) {
-    if (this.cut) return;
-    const { input, ui, audio } = this.ctx;
-    const pl = this.pl;
-    const d = this.dim;
+  /** out of the Fold: the Crater is back, as it was */
+  private leaveDim() {
+    this.fourth.hide();
+    this.arena.crater.dimSky(1);
+    if (!this.inDim) return;
+    this.inDim = false;
+    this.dim.exit(this.arena);
+    this.resetSolids();
+  }
+
+  private updateAllies(dt: number) {
+    const { ui, audio } = this.ctx;
+    this.allies.update(dt, {
+      arena: this.arena,
+      time: this.time,
+      player: { x: this.pl.x, z: this.pl.z, dead: this.pl.dead },
+      boss: this.fourth,
+      hearts: this.hearts,
+      maxHearts: this.maxHearts,
+      heal: () => {
+        this.hearts = Math.min(this.maxHearts, this.hearts + 1);
+        ui.hearts(this.hearts, this.maxHearts);
+        audio.warm();
+      },
+      say: (who, text) => this.line({ who, text, ms: 1800 }),
+    });
+  }
+
+  /** the family where the reunion left them (the Blob in the middle, Mother and Father either side) */
+  private familyAtHome() {
     const a = this.arena;
-    this.dimT += dt;
-    if (this.fallT > 0) {
-      // falling: down into the dark (or folded flat), then awake again where you last stood
-      const was = this.fallT;
-      this.fallT -= dt;
-      if (this.fallKind === 'drop') {
-        this.fallV += 26 * dt;
-        this.fallY -= this.fallV * dt;
-      }
-      if (was > 0.55 && this.fallT <= 0.55) ui.fade(1, 380);
-      this.updateRig(dt);
-      const p = a.player;
-      if (this.fallKind === 'drop') p.rotation.x += dt * 5;
-      else p.scale.set(1.6, Math.max(0.12, this.fallT - 0.3), 1.6);
-      if (this.fallT <= 0) this.wakeAgain();
-      return;
-    }
-    // (a lance or a nova would have nothing to hit here)
-    this.light = 0;
-    this.updatePlayer(dt);
-    this.lances = [];
-    if (this.control) {
-      const cam = input.takeCam();
-      this.camYaw += input.camKey * 2.4 * dt + cam.dx * -0.011;
-      this.camPitch = clamp(this.camPitch + cam.dy * 0.008, 0.12, 1.1);
-      if (input.camReset) {
-        input.camReset = false;
-        this.resetCamera();
-      }
-    }
-    // a dash that ends over nothing: you fall
-    if (this.dashT <= 0 && !d.floorAt(pl.x, pl.z, 0.45)) this.startFall('drop');
-    // a folding floor comes down on you (a dash goes through it)
-    else if (pl.invuln <= 0 && d.folded(pl.x, pl.z)) this.startFall('fold');
-    // the slabs you reach: where you wake if you fall, and what is said there the first time
-    const i = d.reach(pl.x, pl.z);
-    if (i >= 0 && SLABS[i]!.say) ui.caption(SLABS[i]!.say!, 3400, true);
-    if (i === 5) window.setTimeout(() => this.state === 'dimension' && ui.hint('wait for the floor to fold back'), 1200);
-    if (i === 6 || i === 3) ui.hint(null);
-    // the gate
-    if (!this.gateCut && Math.hypot(pl.x - GATE.x, pl.z - GATE.z) < GATE.near) this.beginGate();
-    this.updateRig(dt);
-    // in the folding place the world leans
-    this.roll += ((d.pullAt(pl.x, pl.z) ? Math.sin(this.time * 0.7) * 0.06 : 0) - this.roll) * (1 - Math.exp(-2 * dt));
-    void audio;
-  }
-
-  private startFall(kind: 'drop' | 'fold') {
-    const { ui, audio, input } = this.ctx;
-    this.fallKind = kind;
-    this.fallT = kind === 'fold' ? 0.95 : 1.35;
-    this.fallV = 1.5;
-    this.control = false;
-    this.dashT = 0;
-    input.setCharge(0, 0);
-    if (kind === 'fold') {
-      ui.flash(0.5, 260);
-      audio.slam();
-      this.shake = 0.6;
-    } else audio.whoosh();
-  }
-
-  private wakeAgain() {
-    const { ui } = this.ctx;
-    const pl = this.pl;
-    const cp = this.dim.cp;
-    this.fallT = 0;
-    this.fallY = 0;
-    pl.x = cp.x;
-    pl.z = cp.z;
-    pl.vx = pl.vz = 0;
-    this.dvx = this.dvz = 0;
-    pl.invuln = 0.6;
-    const p = this.arena.player;
-    p.rotation.set(0, this.yaw, 0);
-    p.scale.setScalar(1);
-    this.control = true;
-    ui.fade(0, 600);
-    if (!this.fellOnce) {
-      this.fellOnce = true;
-      ui.caption('you wake where you last stood.', 2600, true);
-    }
+    const cg = a.cage;
+    this.pl.x = 0;
+    this.pl.z = 2.2;
+    a.player.position.set(0, groundY(0, 2.2), 2.2);
+    cg.mother.g.position.set(-1.3, 0, 0.4);
+    cg.father.g.position.set(1.3, 0, 0.2);
   }
 
   /**
-   * The gate. Up close it is not a door: it is a cube turning through itself, as the Fourth is, and the line of light in it is
-   * an eye, and it opens. The Fourth speaks; high above, the moon's eyes widen; the eye fills everything. Black.
+   * The Fourth comes, and takes all three of them. The reunion is still going round the family when nothing moves any more: the
+   * lullaby bends and stops, the moth hangs in the air. Up: the moon goes out, and where it was something unfolds out of the
+   * sky, a cube turning through itself with a dark ball in it, and in the ball an eye, which opens. It speaks. Mother steps in
+   * front of the Blob; it speaks again; the floor cracks and a tear opens over the three of them and pulls them up, turning
+   * over, holding on to each other. White; black. Then the place it has taken them to: a dial of dark stone hanging over
+   * nothing. They fall onto it out of the sky, get up, and it comes down out of the dark after them. Then the fight.
    */
-  private beginGate() {
+  private beginArrival() {
     const a = this.arena;
-    const { ui, audio, input } = this.ctx;
-    const L = STORY.cut.dimension;
+    const { ui, audio } = this.ctx;
+    const L = STORY.cut.fourth;
     const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-    this.gateCut = true;
-    this.control = false;
-    input.setAction(null);
-    ui.hint(null);
-    const d = this.dim;
-    const eye = d.gatePoint();
-    const pl = this.pl;
-    const P0 = V(pl.x, 0, pl.z);
+    const f = this.fourth;
+    const cg = a.cage;
+    this.state = 'ending';
+    // where the moon was (the Crater's moon is up that way)
+    const SKY = V(-11, 31, -48);
+    const fam = V(0, 1.1, 1.6);
+    const BLOB = V(this.pl.x, 0, this.pl.z);
+    const MUM = cg.mother.g.position.clone();
+    const DAD = cg.father.g.position.clone();
+    const SHIELD = V(BLOB.x - 0.4, 0, BLOB.z - 1.2);
+    const RIFT = V(BLOB.x, 7.6, BLOB.z - 0.6);
+    // where they land in the Fourth's place, and the tear they fall out of
+    const LAND = [V(0, 0, 8), V(-2.4, 0, 9.4), V(2.6, 0, 9.6)];
+    const DROP = V(0, 30, 9);
+    const fog = a.scene.fog as THREE.FogExp2;
+    const fogKeep = fog && 'density' in fog ? { color: fog.color.getHex(), density: fog.density } : null;
+    const rift = this.skyRift();
+    f.place(SKY.x, SKY.y, SKY.z, 0.001);
+    f.look(0, 0, 0);
+    f.model.eyeOpen = 0.02;
+    f.show();
+    let frozen = false;
+    let taken = false;
+    let there = false;
+    let lift = 0;
+    const at = () => f.model.root.position.clone();
     const keys: CamKey[] = [
-      { t: 0, pos: this.camPos.clone(), look: this.camLook.clone(), fov: 64 },
-      { t: 1.6, pos: P0.clone().add(V(3.2, 2.4, 11)), look: eye.clone(), fov: 58 },
-      { t: 4.9, pos: P0.clone().add(V(2.4, 2.6, 9)), look: eye.clone(), fov: 52 },
-      // the eye, head on
-      { t: 4.95, cut: true, pos: eye.clone().add(V(0, 0.4, 21)), look: eye.clone(), fov: 40 },
-      { t: 8.4, pos: eye.clone().add(V(0, 0.2, 17)), look: eye.clone(), fov: 32 },
-      // from the floor: up the light, past the cage, to the moon looking down
-      { t: 8.45, cut: true, pos: P0.clone().add(V(3.2, 1.0, 6)), look: V(GATE.x, 50, GATE.z - 4), fov: 66 },
-      { t: 9.6, pos: P0.clone().add(V(3.1, 0.9, 6.3)), look: V(GATE.x, 56, GATE.z - 4), fov: 66 },
-      { t: 11.0, pos: P0.clone().add(V(3.0, 0.85, 6.5)), look: () => this.dim.moonPoint(this.arena.camera.position), fov: 56 },
-      { t: 12.6, pos: P0.clone().add(V(3.0, 0.8, 6.6)), look: () => this.dim.moonPoint(this.arena.camera.position), fov: 48 },
+      // the family, still holding on; and then everything stops
+      { t: 0, pos: V(3.6, 2.2, 7.6), look: fam, fov: 46 },
+      { t: 2.0, pos: V(3.3, 2.0, 7.1), look: fam, fov: 46 },
+      // up, from behind them: the moon goes out, and something unfolds where it was
+      { t: 2.05, cut: true, pos: V(0.6, 1.4, 9.5), look: V(-9, 27, -44), fov: 58 },
+      { t: 6.4, pos: V(0.4, 1.2, 9.0), look: SKY.clone(), fov: 50 },
+      // its eye
+      { t: 6.45, cut: true, pos: SKY.clone().add(V(4, -7, 34)), look: SKY.clone(), fov: 40 },
+      { t: 10.4, pos: SKY.clone().add(V(2.6, -6, 27)), look: SKY.clone(), fov: 34 },
+      // the family, looking up into its light
+      { t: 10.45, cut: true, pos: V(BLOB.x + 7.5, 3.4, BLOB.z - 6), look: V(BLOB.x - 0.3, 1.2, BLOB.z - 0.5), fov: 46 },
+      { t: 16.2, pos: V(BLOB.x + 6.8, 3.0, BLOB.z - 5.3), look: V(BLOB.x - 0.3, 1.6, BLOB.z - 0.5), fov: 44 },
+      // the tear, and the three of them going up into it
+      { t: 16.25, cut: true, pos: V(BLOB.x + 9.5, 2.4, BLOB.z + 9), look: V(BLOB.x, 3.4, BLOB.z), fov: 56 },
+      { t: 19.4, pos: V(BLOB.x + 8.6, 3.8, BLOB.z + 8.2), look: () => RIFT.clone().add(V(0, -1.2, 0)), fov: 52 },
+      // (black) and then: the dial, hanging over nothing; three small lights falling onto it
+      { t: 20.6, cut: true, pos: V(0, 30, 52), look: V(0, -2, -4), fov: 50 },
+      { t: 25.0, pos: V(0, 22, 42), look: V(0, 0, 0), fov: 48 },
+      // low, on them getting up
+      { t: 25.05, cut: true, pos: V(3.4, 1.1, 14.5), look: V(0, 1.0, 8.6), fov: 48 },
+      { t: 28.2, pos: V(3.0, 1.2, 13.8), look: V(0, 1.1, 8.6), fov: 46 },
+      // behind them: it comes down out of the dark
+      { t: 28.25, cut: true, pos: V(0.4, 2.6, 17), look: () => at(), fov: 56 },
+      { t: 33.4, pos: V(0, 5.5, 18.5), look: V(0, 4, -3), fov: 56 },
+      { t: 36.0, pos: V(0, 6.5, 17), look: V(0, 2.5, -3), fov: 56 },
+    ];
+    const beats: Beat[] = [
+      {
+        at: 0.3,
+        fn: (s) => {
+          frozen = true;
+          if (s) return;
+          // the lullaby bends, and stops
+          audio.setLullaby(0.6, 1);
+          window.setTimeout(() => audio.setLullaby(0, 1), 900);
+          audio.setDrone(0.18, 2);
+        },
+      },
+      { at: 0.6, fn: (s) => this.line(L.still, s) },
+      { at: 3.0, fn: (s) => !s && audio.thump(0.6) },
+      {
+        at: 4.0,
+        fn: (s) => {
+          if (s) return;
+          audio.rumble();
+          audio.setDrone(0.34, 2);
+          ui.flash(0.25, 600);
+        },
+      },
+      { at: 4.4, fn: (s) => !s && audio.v.fourthRoar() },
+      { at: 7.4, fn: (s) => this.line(L.meant, s) },
+      { at: 10.8, fn: (s) => this.line(L.behind, s) },
+      { at: 13.0, fn: (s) => this.line(L.three, s) },
+      {
+        at: 15.4,
+        fn: (s) => {
+          rift.setCool(0xc8b4ff);
+          rift.showFlat(false);
+          rift.group.visible = true;
+          if (s) return;
+          // the floor cracks round them; the tear opens over them
+          for (let i = 0; i < 6; i++) a.burst3(BLOB.x + Math.sin(i) * 2.6, 0.2, BLOB.z + Math.cos(i * 1.7) * 2.6, 10, [0x0d1019, 0x1b2236, 0x9a7aff], 5);
+          audio.crumble();
+          audio.whoosh();
+          audio.thump(1);
+          this.shake = 0.8;
+        },
+      },
+      { at: 16.6, fn: (s) => this.line(L.hold, s) },
+      {
+        at: 19.4,
+        fn: (s) => {
+          taken = true;
+          if (s) return;
+          ui.flash(1, 200);
+          ui.fade(1, 150);
+          audio.setDrone(0, 0.2);
+          audio.thump(1);
+        },
+      },
+      {
+        at: 20.6,
+        fn: (s) => {
+          // under the black: the Crater goes, and the Fourth's place is all there is
+          there = true;
+          rift.group.visible = false;
+          if (fogKeep) {
+            fog.color.setHex(fogKeep.color);
+            fog.density = fogKeep.density;
+          }
+          a.crater.dimSky(1);
+          this.enterDim();
+          f.place(0, 44, -24, 0.001);
+          f.look(0, 0, 0);
+          f.model.eyeOpen = 0.6;
+          if (s) return;
+          ui.fade(0, 1400);
+          audio.setWind(0.2, 3);
+          audio.setDrone(0.12, 4);
+        },
+      },
+      { at: 23.1, fn: (s) => !s && audio.thump(0.8) },
+      { at: 25.6, fn: (s) => this.line(L.where, s) },
+      { at: 28.4, fn: (s) => !s && audio.rumble() },
+      { at: 29.6, fn: (s) => !s && audio.v.fourthGrowl() },
+      { at: 31.0, fn: (s) => this.line(L.noUp, s) },
+      { at: 34.0, fn: (s) => this.line(L.together, s) },
     ];
     const c = new Cut(
-      12.6,
+      36.2,
       keys,
-      [
-        { at: 0.3, fn: (s) => this.line(L.door, s) },
-        { at: 1.8, fn: (s) => !s && audio.rumble() },
-        { at: 3.6, fn: (s) => this.line(L.there, s) },
-        { at: 5.3, fn: (s) => this.line(L.out, s) },
-        { at: 7.3, fn: (s) => this.line(L.mine, s) },
-        {
-          at: 8.45,
-          fn: (s) => {
-            if (s) return;
-            audio.sting();
-            this.shake = 0.3;
-          },
-        },
-        { at: 10.6, fn: (s) => this.line(L.welcome, s) },
-        {
-          at: 12.0,
-          fn: (s) => {
-            if (s) return;
-            ui.fade(1, 600);
-            audio.setWind(0, 1.2);
-            audio.setDrone(0, 1.2);
-          },
-        },
-      ],
+      beats,
       () => {
-        this.state = 'end';
-        this.ctx.audio.setWind(0, 0.5);
-        this.onEnd?.();
+        if (!there) {
+          this.enterDim();
+          a.crater.dimSky(1);
+        }
+        rift.group.visible = false;
+        a.player.visible = true;
+        a.player.scale.setScalar(1);
+        a.player.rotation.set(0, Math.PI, 0);
+        for (const r of [cg.mother, cg.father]) {
+          r.g.visible = true;
+          r.g.rotation.set(0, Math.PI, 0);
+        }
+        ui.fade(0, 300);
+        f.place(0, 6.6, -4, 1);
+        this.startBoss(700);
       },
       (t, dt) => {
-        d.gateEye = smooth(unlerp(1.8, 3.6, t));
-        d.moonEyes = 1 + 0.7 * smooth(unlerp(8.6, 9.6, t));
+        this.et = 14;
         const p = a.player;
-        p.position.set(pl.x, 0, pl.z);
-        p.rotation.set(0, Math.atan2(eye.x - pl.x, eye.z - pl.z), 0);
-        p.scale.setScalar(1);
-        a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+        this.bob += dt * 4;
+        if (!there) {
+          // the moon goes out; the fog thickens and goes cold
+          a.crater.dimSky(1 - smooth(unlerp(2.6, 3.4, t)));
+          if (fogKeep) {
+            const k = smooth(unlerp(3, 15, t));
+            fog.color.setHex(fogKeep.color).lerp(this.tmpC.setHex(0x06050f), k);
+            fog.density = lerp(fogKeep.density, 0.03, k);
+          }
+          // it unfolds out of the sky where the moon was; its eye opens
+          const u = easeOutBack(unlerp(4.0, 6.6, t));
+          f.place(SKY.x, SKY.y + Math.sin(this.time * 0.5) * 0.4, SKY.z, Math.max(0.001, 4.6 * u));
+          f.model.glowK = smooth(unlerp(4.0, 5.4, t));
+          f.model.eyeOpen = Math.max(0.02, smooth(unlerp(7.0, 7.6, t)));
+          f.pose(dt, 0.35, V(BLOB.x, 1, BLOB.z));
+          // the tear over the three of them
+          rift.group.position.copy(RIFT);
+          rift.group.quaternion.copy(a.camera.quaternion);
+          rift.group.scale.setScalar(Math.max(0.001, 0.4 * easeOutBack(unlerp(15.4, 16.0, t)) * (1 + 0.04 * Math.sin(this.time * 9))));
+          rift.update(this.time, 0);
+          // and up they go, all three, turning over, holding on to each other
+          lift = smooth(unlerp(16.6, 19.4, t));
+          const look = smooth(unlerp(2.2, 3.4, t));
+          p.visible = !taken;
+          p.position.set(BLOB.x, lift * (RIFT.y - 0.8), BLOB.z - lift * 0.6);
+          p.rotation.set(lift * lift * 4, lerp(Math.PI, Math.PI, look), lift * 1.2);
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          if (t > 15.4 && t < 16.6) this.shake = Math.max(this.shake, 0.15);
+          const step = smooth(unlerp(10.8, 11.8, t));
+          const rigs: [typeof cg.mother, THREE.Vector3, THREE.Vector3, number, number][] = [
+            [cg.mother, MUM, SHIELD, 1, -0.9],
+            [cg.father, DAD, DAD, 2.7, 0.9],
+          ];
+          for (const [r, from, to, seed, side] of rigs) {
+            const q = from.clone().lerp(to, step * (1 - lift));
+            const up = smooth(unlerp(16.6 + seed * 0.1, 19.4, t));
+            r.g.visible = !taken;
+            r.g.position.set(lerp(q.x, BLOB.x + side, up), up * (RIFT.y - 0.6), lerp(q.z, BLOB.z - 0.6, up));
+            r.g.rotation.set(up * up * 3.5 * side, t < 2.2 ? Math.atan2(BLOB.x - q.x, BLOB.z - q.z) : Math.atan2(at().x - q.x, at().z - q.z) * look, up * side);
+            animateParent(r, dt, this.time, step > 0 && step < 1 ? 1 : 0, t > 15.4 ? 1 : t > 10.8 ? 0.6 : 0.3, t > 15.4 ? 0.6 : 0, seed);
+          }
+          // the moth hangs where it was when time stopped
+          if (!frozen) this.updateMoth(dt);
+        } else {
+          // they fall out of the dark onto the dial, one after another, and get up
+          rift.group.visible = t < 23.6;
+          rift.group.position.copy(DROP);
+          rift.group.quaternion.copy(a.camera.quaternion);
+          rift.group.scale.setScalar(Math.max(0.001, 0.5 * (1 - smooth(unlerp(22.8, 23.6, t)))));
+          rift.update(this.time, 0);
+          const fall = (k: number, from: number) => {
+            const u = clamp((t - from) / 1.5, 0, 1);
+            return { u, y: (1 - u * u) * DROP.y, landed: u >= 1 };
+          };
+          const fb = fall(0, 21.4);
+          const lp = LAND[0]!;
+          p.visible = true;
+          p.position.set(lerp(DROP.x, lp.x, fb.u), fb.y, lerp(DROP.z, lp.z, fb.u));
+          const rise = smooth(unlerp(25.4, 26.6, t));
+          const sq = fb.landed ? lerp(0.5, 1, rise) : 1;
+          p.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
+          p.rotation.set(fb.landed ? 0 : fb.u * 7, t < 28.25 ? 0.6 : Math.PI, 0);
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          [cg.mother, cg.father].forEach((r, i) => {
+            const fr = fall(i + 1, 21.7 + i * 0.35);
+            const lq = LAND[i + 1]!;
+            r.g.visible = true;
+            r.g.position.set(lerp(DROP.x, lq.x, fr.u), fr.y, lerp(DROP.z, lq.z, fr.u));
+            r.g.rotation.set(fr.landed ? 0 : fr.u * 6, fr.landed ? (t < 28.25 ? Math.atan2(lp.x - lq.x, lp.z - lq.z) : Math.PI) : 0, 0);
+            animateParent(r, dt, this.time, 0, t > 30 ? 0.5 : 0.2, 0, i === 0 ? 1 : 2.7);
+          });
+          // and it comes down after them, out of the dark, and stops over the far side of the dial
+          const d = smooth(unlerp(28.4, 33.4, t));
+          f.place(0, lerp(44, 6.6, d) + Math.sin(this.time * 1.3) * 0.25, lerp(-24, -4, d), Math.max(0.001, lerp(0.2, 1, d)));
+          f.model.glowK = 1;
+          f.model.eyeOpen = lerp(0.6, 0.5, d);
+          f.pose(dt, 1.2, V(0, 1.2, 8));
+          this.mothP.lerp(this.tmpV.set(-1.4, 2.1, 8.4), 1 - Math.exp(-3 * dt));
+          a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, t > 23, 0.4, 1, 0);
+        }
       },
     );
     this.playCut(c);
   }
 
-  /** (tests, New scenes) the three are beaten and the family is together: straight to the Fourth coming for the Blob */
-  skipToTaking() {
-    this.skipToFight(0, this.lastBoss);
-    this.bossDown();
-    // the reunion, then the clearing growing back: both skipped
-    for (let k = 0; k < 2; k++) {
-      const c = this.cut;
-      if (c) {
-        c.skip();
-        this.endCut(true);
+  /** the beams of light from the three of them to its eye, at the end (made the first time) */
+  private familyBeams: THREE.Mesh[] = [];
+
+  /**
+   * It cannot be killed here. Its last light gone, it cracks and screams; the three of them light it up at once; and it runs: it
+   * tears a way out behind it, backs into it, and from inside the tear, small now, it says it will come back. The tear shuts.
+   * The dial goes; they are home, in the clearing, holding on. Then the rest of the ending.
+   */
+  private fourthFled() {
+    const a = this.arena;
+    const { ui, input, audio } = this.ctx;
+    const L = STORY.cut.fourth;
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+    const f = this.fourth;
+    // tidy the fight away
+    this.state = 'ending';
+    this.trapped = false;
+    a.marks.hideAll();
+    a.setLances([]);
+    this.lances = [];
+    this.nova = null;
+    input.setCharge(0, 0);
+    this.shield.disarm();
+    this.falls.reset();
+    ui.falls(null);
+    ui.bossBar(null);
+    const P = f.model.root.position.clone();
+    const EYE = V(P.x, Math.max(P.y, 2.5), P.z);
+    const OUT = V(0, 10, -12);
+    const fam = V(0, 1.1, 1.6);
+    if (!this.familyBeams.length) {
+      for (const col of [0xfff1a6, 0xff9ac8, 0xffcf5a]) {
+        const g = new THREE.CylinderGeometry(0.08, 0.08, 1, 6, 1, true);
+        g.translate(0, 0.5, 0);
+        const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(1.6), transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+        m.visible = false;
+        m.userData['noGround'] = true;
+        a.world.add(m);
+        this.familyBeams.push(m);
       }
     }
+    const beamFrom = () => [V(this.pl.x, 1, this.pl.z), ...this.allies.positions().map((q) => V(q.x, 1.4, q.z))];
+    const setBeams = (u: number, to: THREE.Vector3) => {
+      const from = beamFrom();
+      this.familyBeams.forEach((m, i) => {
+        const o = from[i]!;
+        const d = to.clone().sub(o);
+        const len = d.length();
+        m.visible = u > 0.01;
+        m.position.copy(o);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+        m.scale.set(1 + u, Math.max(0.001, len * u), 1 + u);
+      });
+    };
+    let home = false;
+    const rift = this.skyRift();
+    rift.setCool(0xc8b4ff);
+    rift.showFlat(false);
+    const at = () => f.model.root.position.clone();
+    const keys: CamKey[] = [
+      // its eye, cracking
+      { t: 0, pos: EYE.clone().add(V(1.8, 0.6, 8.5)), look: EYE, fov: 44 },
+      { t: 1.4, pos: EYE.clone().add(V(1.2, 0.5, 7.2)), look: EYE, fov: 42 },
+      // from behind the three of them: their light, all at once
+      { t: 1.45, cut: true, pos: () => V(this.pl.x * 0.6 + 1.2, 1.7, this.pl.z + 6.5), look: EYE, fov: 52 },
+      { t: 3.1, pos: () => V(this.pl.x * 0.6 + 0.8, 1.6, this.pl.z + 5.8), look: EYE, fov: 50 },
+      // it backs away into a tear of its own
+      { t: 3.15, cut: true, pos: V(0, 2.2, 13), look: V(0, 7.5, -8), fov: 58 },
+      { t: 6.4, pos: V(0, 2.4, 12), look: () => at(), fov: 50 },
+      // from inside the tear, small, it speaks
+      { t: 6.45, cut: true, pos: () => at().add(V(0.8, -0.6, 9)), look: () => at(), fov: 36 },
+      { t: 12.2, pos: () => at().add(V(0.4, -0.4, 7)), look: () => at(), fov: 32 },
+      // the tear shuts
+      { t: 12.25, cut: true, pos: V(0, 2.4, 13), look: V(0, 9.5, -12), fov: 56 },
+      { t: 14.0, pos: V(0, 2.2, 12.4), look: V(0, 9.5, -12), fov: 56 },
+      // home
+      { t: 14.05, cut: true, pos: V(3.6, 2.2, 7.6), look: fam, fov: 46 },
+      { t: 18.6, pos: V(3.0, 2.0, 6.8), look: fam, fov: 46 },
+    ];
+    const beats: Beat[] = [
+      {
+        at: 0.1,
+        fn: (s) => {
+          this.line(L.crack, s);
+          if (!s) audio.v.fourthRoar();
+        },
+      },
+      {
+        at: 1.5,
+        fn: (s) => {
+          if (s) return;
+          audio.warm();
+          audio.chime();
+          ui.flash(0.4, 300);
+        },
+      },
+      {
+        at: 2.6,
+        fn: (s) => {
+          if (s) return;
+          audio.boom();
+          this.shake = 1;
+          a.burst3(EYE.x, EYE.y, EYE.z, 40, [0xffe9a0, 0xff9ac8, 0xffcf5a, 0xffffff], 10);
+        },
+      },
+      {
+        at: 3.2,
+        fn: (s) => {
+          setBeams(0, EYE);
+          rift.group.visible = true;
+          rift.group.position.copy(OUT).add(V(0, 0, -1.5));
+          if (!s) audio.rumble();
+        },
+      },
+      { at: 4.0, fn: (s) => this.line(L.notEnd, s) },
+      { at: 7.0, fn: (s) => this.line(L.back, s) },
+      { at: 10.0, fn: (s) => this.line(L.all, s) },
+      {
+        at: 12.25,
+        fn: (s) => {
+          if (s) return;
+          audio.slam();
+          audio.thump(1);
+          this.shake = 0.6;
+        },
+      },
+      {
+        at: 13.6,
+        fn: (s) => {
+          if (!s) {
+            audio.boom();
+            ui.flash(1, 900);
+          }
+        },
+      },
+      {
+        at: 14.05,
+        fn: (s) => {
+          // the dial goes: home
+          home = true;
+          rift.group.visible = false;
+          setBeams(0, EYE);
+          this.leaveDim();
+          this.familyAtHome();
+          if (!s) {
+            audio.setWind(0, 1);
+            audio.setDrone(0, 2);
+          }
+        },
+      },
+      { at: 15.4, fn: (s) => this.line(L.gone, s) },
+    ];
+    const c = new Cut(
+      18.6,
+      keys,
+      beats,
+      () => {
+        this.familyBeams.forEach((m) => (m.visible = false));
+        rift.group.visible = false;
+        rift.setCool(0x9ff4ee);
+        rift.showFlat(true);
+        if (!home) {
+          this.leaveDim();
+          this.familyAtHome();
+        }
+        this.beginEnding('home');
+      },
+      (t, dt) => {
+        this.et = 14;
+        const p = a.player;
+        this.bob += dt * 4;
+        if (!home) {
+          // it: cracked, stuttering; then backing away up into the tear, smaller and smaller, until it shuts
+          const up = smooth(unlerp(3.2, 6.4, t));
+          const pos = new THREE.Vector3().lerpVectors(EYE, OUT, up);
+          const shrink = 1 - 0.55 * up - 0.45 * smooth(unlerp(11.6, 12.25, t));
+          f.place(pos.x + Math.sin(this.time * 31) * 0.06 * (1 - up), pos.y, pos.z, Math.max(0.001, shrink));
+          f.look(clamp(t / 1.2, 0, 1), 1 + 0.6 * Math.sin(this.time * 30) * (t < 3 ? 1 : 0), 0);
+          f.model.eyeOpen = 1;
+          f.model.root.visible = t < 12.25;
+          f.pose(dt, t < 3 ? 6 : 1.5, V(this.pl.x, 1, this.pl.z));
+          // the three of them light it up at once
+          setBeams(t > 1.45 && t < 3.2 ? smooth(unlerp(1.45, 1.9, t)) * (1 - smooth(unlerp(2.8, 3.15, t))) : 0, EYE);
+          // the tear: it opens behind it, and shuts after it
+          rift.update(this.time, 0.35);
+          rift.group.quaternion.copy(a.camera.quaternion);
+          rift.group.scale.setScalar(Math.max(0.001, 0.42 * smooth(unlerp(3.2, 3.9, t)) * (1 - smooth(unlerp(11.9, 12.4, t)))));
+          // the family stands and looks at it
+          p.position.set(this.pl.x, 0, this.pl.z);
+          p.rotation.y = Math.atan2(pos.x - this.pl.x, pos.z - this.pl.z);
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          this.allies.update(dt, { arena: a, time: this.time, player: { x: this.pl.x, z: this.pl.z, dead: false }, boss: f, hearts: this.hearts, maxHearts: this.maxHearts, heal: () => {}, say: () => {} });
+          this.mothP.lerp(this.tmpV.set(this.pl.x - 1.4, 2.1, this.pl.z + 0.4), 1 - Math.exp(-3 * dt));
+          a.setMoth(this.mothP.x, this.mothP.y, this.mothP.z, this.time, true, 0.4, 1, 0);
+        } else {
+          // home: they hold on again
+          const cg = a.cage;
+          p.position.set(0, groundY(0, 2.2), 2.2);
+          p.rotation.set(0, Math.PI, 0);
+          p.scale.setScalar(1);
+          a.animatePlayer(dt, this.time, 0, this.bob, 0, false);
+          for (const [r, seed] of [[cg.mother, 1], [cg.father, 2.7]] as [typeof cg.mother, number][]) {
+            const q = r.g.position;
+            r.g.rotation.set(0, Math.atan2(-q.x, 2.2 - q.z), 0);
+            animateParent(r, dt, this.time, 0, 0.9, 0, seed);
+          }
+          this.updateMoth(dt);
+        }
+      },
+    );
+    this.playCut(c);
   }
 
-  /** (tests) straight into the dimension, awake, in control */
-  skipToDimension() {
-    this.skipToTaking();
-    for (let k = 0; k < 2; k++) {
-      const c = this.cut;
-      if (c) {
-        c.skip();
-        this.endCut(true);
-      }
+  /** (tests, New scenes) straight to the Fourth: the three are beaten, the cage is open, the family is together */
+  skipToFourth() {
+    this.skipToFight(0, this.lastBoss);
+    this.bossDown();
+    const c = this.cut;
+    if (c) {
+      c.skip();
+      this.endCut(true);
     }
   }
 
@@ -2268,7 +2258,6 @@ export class Act2 {
     } else if (this.state === 'fight') this.updateFight(dt);
     else if (this.state === 'interlude') this.updateInterlude(dt);
     a.update(dt, this.time);
-    if (this.state === 'dimension') this.updateDimension(dt);
     this.dim.update(dt, this.time, a.camera, this.pl);
 
     // camera
@@ -2310,23 +2299,11 @@ export class Act2 {
         this.camLook.lerp(this.tmpV.set(cine.x, cine.y, cine.z), k);
       } else if (this.state === 'fight' && !this.hud) {
         const k = 1 - Math.exp(-3 * dt);
-        this.camPos.lerp(BOOM_POS, k);
-        this.camLook.lerp(BOOM_LOOK, k);
+        this.camPos.lerp(this.inDim ? this.tmpV.set(0, 6.5, 17) : BOOM_POS, k);
+        this.camLook.lerp(this.inDim ? this.tmpV.set(0, 2.5, -3) : BOOM_LOOK, k);
       } else {
         this.camPos.lerp(target, 1 - Math.exp(-14 * dt));
         this.camLook.set(pl.x + f.x * 5, 1.2, pl.z + f.z * 5);
-      }
-    }
-    // the dimension: behind you, lower than in a fight, looking a long way ahead; when you fall it stays and watches you go
-    if (this.state === 'dimension' && !this.cut) {
-      const pl = this.pl;
-      if (this.fallT > 0) {
-        this.camLook.lerp(this.tmpV.set(pl.x, this.fallY + 0.5, pl.z), 1 - Math.exp(-6 * dt));
-      } else {
-        const f = this.camFwd();
-        const cp = Math.cos(this.camPitch);
-        this.camPos.lerp(this.tmpV.set(pl.x - f.x * this.camDist * cp, 1.4 + Math.sin(this.camPitch) * this.camDist, pl.z - f.z * this.camDist * cp), 1 - Math.exp(-10 * dt));
-        this.camLook.set(pl.x + f.x * 12, 2.2, pl.z + f.z * 12);
       }
     }
     // the camera never goes into the land (the crater's wall, a terrace) when it swings round behind you
@@ -2351,13 +2328,12 @@ export class Act2 {
     const sh = this.shake;
     a.camera.position.set(this.camPos.x + (Math.random() - 0.5) * sh * 0.5, this.camPos.y + (Math.random() - 0.5) * sh * 0.5, this.camPos.z);
     a.camera.lookAt(this.camLook);
-    if (this.state === 'dimension' && !this.cut && this.roll) a.camera.rotateZ(this.roll);
   }
 
   /** The 1:45 teaser: a split-second look at the 3D world (no boss yet) before the forest snaps back. */
   prepareTeaser() {
     const a = this.arena;
-    this.leaveDimension();
+    this.leaveDim();
     this.cubeGroup.visible = false;
     this.shard.visible = false;
     a.setRise(1);
@@ -2385,7 +2361,7 @@ export class Act2 {
   prepareGlimpse(shot: number) {
     const a = this.arena;
     if (this.cut) this.endCut(false);
-    this.leaveDimension();
+    this.leaveDim();
     this.cubeGroup.visible = false;
     this.shard.visible = false;
     a.cage.reset();
@@ -2482,7 +2458,7 @@ export class Act2 {
   /** The trailer: the arena stands risen and the boss's entrance begins, `skip` seconds in, with no HUD and no name card. */
   trailerBoss(boss: number, skip = 0) {
     if (this.cut) this.endCut(false);
-    this.leaveDimension();
+    this.leaveDim();
     this.t = 9;
     this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);
     const a = this.arena;
@@ -2521,7 +2497,7 @@ export class Act2 {
 
   skipToFight(phase = 0, boss = 0) {
     if (this.cut) this.endCut(false);
-    this.leaveDimension();
+    this.leaveDim();
     this.t = 9;
     this.fired = new Set(['burst', 'land', 'landed', 'swallow', 'reveal', 'title']);
     const a = this.arena;

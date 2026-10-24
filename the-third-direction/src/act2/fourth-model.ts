@@ -56,6 +56,8 @@ export function glowTexture(): THREE.Texture {
  */
 export class Tesseract {
   readonly group = new THREE.Group();
+  /** hurt: its light stutters and goes red (0..1) */
+  crack = 0;
   private edges: THREE.InstancedMesh[] = [];
   private halo: THREE.InstancedMesh;
   private nodes: THREE.InstancedMesh;
@@ -109,13 +111,23 @@ export class Tesseract {
     }
   }
 
+  /** its light, toward red as it cracks */
+  tint(red: number) {
+    const c = new THREE.Color(this.o.color).lerp(new THREE.Color(0xff3a5a), red);
+    this.edges.forEach((m, k) => (m.material as THREE.MeshBasicMaterial).color.copy(c).multiplyScalar(k === 0 ? 2.2 : 1.2));
+    (this.halo.material as THREE.MeshBasicMaterial).color.copy(c);
+  }
+
   /** `ang`: how far it has turned through itself; `time` spins the corner blocks */
   update(ang: number, time: number) {
     for (let k = 0; k < this.edges.length; k++) {
       this.project(ang - k * 0.16);
       const m = this.edges[k]!;
-      const th = (k === 0 ? 1 : 0.8) * this.o.thick;
+      const th0 = (k === 0 ? 1 : 0.8) * this.o.thick;
+      const tick = Math.floor(time * 20);
       EDGES.forEach(([i, j], e) => {
+        // cracked: edges drop out for a moment, here and there
+        const th = this.crack > 0 && (e * 7 + tick) % Math.max(2, Math.round(7 - this.crack * 4)) === 0 ? 0.001 : th0;
         const a = this.pts[i]!;
         const b = this.pts[j]!;
         this.v.subVectors(b, a);
@@ -125,7 +137,7 @@ export class Tesseract {
         this.m4.compose(this.v2, this.q, this.v.set(th, len, th));
         m.setMatrixAt(e, this.m4);
         if (k === 0) {
-          this.m4.compose(this.v2, this.q, this.v.set(th * 3.2, len + th * 2, th * 3.2));
+          this.m4.compose(this.v2, this.q, this.v.set(th * 3.2, len + th0 * 2, th * 3.2));
           this.halo.setMatrixAt(e, this.m4);
         }
       });
@@ -152,6 +164,13 @@ export class FourthModel {
   ang = 0;
   eyeOpen = 1;
   glowK = 1;
+  /** unfolded, its eye bared (0..1): the cube opens out round the ball */
+  open = 0;
+  /** hurt: its light stutters and goes red (0..1) */
+  crack = 0;
+  private tinted = -1;
+  /** how big the shards round it are (smaller in a fight, so they never fill the screen) */
+  shardK = 1;
   private cube: Tesseract;
   private ball: THREE.InstancedMesh;
   private eye = new THREE.Group();
@@ -249,6 +268,12 @@ export class FourthModel {
 
   update(time: number) {
     this.root.scale.setScalar(Math.max(0.001, this.size));
+    this.cube.crack = this.crack;
+    if (Math.abs(this.crack - this.tinted) > 0.02) {
+      this.tinted = this.crack;
+      this.cube.tint(this.crack);
+    }
+    this.cube.group.scale.setScalar(1 + this.open * 0.55);
     this.cube.update(this.ang, time);
     // its eye: opens, and burns
     this.eyeLid.scale.set(1, Math.max(0.02, this.eyeOpen), 1);
@@ -256,7 +281,7 @@ export class FourthModel {
     this.shardData.forEach((d, i) => {
       const a = d.a + time * d.sp;
       this.q.setFromEuler(this.e.set(d.rx + time * 0.3, d.ry + time * 0.2, 0));
-      this.m4.compose(this.v.set(Math.cos(a) * d.r, d.y + Math.sin(time * 0.4 + i) * 0.4, Math.sin(a) * d.r), this.q, this.v2.setScalar(d.s));
+      this.m4.compose(this.v.set(Math.cos(a) * d.r, d.y + Math.sin(time * 0.4 + i) * 0.4, Math.sin(a) * d.r), this.q, this.v2.setScalar(d.s * this.shardK));
       this.shards.setMatrixAt(i, this.m4);
     });
     this.shards.instanceMatrix.needsUpdate = true;

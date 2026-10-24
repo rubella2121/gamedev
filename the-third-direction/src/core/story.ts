@@ -236,31 +236,25 @@ export const STORY = {
     },
     /** the family together, and then the Fourth: it stops time, speaks, and folds them away; and, after the fight, gets away */
     fourth: {
-      still: { who: null, text: 'and then nothing moves.', ms: 2000 },
-      meant: { who: 'The Fourth', text: 'You were never meant to leave.', ms: 2600 },
-      behind: { who: 'Mother', text: 'Get behind me!', ms: 1500 },
-      hold: { who: 'Father', text: 'Hold on to us!', ms: 1500 },
-      no: { who: 'Mother', text: 'No—!', ms: 1200 },
-    },
-    dimension: {
-      mother: { who: 'The Blob', text: 'Mother?', ms: 1600 },
-      father: { who: 'The Blob', text: 'Father?', ms: 1500 },
-      none: { who: null, text: 'no one answers.', ms: 1800 },
-      where: { who: 'The Blob', text: 'Where is this?', ms: 2000 },
-      lookUp: { who: 'The Blob', text: "I don't want to look up anymore.", ms: 2800 },
-      goal: { who: null, text: 'a light, far off. go to it.', ms: 3200 },
-      door: { who: null, text: 'it was never a door.', ms: 2200 },
-      there: { who: 'The Fourth', text: 'There you are.', ms: 1800 },
-      out: { who: 'The Fourth', text: 'You let them out.', ms: 2000 },
-      mine: { who: 'The Fourth', text: 'So now you are mine.', ms: 2000 },
-      welcome: { who: 'The Fourth', text: 'Welcome to the fourth direction.', ms: 2600 },
+      still: { who: null, text: 'and then nothing moves.', ms: 2400 },
+      meant: { who: 'The Fourth', text: 'You were never meant to leave.', ms: 3200 },
+      behind: { who: 'Mother', text: 'Get behind me!', ms: 2000 },
+      three: { who: 'The Fourth', text: 'Then all three of you.', ms: 2800 },
+      hold: { who: 'Father', text: 'Hold on to each other!', ms: 2200 },
+      where: { who: 'Father', text: 'Where are we?', ms: 2200 },
+      noUp: { who: 'The Fourth', text: 'Here, there is no up to look to.', ms: 3400 },
+      together: { who: 'Mother', text: 'Stay together. Whatever happens.', ms: 2600 },
+      crack: { who: null, text: 'it cracks.', ms: 1800 },
+      notEnd: { who: 'The Fourth', text: 'This is not the end.', ms: 2800 },
+      back: { who: 'The Fourth', text: 'I will come back.', ms: 3000 },
+      all: { who: 'The Fourth', text: 'For all three of you.', ms: 3000 },
+      gone: { who: 'Mother', text: "It's gone. For now.", ms: 2600 },
     },
   } as {
     intro: Record<'back' | 'swallow' | 'coming' | 'behind', SubLine>;
     locks: SubLine[][];
     ending: Record<'last' | 'mother' | 'blob' | 'flicker' | 'home' | 'touch' | 'grows' | 'look' | 'can' | 'moon', SubLine>;
-    fourth: Record<'still' | 'meant' | 'behind' | 'hold' | 'no', SubLine>;
-    dimension: Record<'mother' | 'father' | 'none' | 'where' | 'lookUp' | 'goal' | 'door' | 'there' | 'out' | 'mine' | 'welcome', SubLine>;
+    fourth: Record<'still' | 'meant' | 'behind' | 'three' | 'hold' | 'where' | 'noUp' | 'together' | 'crack' | 'notEnd' | 'back' | 'all' | 'gone', SubLine>;
   },
 
   /* ------------------------------ the ending ------------------------------ */
