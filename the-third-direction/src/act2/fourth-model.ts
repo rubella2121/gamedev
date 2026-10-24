@@ -158,7 +158,19 @@ export class Tesseract {
 }
 
 export class FourthModel {
+  /** what is moved, turned and sized (hidden and shown through `visible`) */
   readonly root = new THREE.Group();
+  /** the root and its light (the light stays in the scene even while the root is hidden) */
+  private holder = new THREE.Group();
+
+  get visible(): boolean {
+    return this.root.visible;
+  }
+
+  set visible(on: boolean) {
+    this.root.visible = on;
+    if (!on) this.light.intensity = 0;
+  }
   /** how big its shadow is (1 = its full size), its 4D turning, how open its eye is (0..1), its light (0..) */
   size = 1;
   ang = 0;
@@ -252,11 +264,13 @@ export class FourthModel {
     this.glow.scale.setScalar(34);
     this.root.add(this.glow);
     this.light = new THREE.PointLight(0x9a7aff, 60, 40, 1.6);
-    this.light.position.set(0, 4, 10);
-    this.root.add(this.light);
+    // its light lives beside it, never inside it, and is never taken out of the scene, only turned down: a light coming or going
+    // makes every material in the scene rebuild its shader, and that is a long stall on a phone
+    this.holder.add(this.root, this.light);
     this.root.visible = false;
-    this.root.traverse((o) => (o.userData['noGround'] = true));
-    parent.add(this.root);
+    this.light.intensity = 0;
+    this.holder.traverse((o) => (o.userData['noGround'] = true));
+    parent.add(this.holder);
   }
 
   private eyeHolder: THREE.Group;
@@ -286,6 +300,7 @@ export class FourthModel {
     });
     this.shards.instanceMatrix.needsUpdate = true;
     this.glow.material.opacity = (0.5 + 0.1 * Math.sin(time * 2.3)) * this.glowK;
-    this.light.intensity = 60 * this.glowK;
+    this.light.intensity = this.root.visible ? 60 * this.glowK : 0;
+    this.light.position.copy(this.root.position).add(this.v.set(0, 4, 10).multiplyScalar(this.root.scale.x));
   }
 }

@@ -158,6 +158,7 @@ export class FourthWorld {
   private flashDir = new THREE.Vector3(1, 0, 0);
   private cracks!: THREE.InstancedMesh;
   private lights: THREE.Light[] = [];
+  private lightOn = new Map<THREE.Light, number>();
   private env = voidEnv();
   private frustum = new THREE.Frustum();
   private pm = new THREE.Matrix4();
@@ -229,7 +230,7 @@ export class FourthWorld {
         const depth = 1.2 + Math.max(0, RIM - d) * 0.95 + r() * 1.8;
         const glossy = (d > 5.4 && d < 6.9) || d < 2.3;
         if (glossy && !edge) {
-          gloss.add(cx, top - 0.15, cz, 0.97, 0.3, 0.97, r() < 0.5 ? 0x18213c : 0x10172b);
+          gloss.add(cx, top - 0.15, cz, 0.97, 0.3, 0.97, r() < 0.5 ? 0x2e3c60 : 0x263352);
           rock.add(cx, top - 0.3 - depth / 2, cz, 1, depth, 1, this.rock());
         } else rock.add(cx, top - depth / 2, cz, 1, depth, 1, this.rock(), edge ? (r() - 0.5) * 0.3 : 0, 0, edge ? (r() - 0.5) * 0.3 : 0);
         // spikes hanging under it
@@ -306,7 +307,8 @@ export class FourthWorld {
       if (k % 3 === 0) glow.add(bx, -0.02 - drop, bz, 2.6, 0.03, 0.06, CRACK, tilt, ba, tilt * 0.6);
     }
     rock.build(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0.1 }), this.group);
-    gloss.build(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.75, envMapIntensity: 2.4 }), this.group);
+    // (polished, but stone, not mirror: a mirror of this sky is black, and a black disc on the floor reads as a shadow)
+    gloss.build(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.48, metalness: 0.25, envMapIntensity: 1.2, emissive: 0x0b1530 }), this.group);
     this.cracks = glow.build(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }), this.group);
     // far frames: rectangles of stone with nothing in them, tilted, out in the dark
     const fr = new Vox();
@@ -721,13 +723,15 @@ export class FourthWorld {
     const top = new THREE.SpotLight(0xa8c0ff, 3.2, 0, 0.42, 0.85, 0);
     top.position.set(0, 46, 6);
     top.target.position.set(0, 0, -1);
-    this.group.add(top.target);
+    // (in the scene from the start, dark until the world is entered: a light coming into the scene, or leaving it, makes every
+    // material rebuild its shader, which is a long stall; turning one up or down costs nothing)
     for (const l of [amb, rim, fill, top]) {
-      l.visible = false;
+      this.lightOn.set(l, l.intensity);
+      l.intensity = 0;
       this.lights.push(l);
-      this.group.add(l);
+      this.scene.add(l);
     }
-    this.group.add(rim.target);
+    this.scene.add(rim.target, top.target);
   }
 
   private buildSky(): THREE.ShaderMaterial {
@@ -864,7 +868,7 @@ export class FourthWorld {
         l.intensity = 0;
       }
     });
-    this.lights.forEach((l) => (l.visible = true));
+    this.lights.forEach((l) => (l.intensity = this.lightOn.get(l) ?? 1));
     this.fogWas = this.scene.fog;
     this.bgWas = this.scene.background as THREE.Color | THREE.Texture | null;
     this.envWas = this.scene.environment;
@@ -894,7 +898,7 @@ export class FourthWorld {
     this.was.clear();
     for (const [l, v] of this.lightWas) l.intensity = v;
     this.lightWas.clear();
-    this.lights.forEach((l) => (l.visible = false));
+    this.lights.forEach((l) => (l.intensity = 0));
     this.scene.fog = this.fogWas;
     this.scene.background = this.bgWas;
     this.scene.environment = this.envWas;

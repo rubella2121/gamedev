@@ -134,11 +134,11 @@ export class FourthBoss extends Boss3D {
   }
 
   show() {
-    this.model.root.visible = true;
+    this.model.visible = true;
   }
 
   hide() {
-    this.model.root.visible = false;
+    this.model.visible = false;
     this.clearAll();
   }
 
@@ -699,7 +699,7 @@ export class FourthBoss extends Boss3D {
   /* ---- every frame ---- */
 
   protected animate(dt: number) {
-    if (!this.model.root.visible || this.state === 'gone') return;
+    if (!this.model.visible || this.state === 'gone') return;
     const open = this.mode === 'open' ? smooth(clamp(this.mt / 0.5, 0, 1)) : this.mode === 'close' ? 1 - smooth(clamp(this.mt / 0.6, 0, 1)) : 0;
     // its middle comes down to the floor when it opens
     const y = lerp(HOVER + Math.sin(this.t * 1.3) * 0.25, LOW, open);

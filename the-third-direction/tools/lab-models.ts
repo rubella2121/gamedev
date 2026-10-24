@@ -38,7 +38,7 @@ export function registerModels(lab: { register: (name: string, b: Builder) => vo
   // the Fourth: poses 'ang' (its turn through itself), 'eye' (0 shut .. 1 open) and 'look' (its eye turns to the camera's side)
   lab.register('fourth', async (_s, world) => {
     const f = new FourthModel(world);
-    f.root.visible = true;
+    f.visible = true;
     f.root.position.y = 6;
     let time = 2;
     f.update(time);

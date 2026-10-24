@@ -76,6 +76,11 @@ export class Game {
 
     this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
     this.act2.onEnd = () => this.onEnd();
+    // (where the driver can, shaders are built off the main thread: see Act2.prewarm)
+    this.act2.warmUp = (scene, camera) => {
+      if (this.renderer.extensions.has('KHR_parallel_shader_compile')) void this.renderer.compileAsync(scene, camera).catch(() => undefined);
+      else this.renderer.compile(scene, camera);
+    };
     this.act1.onBoom = () => this.beginBoom(0, true);
     // (the forest's glimpses of the 3D world are drawn through the tear itself now: see drawForest)
     this.act1.onTeaserFlash = null;

@@ -129,6 +129,23 @@ export class Act2 {
   private lights: THREE.Mesh[] = [];
 
   onEnd: (() => void) | null = null;
+  /** get shaders ready for things not drawn yet (set by the game, which has the renderer) */
+  warmUp: ((scene: THREE.Scene, camera: THREE.Camera) => void) | null = null;
+  private warmed = false;
+
+  /**
+   * The Fourth and its place have never been drawn when the ending begins. Drawing something the first time builds its shaders,
+   * which stalls; so while the reunion plays, they are built in the background (shown for the one call, then hidden again).
+   */
+  private prewarm() {
+    if (this.warmed || !this.warmUp) return;
+    this.warmed = true;
+    const objs: THREE.Object3D[] = [this.dim.group, this.fourth.model.root, this.skyRift().group];
+    const was = objs.map((o) => o.visible);
+    objs.forEach((o) => (o.visible = true));
+    this.warmUp(this.arena.scene, this.arena.camera);
+    objs.forEach((o, i) => (o.visible = was[i]!));
+  }
 
   /** the cutscene playing now (it owns the camera, the letterbox and the subtitles) */
   private cut: Cut | null = null;
@@ -1494,6 +1511,7 @@ export class Act2 {
    */
   private beginEnding(part: 'reunion' | 'home' = 'reunion') {
     this.state = 'ending';
+    if (part === 'reunion') this.prewarm();
     this.et = 0;
     this.control = false;
     this.fired.clear();
@@ -1843,10 +1861,10 @@ export class Act2 {
     const at = () => f.model.root.position.clone();
     const keys: CamKey[] = [
       // the family, still holding on; and then everything stops
-      { t: 0, pos: V(3.6, 2.2, 7.6), look: fam, fov: 46 },
-      { t: 2.0, pos: V(3.3, 2.0, 7.1), look: fam, fov: 46 },
+      { t: 0, pos: V(3.8, 2.3, 7.9), look: fam, fov: 46 },
+      { t: 1.4, pos: V(3.1, 1.9, 6.8), look: fam, fov: 44 },
       // up, from behind them: the moon goes out, and something unfolds where it was
-      { t: 2.05, cut: true, pos: V(0.6, 1.4, 9.5), look: V(-9, 27, -44), fov: 58 },
+      { t: 1.45, cut: true, pos: V(0.6, 1.4, 9.5), look: V(-9, 27, -44), fov: 58 },
       { t: 6.4, pos: V(0.4, 1.2, 9.0), look: SKY.clone(), fov: 50 },
       // its eye
       { t: 6.45, cut: true, pos: SKY.clone().add(V(4, -7, 34)), look: SKY.clone(), fov: 40 },
@@ -1881,9 +1899,9 @@ export class Act2 {
         },
       },
       { at: 0.6, fn: (s) => this.line(L.still, s) },
-      { at: 3.0, fn: (s) => !s && audio.thump(0.6) },
+      { at: 2.3, fn: (s) => !s && audio.thump(0.6) },
       {
-        at: 4.0,
+        at: 3.4,
         fn: (s) => {
           if (s) return;
           audio.rumble();
@@ -1891,7 +1909,7 @@ export class Act2 {
           ui.flash(0.25, 600);
         },
       },
-      { at: 4.4, fn: (s) => !s && audio.v.fourthRoar() },
+      { at: 3.8, fn: (s) => !s && audio.v.fourthRoar() },
       { at: 7.4, fn: (s) => this.line(L.meant, s) },
       { at: 10.8, fn: (s) => this.line(L.behind, s) },
       { at: 13.0, fn: (s) => this.line(L.three, s) },
@@ -1977,16 +1995,16 @@ export class Act2 {
         this.bob += dt * 4;
         if (!there) {
           // the moon goes out; the fog thickens and goes cold
-          a.crater.dimSky(1 - smooth(unlerp(2.6, 3.4, t)));
+          a.crater.dimSky(1 - smooth(unlerp(1.9, 2.7, t)));
           if (fogKeep) {
             const k = smooth(unlerp(3, 15, t));
             fog.color.setHex(fogKeep.color).lerp(this.tmpC.setHex(0x06050f), k);
             fog.density = lerp(fogKeep.density, 0.03, k);
           }
           // it unfolds out of the sky where the moon was; its eye opens
-          const u = easeOutBack(unlerp(4.0, 6.6, t));
+          const u = easeOutBack(unlerp(3.4, 6.0, t));
           f.place(SKY.x, SKY.y + Math.sin(this.time * 0.5) * 0.4, SKY.z, Math.max(0.001, 4.6 * u));
-          f.model.glowK = smooth(unlerp(4.0, 5.4, t));
+          f.model.glowK = smooth(unlerp(3.4, 4.8, t));
           f.model.eyeOpen = Math.max(0.02, smooth(unlerp(7.0, 7.6, t)));
           f.pose(dt, 0.35, V(BLOB.x, 1, BLOB.z));
           // the tear over the three of them
@@ -1996,7 +2014,7 @@ export class Act2 {
           rift.update(this.time, 0);
           // and up they go, all three, turning over, holding on to each other
           lift = smooth(unlerp(16.6, 19.4, t));
-          const look = smooth(unlerp(2.2, 3.4, t));
+          const look = smooth(unlerp(1.5, 2.7, t));
           p.visible = !taken;
           p.position.set(BLOB.x, lift * (RIFT.y - 0.8), BLOB.z - lift * 0.6);
           p.rotation.set(lift * lift * 4, lerp(Math.PI, Math.PI, look), lift * 1.2);
@@ -2012,7 +2030,7 @@ export class Act2 {
             const up = smooth(unlerp(16.6 + seed * 0.1, 19.4, t));
             r.g.visible = !taken;
             r.g.position.set(lerp(q.x, BLOB.x + side, up), up * (RIFT.y - 0.6), lerp(q.z, BLOB.z - 0.6, up));
-            r.g.rotation.set(up * up * 3.5 * side, t < 2.2 ? Math.atan2(BLOB.x - q.x, BLOB.z - q.z) : Math.atan2(at().x - q.x, at().z - q.z) * look, up * side);
+            r.g.rotation.set(up * up * 3.5 * side, t < 1.5 ? Math.atan2(BLOB.x - q.x, BLOB.z - q.z) : Math.atan2(at().x - q.x, at().z - q.z) * look, up * side);
             animateParent(r, dt, this.time, step > 0 && step < 1 ? 1 : 0, t > 15.4 ? 1 : t > 10.8 ? 0.6 : 0.3, t > 15.4 ? 0.6 : 0, seed);
           }
           // the moth hangs where it was when time stopped
@@ -2238,7 +2256,7 @@ export class Act2 {
           f.place(pos.x + Math.sin(this.time * 31) * 0.06 * (1 - up), pos.y, pos.z, Math.max(0.001, shrink));
           f.look(clamp(t / 1.2, 0, 1), 1 + 0.6 * Math.sin(this.time * 30) * (t < 3 ? 1 : 0), 0);
           f.model.eyeOpen = 1;
-          f.model.root.visible = t < 12.25;
+          f.model.visible = t < 12.25;
           f.pose(dt, t < 3 ? 6 : 1.5, V(this.pl.x, 1, this.pl.z));
           // the three of them light it up at once
           setBeams(t > 1.45 && t < 3.2 ? smooth(unlerp(1.45, 1.9, t)) * (1 - smooth(unlerp(2.8, 3.15, t))) : 0, EYE);

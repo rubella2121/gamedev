@@ -168,6 +168,7 @@ export class Arena {
   private mothVel = new THREE.Vector2();
   private shieldMesh!: THREE.Mesh;
   private mothLight!: THREE.PointLight;
+  private mothGlow = 16;
 
   constructor() {
     this.scene.background = new THREE.Color(BG);
@@ -363,8 +364,8 @@ export class Arena {
     this.mothModel = mm;
     this.mothLight = new THREE.PointLight(0xb8f0ff, 16, 9, 1.5);
     // (below it, so it lights you and the floor, not the inside of its own body)
-    this.mothLight.position.y = -0.35;
-    this.moth.add(this.mothLight);
+    // (in the world, not in the moth: hiding the moth must not take a light out of the scene, see update)
+    this.world.add(this.mothLight);
     this.moth.visible = false;
     this.world.add(this.moth);
     // the moth's shield: a bubble of moonlight around you while the moth can take a hit for you
@@ -538,7 +539,7 @@ export class Arena {
       w.pivot.rotation.z = w.side * ((w.hind ? 0.1 : 0.25) + amp * (w.hind ? 0.75 : 1) * f);
     }
     (m.halo.material as THREE.SpriteMaterial).opacity = 0.3 * glow;
-    this.mothLight.intensity = 16 * glow;
+    this.mothGlow = 16 * glow;
   }
 
   /** The shield bubble: `u` 1 is up, 0 is gone; `flash` is the burst when it takes a hit or comes back. */
@@ -657,6 +658,9 @@ export class Arena {
     this.debris.instanceMatrix.needsUpdate = true;
     if (this.debris.instanceColor) this.debris.instanceColor.needsUpdate = true;
 
+    // the moth's light goes where the moth goes, and goes dark when it is hidden
+    this.mothLight.position.set(this.moth.position.x, this.moth.position.y - 0.35, this.moth.position.z);
+    this.mothLight.intensity = this.moth.visible ? this.mothGlow : 0;
     this.cage.update(dt, _time);
     this.crater.update(dt, _time);
     // player glow follows the body
