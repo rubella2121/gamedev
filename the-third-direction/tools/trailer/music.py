@@ -267,6 +267,10 @@ lullaby(5.0, 0.55, 0.16, warp=0.7)
 for k in range(5):
     heartbeat(7.4 + k * 0.95, 0.28 + k * 0.05)
 riser(9.2, 2.8, 0.16)
+# the foot comes down on them
+taiko(8.5, 0.9)
+subdrop(8.5, 0.45)
+crash(8.5, 0.1, 2.5)
 
 # 12 - 31.2: the forest and the guardians
 for bar in range(8):

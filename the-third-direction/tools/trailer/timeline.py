@@ -12,8 +12,8 @@ BEAT = 0.6
 # ---- the cuts: (start, end, clip, first frame of the clip to use, speed, label) ----
 # speed 1 = as captured (30 a second of game time); 0.5 = slow motion (each frame shown twice, blended)
 CUTS = [
-    # cold open: black, the card, then three small lights in the dark wood
-    (3.2, 9.0, 'opening', 30, 1.0, None),
+    # cold open: black, the card, then three small lights in the dark wood, a shadow over them, and the foot (frame 392, at 8.5)
+    (3.2, 8.7, 'opening', 233, 1.0, None),
     (9.0, 12.0, 'z-gloom', 0, 1.0, None),
     # five places
     (12.0, 13.2, 'z-gloom', 40, 1.0, 'GLOOM HOLLOW'),
