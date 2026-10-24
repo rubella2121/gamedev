@@ -1819,6 +1819,11 @@ export class Act2 {
   }
   private glimpseShot = 1;
 
+  /** finish building the monsters now (a short stall), so a glimpse can show X */
+  buildBosses() {
+    this.slicer.flush();
+  }
+
   /** Debug / showcase: skip straight to the start of a boss's fight (and a phase of it). */
   /** The trailer: the arena stands risen and the boss's entrance begins, `skip` seconds in, with no HUD and no name card. */
   trailerBoss(boss: number, skip = 0) {

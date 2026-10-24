@@ -160,6 +160,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
+      onScene: (id) => (id === 'edge' ? this.playEdge() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -273,6 +274,7 @@ export class Game {
 
   private begin() {
     this.showcaseRun = false;
+    this.reel = null;
     this.audio.start();
     track('game_start');
     this.stats.deaths = 0;
@@ -311,6 +313,44 @@ export class Game {
     this.begin();
     this.act1.skipOpening();
     this.act1.debugEdge();
+  }
+
+  /** New scenes: straight to the Edge with every guardian down. X comes into the forest, the portal, the fall into 3D, his fight. */
+  playEdge() {
+    this.begin();
+    this.showcaseRun = true;
+    this.act1.briefNext = false;
+    this.act1.skipOpening();
+    this.act1.debugEdge();
+  }
+
+  /** New scenes: the forest, and the five glimpses of the 3D world one after another (you can walk about while they play). */
+  playGlimpses() {
+    this.begin();
+    this.showcaseRun = true;
+    this.act1.briefNext = false;
+    this.act1.skipOpening();
+    this.act1.warp('hub');
+    this.act2.buildBosses();
+    this.reel = { n: 0, wait: 1.2 };
+  }
+
+  /** the glimpses reel: the next one a moment after the last has closed (game time, so a slow phone sees each one whole) */
+  private reel: { n: number; wait: number } | null = null;
+  private updateReel(dt: number) {
+    const r = this.reel;
+    if (!r) return;
+    if (this.state !== 'act1') {
+      this.reel = null;
+      return;
+    }
+    if (this.act1.glimpsing) return;
+    r.wait -= dt;
+    if (r.wait > 0) return;
+    r.n++;
+    this.act1.debugGlimpse(r.n);
+    r.wait = 1.0;
+    if (r.n >= 5) this.reel = null;
   }
 
   /** Debug: the glimpse of the 3D world that follows the `n`th guardian (1..5), right now. */
@@ -397,7 +437,10 @@ export class Game {
         this.act2.update(dt);
         if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
         if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
-      } else if (this.state === 'act1') this.act1.update(dt);
+      } else if (this.state === 'act1') {
+        this.act1.update(dt);
+        this.updateReel(dt);
+      }
       else if (this.state === 'trailer') this.trailer.update(dt);
     }
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest

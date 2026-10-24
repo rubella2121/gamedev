@@ -78,6 +78,10 @@ export class Forest implements Hub {
   /** where the moth is pointing at the moment: a hidden thing it wants to show you */
   private mothGuide: { x: number; y: number } | null = null;
   private glitchT = 0;
+  /** is a glimpse of the 3D world showing right now */
+  get glimpsing() {
+    return this.glitchT > 0;
+  }
   private glitchFlash = false;
   private teased = false;
   /** the trailer still plays the old Edge (look up, the screen cracks); the game plays the fight and the portal */
@@ -1857,6 +1861,8 @@ export class Forest implements Hub {
   /** (tests) go straight to the Edge, as if the road there had just been walked */
   debugEdge() {
     this.warp('edge');
+    // by the Edge the moth has long been with you
+    this.moth = { has: true, x: this.player.x + 12, y: this.player.y - 10 };
     this.mode = 'play';
     this.beginEdge();
     this.snapCamera();
