@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { D } from '../../core/difficulty';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
-import { ARENA_R, BOSS_Z } from '../arena';
+import { ARENA_R, BOSS_Z, groundY } from '../arena';
 import { Boss3D, type Danger, type Env, type Lance3, type Nova3, type Solid, type Weak } from '../fight';
 import type { Slicer } from '../kit/sdf';
 import { CollectorModel } from '../models/collector';
@@ -14,6 +14,8 @@ import { JAR_R, PIN_FALL, type MinionKind } from '../models/collector-props';
  *   PINS     every phase   giant pins are thrown, hang over a red ring, then stab the floor and STAY: the arena fills up
  *   THE JAR  phase 2 on    a glass jar comes down over you and a brass lid closes under your feet; mash the button
  *   DRAWERS  phase 3       his drawers fall open and the things he has collected crawl out
+ *   SPIRAL   every phase   a volley that lands in a spiral closing in on you, the last one where you stand
+ *   THE GLASS every phase  his lens catches the moon and a burning spot hunts you across the floor while he keeps throwing
  *   LOOKING  every round   the jar lowers to the floor, the lid comes off, the eye leans out: strike the eye
  */
 
@@ -34,8 +36,13 @@ const MINION_R = 0.85;
 const MARK_PINS = 0;
 const MARK_JAR = 8;
 const MARK_LAND = 9;
+const MARK_GLASS = 12;
+/** the burning spot: its size, how fast it follows you, how long you can stand in it */
+const GLASS_R = 1.55;
+const GLASS_SPEED = 5.4;
+const GLASS_BURN = 0.32;
 
-type Kind = 'wait' | 'pins' | 'jar' | 'drawers' | 'inspect';
+type Kind = 'wait' | 'pins' | 'jar' | 'drawers' | 'glass' | 'inspect';
 interface Step {
   k: Kind;
   /** wait: seconds; pins: how many; drawers: how many */
@@ -43,16 +50,16 @@ interface Step {
 }
 
 const ROUNDS: Step[][] = [
-  // 1: pins, pins, then he looks
-  [{ k: 'wait', n: 1.0 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.5 }, { k: 'pins', n: 4 }, { k: 'wait', n: 0.4 }, { k: 'inspect' }],
+  // 1: pins, a spiral, then the glass hunts you while he throws again, then he looks
+  [{ k: 'wait', n: 1.0 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.4 }, { k: 'pins', n: 4 }, { k: 'wait', n: 0.3 }, { k: 'glass', n: 4.5 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.4 }, { k: 'inspect' }],
   // 2: the jar joins in
-  [{ k: 'wait', n: 1.0 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.4 }, { k: 'jar' }, { k: 'wait', n: 0.4 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.4 }, { k: 'inspect' }],
+  [{ k: 'wait', n: 0.9 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.3 }, { k: 'jar' }, { k: 'wait', n: 0.3 }, { k: 'glass', n: 5 }, { k: 'pins', n: 4 }, { k: 'wait', n: 0.3 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.3 }, { k: 'inspect' }],
   // 3: and the drawers
-  [{ k: 'wait', n: 0.9 }, { k: 'jar' }, { k: 'wait', n: 0.4 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.3 }, { k: 'drawers', n: 5 }, { k: 'wait', n: 0.3 }, { k: 'inspect' }],
+  [{ k: 'wait', n: 0.8 }, { k: 'jar' }, { k: 'wait', n: 0.3 }, { k: 'glass', n: 5.5 }, { k: 'pins', n: 4 }, { k: 'wait', n: 0.2 }, { k: 'drawers', n: 5 }, { k: 'wait', n: 0.2 }, { k: 'pins', n: 3 }, { k: 'wait', n: 0.3 }, { k: 'inspect' }],
 ];
 
 /** how a volley of pins is aimed: at where you are going and where you stand ('lead'), in a ring that closes round you ('cage'), in a line you must step out of ('sweep'), or all over the floor ('scatter') */
-type Pattern = 'lead' | 'cage' | 'sweep' | 'scatter';
+type Pattern = 'lead' | 'cage' | 'sweep' | 'scatter' | 'spiral';
 type MSt = 'queued' | 'open' | 'launch' | 'dazed' | 'crawl' | 'dying' | 'gone';
 
 interface Pending {
@@ -101,7 +108,7 @@ interface Minion {
   stun: number;
 }
 
-export const COLLECTOR_PIPS = [2, 3, 3];
+export const COLLECTOR_PIPS = [3, 4, 4];
 
 export class CollectorBoss extends Boss3D {
   protected introLen = 4.2;
@@ -153,6 +160,11 @@ export class CollectorBoss extends Boss3D {
   private jWheel = 0;
   private jarCount = 0;
 
+  /* the glass: a burning spot of moonlight that hunts you */
+  private glass = { on: false, t: 0, dur: 0, x: 0, z: 0, heat: 0 };
+  private glassDisc: THREE.Mesh;
+  private glassShaft: THREE.Mesh;
+
   /* the drawers and what comes out */
   private minions: Minion[] = [];
 
@@ -181,6 +193,12 @@ export class CollectorBoss extends Boss3D {
     this.model = new CollectorModel(world, BOSS_Z);
     this.model.pins.onLand = (slot) => this.pinLanded(slot);
     this.model.onRelease = (arm, pos, dir) => this.pinReleased(arm, pos, dir);
+    // the glass's spot on the floor, and the shaft of moonlight it is made of
+    const hot = (color: number, opacity: number) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    this.glassDisc = new THREE.Mesh(new THREE.CircleGeometry(GLASS_R, 32).rotateX(-Math.PI / 2), hot(0xfff0a8, 0.8));
+    this.glassShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.35, GLASS_R * 1.05, 34, 24, 1, true), hot(0xfff6d8, 0.22));
+    this.glassDisc.visible = this.glassShaft.visible = false;
+    world.add(this.glassDisc, this.glassShaft);
     // the arena's own lights (not the little ones that follow the player): he can turn them down
     for (const c of env.arena.world.children) {
       if (c instanceof THREE.AmbientLight || c instanceof THREE.DirectionalLight) this.rig.push({ l: c, base: c.intensity });
@@ -364,6 +382,7 @@ export class CollectorBoss extends Boss3D {
     m.releaseArms();
     for (const mn of this.minions) m.minions.hide(mn.id);
     this.minions.length = 0;
+    this.endGlass();
     for (let i = 0; i < 16; i++) env.arena.marks.set(i, false);
     env.trap(false);
   }
@@ -472,6 +491,7 @@ export class CollectorBoss extends Boss3D {
     this.tickPins(dt);
     this.tickMinions(dt);
     this.tickJar(dt);
+    this.tickGlass(dt);
     if (this.fst === 'recoil') {
       this.runRecoil(dt);
       return;
@@ -519,8 +539,13 @@ export class CollectorBoss extends Boss3D {
       this.pinGap = 0.55 * D.tele * this.speedK;
       this.pinEnd = 0;
       this.volleyIdx++;
-      const pats: Pattern[] = this.phase === 0 ? ['lead', 'scatter'] : ['lead', 'cage', 'sweep', 'scatter'];
+      const pats: Pattern[] = this.phase === 0 ? ['lead', 'spiral', 'scatter'] : ['lead', 'cage', 'spiral', 'sweep', 'scatter'];
       this.pattern = pats[(this.volleyIdx - 1) % pats.length]!;
+      // a spiral needs a few more pins to close, and they come quicker
+      if (this.pattern === 'spiral') {
+        this.pinsLeft = this.volleyN = this.pinsLeft + 2;
+        this.pinGap *= 0.75;
+      }
       this.cageA = Math.random() * TAU;
       this.volley = 0;
       // a sweep is a line across the floor in some direction
@@ -531,6 +556,7 @@ export class CollectorBoss extends Boss3D {
       this.planOn = false;
       if (this.pattern !== 'lead') this.planVolley();
     } else if (step.k === 'jar') this.enterJar();
+    else if (step.k === 'glass') this.startGlass(step.n ?? 4.5);
     else if (step.k === 'drawers') this.enterDrawers((step.n ?? 5) - (this.cycle < 1 ? 1 : 0));
     else if (step.k === 'inspect') this.enterInspect();
   }
@@ -539,6 +565,7 @@ export class CollectorBoss extends Boss3D {
     if (step.k === 'wait') {
       if (this.ft >= (step.n ?? 1) * (0.6 + 0.4 * this.speedK)) this.stepDone = true;
     } else if (step.k === 'pins') this.runPins(dt);
+    else if (step.k === 'glass') this.stepDone = this.ft > 0.5;
     else if (step.k === 'jar') this.runJar();
     else if (step.k === 'drawers') this.runDrawers();
     else if (step.k === 'inspect') {
@@ -662,7 +689,17 @@ export class CollectorBoss extends Boss3D {
     const put = (x: number, z: number, gap: number) => {
       if (this.spot(x, z, gap)) plan.push({ x: this.tgt.x, z: this.tgt.z });
     };
-    if (this.pattern === 'cage') {
+    if (this.pattern === 'spiral') {
+      // round you and in: each pin closer than the last, the last one where you will be
+      const a0 = Math.random() * TAU;
+      const turn = Math.random() < 0.5 ? -1 : 1;
+      for (let j = 0; j < n; j++) {
+        const u = j / Math.max(1, n - 1);
+        const r = lerp(6.4, 0, u);
+        const a = a0 + turn * u * 4.4;
+        put(lx + Math.cos(a) * r, lz + Math.sin(a) * r, 1.2);
+      }
+    } else if (this.pattern === 'cage') {
       // the middle first, where you will be; then a ring round it with gaps to leave by
       put(lx, lz, 1.3);
       const cx = plan.length ? plan[0]!.x : lx;
@@ -861,6 +898,74 @@ export class CollectorBoss extends Boss3D {
     this.stuck.splice(i, 1);
     this.dropSolid(sp.solid);
     this.model.pins.pull(sp.slot);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* the glass                                                         */
+  /* ---------------------------------------------------------------- */
+
+  /** his lens catches the moon: a burning spot comes down far from you and hunts you while he goes on with his round */
+  private startGlass(secs: number) {
+    const { env, model: m } = this;
+    const pl = env.p;
+    // it starts on the far side of you, so the first thing to do is not walk into it
+    const away = Math.atan2(pl.x, pl.z - BOSS_Z) + Math.PI + (Math.random() - 0.5);
+    this.glass = { on: true, t: 0, dur: secs * (0.8 + 0.2 * D.speed), x: pl.x + Math.sin(away) * 7, z: pl.z + Math.cos(away) * 7, heat: 0 };
+    const r = Math.hypot(this.glass.x, this.glass.z);
+    if (r > ARENA_R - 2) {
+      this.glass.x *= (ARENA_R - 2) / r;
+      this.glass.z *= (ARENA_R - 2) / r;
+    }
+    env.audio.v.collectorChuckle();
+    env.audio.tone(1800, 0.6, 'sine', 0.05, 2400);
+    m.flash(0.25);
+    this.sayOnce('glass', 'hold still. let me look closer.', 2200);
+  }
+
+  private endGlass() {
+    this.glass.on = false;
+    this.glassDisc.visible = this.glassShaft.visible = false;
+    this.env.arena.marks.set(MARK_GLASS, false);
+  }
+
+  private tickGlass(dt: number) {
+    const g = this.glass;
+    if (!g.on) return;
+    const { env } = this;
+    const pl = env.p;
+    g.t += dt;
+    // it fades in, hunts, and fades out
+    const fade = Math.min(1, g.t / 0.6, Math.max(0, (g.dur - g.t) / 0.5));
+    if (g.t >= g.dur || this.fst !== 'script') {
+      this.endGlass();
+      return;
+    }
+    const dx = pl.x - g.x;
+    const dz = pl.z - g.z;
+    const d = Math.hypot(dx, dz) || 1;
+    // in the ferns he cannot see you: the spot wanders where it is
+    const sp = env.hidden ? 0.6 : GLASS_SPEED * D.speed * (g.t < 0.6 ? 0.3 : 1) * Math.min(1, d / 1.2);
+    g.x += (dx / d) * sp * dt;
+    g.z += (dz / d) * sp * dt;
+    // standing in it burns, after a moment
+    const inside = d < GLASS_R && fade > 0.8 && !pl.dead && !env.hidden;
+    if (inside) g.heat += dt;
+    else g.heat = Math.max(0, g.heat - dt * 2);
+    if (g.heat > GLASS_BURN) {
+      g.heat = -0.9;
+      env.hurt(dx, dz);
+      env.arena.burst3(pl.x, 0.6, pl.z, 12, [0xfff0a8, 0xff9a3a, 0xffffff], 6);
+    }
+    const hot = Math.max(0, g.heat) / GLASS_BURN;
+    const flick = 0.9 + 0.1 * Math.sin(env.time * 37);
+    this.glassDisc.visible = this.glassShaft.visible = true;
+    this.glassDisc.position.set(g.x, 0.11 + groundY(g.x, g.z), g.z);
+    this.glassDisc.scale.setScalar(0.9 + 0.1 * Math.sin(env.time * 9));
+    (this.glassDisc.material as THREE.MeshBasicMaterial).opacity = (0.55 + 0.35 * hot) * fade * flick;
+    this.glassShaft.position.set(g.x, 17 + groundY(g.x, g.z), g.z);
+    (this.glassShaft.material as THREE.MeshBasicMaterial).opacity = 0.2 * fade * flick;
+    env.arena.marks.set(MARK_GLASS, true, g.x, g.z, GLASS_R + 0.1, { col: 0xffb040, fill: 0, hot: hot > 0.3 && Math.floor(env.time * 16) % 2 === 0, alpha: fade });
+    if (Math.random() < dt * 14) env.arena.burst3(g.x + (Math.random() - 0.5) * 2, 0.2, g.z + (Math.random() - 0.5) * 2, 1, [0xffd070, 0x3a2a1a], 2);
   }
 
   /* ---------------------------------------------------------------- */
@@ -1360,6 +1465,7 @@ export class CollectorBoss extends Boss3D {
   private enterInspect() {
     const { env, model: m } = this;
     this.trace('inspect');
+    this.endGlass();
     this.fst = 'inspect';
     this.ft = 0;
     this.ist = 'lower';
@@ -1406,7 +1512,7 @@ export class CollectorBoss extends Boss3D {
         this.trace('window');
         this.ist = 'window';
         this.ft = 0;
-        this.windowT = 3.0 * D.window;
+        this.windowT = 2.5 * D.window;
         m.puff(14, 1);
         env.audio.v.glassPing(0.5);
         env.audio.setHeart(1.4, 0.5);
@@ -1672,6 +1778,7 @@ export class CollectorBoss extends Boss3D {
       out.push({ shape: 'disc', x: p.x, z: p.z, r: PIN_HIT + 0.05, at: Math.max(0, p.T - p.t), dur: 0.25 });
     }
     if (this.jst === 'tele') out.push({ shape: 'disc', x: this.jx, z: this.jz, r: TRAP_R + 0.1, at: Math.max(0, this.jT - this.jt), dur: 0.35 });
+    if (this.glass.on) out.push({ shape: 'disc', x: this.glass.x, z: this.glass.z, r: GLASS_R + 0.6, at: 0, dur: 0.5 });
     for (const mn of this.minions) {
       if (mn.st !== 'crawl' || mn.stun > 0) continue;
       // where it is, and where it will be
@@ -1696,6 +1803,7 @@ export class CollectorBoss extends Boss3D {
     for (const mn of this.minions) if (mn.st !== 'gone') this.killMinion(mn, false);
     if (this.jst !== 'none') this.breakJar(true);
     for (let i = this.stuck.length - 1; i >= 0; i--) this.pullPin(this.stuck[i]!);
+    this.endGlass();
     for (let i = 0; i < 16; i++) env.arena.marks.set(i, false);
     env.trap(false);
     env.audio.setHeart(0, 0);

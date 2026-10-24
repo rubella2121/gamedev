@@ -10,12 +10,13 @@ import { Falls } from '../core/falls';
 import { BOW, burst, drawBlob, drawGlint, drawLurker, drawMoon, drawParticles, drawRedEyes, updateParticles, type Particle } from '../core/art';
 import { drawMoth } from '../core/art2';
 import type { Ctx } from '../ctx';
+import type { PortalView } from '../cinematic/portal';
 import { arenaDef, CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, type ArenaDef, type ZoneId } from './land';
 import { drawBeacon } from './art3';
 import type { Drawable, Features, Hub, Lance, Nova, Patch, Player, Rect, Slam, Zone } from './types';
 import { makeZones } from './zones';
 
-type Mode = 'opening' | 'play' | 'consume' | 'edge' | 'crack' | 'done';
+type Mode = 'opening' | 'play' | 'consume' | 'edge' | 'crack' | 'done' | 'xfight' | 'pinned' | 'rift' | 'dive';
 
 const OP = { nudge: 3.2, cap1: 3.4, shadow: 7.0, shove: 10.4, slam: 13.0, ring: 15.8, lurk: 17.6, eyes: 20.6, hint: 22.4, end: 23.8 };
 const SPEED = 66;
@@ -77,8 +78,31 @@ export class Forest implements Hub {
   /** where the moth is pointing at the moment: a hidden thing it wants to show you */
   private mothGuide: { x: number; y: number } | null = null;
   private glitchT = 0;
+  /** is a glimpse of the 3D world showing right now */
+  get glimpsing() {
+    return this.glitchT > 0;
+  }
   private glitchFlash = false;
   private teased = false;
+  /** the trailer still plays the old Edge (look up, the screen cracks); the game plays the fight and the portal */
+  private oldEdge = false;
+  /** the fight at the Edge: its clock, what is in the air, the rift you run into */
+  private xf = {
+    t: 0,
+    stompT: 0,
+    rakeT: 0,
+    beamT: 0,
+    eyes: 0,
+    pinT: 0,
+    riftT: 0,
+    diveT: 0,
+    rakes: [] as { y: number; dir: number; t: number; T: number; hx: number; hit: boolean }[],
+    beams: [] as { x: number; t: number; T: number; eye: number; hit: boolean }[],
+    rift: { x: 0, top: 0, bot: 0, open: 0, grow: 0 },
+    foot: { x: 0, y: 0 },
+  };
+  /** which glimpse of the 3D world is showing through a tear (1..5: the guardians fallen so far), 0 for none */
+  private glimpseI = 0;
   private pulseHinted = false;
   /** the "tap to pulse light" hint stays up until the first pulse */
   private pulseHintOn = false;
@@ -635,6 +659,7 @@ export class Forest implements Hub {
     this.player.y = CLIFF_Y + 60;
     this.cineFocus = null;
     this.beginEdge();
+    this.oldEdge = true;
     this.snapCamera();
   }
 
@@ -748,7 +773,11 @@ export class Forest implements Hub {
     else if (this.mode === 'consume') this.updateConsume(dt);
     else if (this.mode === 'edge') this.updateEdge(dt);
     else if (this.mode === 'crack') this.updateCrack(dt);
-    if (this.mode === 'play' || this.mode === 'consume' || this.mode === 'edge' || this.mode === 'crack') this.updateMoth(dt);
+    else if (this.mode === 'xfight') this.updateXFight(dt);
+    else if (this.mode === 'pinned') this.updatePinned(dt);
+    else if (this.mode === 'rift') this.updateRift(dt);
+    else if (this.mode === 'dive') this.updateDive(dt);
+    if (this.mode === 'play' || this.mode === 'consume' || this.mode === 'edge' || this.mode === 'crack' || this.mode === 'xfight' || this.mode === 'pinned' || this.mode === 'rift') this.updateMoth(dt);
     if (this.mode === 'play') {
       const s = this.slams.find((q) => q.phase === 'tele');
       const u = s ? s.t / s.T : 0;
@@ -861,14 +890,17 @@ export class Forest implements Hub {
   }
 
   private updateSlams(dt: number) {
-    for (let i = this.slams.length - 1; i >= 0; i--) {
-      const s = this.slams[i]!;
+    const list = this.slams;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const s = list[i]!;
       if (s.phase === 'tele') {
         s.t += dt;
         if (s.t >= s.T) {
           s.phase = 'hit';
           s.ph = 0;
           this.impact(s);
+          // (a hit that pins you under X clears the slams: stop here)
+          if (this.slams !== list) return;
         }
       } else if (s.phase === 'hit') {
         s.ph += dt;
@@ -880,7 +912,7 @@ export class Forest implements Hub {
         s.ph += dt;
         if (s.ph > 1.3) {
           this.land.addDecal(s.x, s.y, s.R * 0.95, s.R * 0.68, 0.7);
-          this.slams.splice(i, 1);
+          list.splice(i, 1);
         }
       }
     }
@@ -892,6 +924,7 @@ export class Forest implements Hub {
     this.shake(9);
     burst(this.parts, s.x, s.y, 26, [C.ink, '#16303a', '#2a7a6c', C.soil], 85, 1);
     const pl = this.player;
+    if (!pl.hide && this.mode === 'xfight' && this.inEllipse(pl.x, pl.y, s, 0.9)) this.xHurt(s.x, s.y);
     if (!pl.hide && this.mode === 'play' && this.inEllipse(pl.x, pl.y, s, 0.9)) {
       // X is not a monster you fight: his slam is lethal (3 hearts on Gentle)
       pl.invuln = 0;
@@ -1231,9 +1264,11 @@ export class Forest implements Hub {
       this.checkpoint(pl.x, pl.y);
       const fallen = this.zones.filter((q) => q.cleared).length;
       if (fallen > 0) say(this.ui, STORY.hearts[Math.min(fallen, STORY.hearts.length) - 1]!);
-      // the first time a zone falls, X's claw grazes you and the forest glitches into cubes
-      if (!this.teased && this.zones.filter((q) => q.cleared).length === 1) {
+      // each time a guardian falls, X's claw grazes you and the forest tears open for a moment on the world behind it: a little
+      // more of it every time (see portalView and Act2.glimpse)
+      {
         this.teased = true;
+        this.glimpseI = Math.min(5, this.zones.filter((q) => q.cleared).length);
         this.glitchT = GLITCH;
         this.glitchFlash = false;
         this.audio.slam();
@@ -1337,6 +1372,7 @@ export class Forest implements Hub {
 
   private beginEdge() {
     this.mode = 'edge';
+    this.oldEdge = false;
     this.et = 0;
     this.slams = [];
     this.lookHold = 0;
@@ -1354,6 +1390,10 @@ export class Forest implements Hub {
   }
 
   private updateEdge(dt: number) {
+    if (!this.oldEdge) {
+      this.updateEdgeOpen(dt);
+      return;
+    }
     this.et += dt;
     const { input, ui, audio } = this;
     const pl = this.player;
@@ -1400,6 +1440,550 @@ export class Forest implements Hub {
       audio.silence(0.02);
       audio.highTone(2.4);
       this.shake(14);
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* the Edge: X comes down into the flat world                        */
+  /* ---------------------------------------------------------------- */
+
+  /** where the camera holds at the Edge (the cliff a third of the way down, the sky above it) */
+  private edgeCam(): { x: number; y: number } {
+    return { x: PLATEAU.x - W / 2, y: CLIFF_Y + 28 - 0.62 * H };
+  }
+
+  /** X's three eyes, high in the sky over the cliff */
+  private eyePos(i: number): { x: number; y: number } {
+    return { x: PLATEAU.x + (i - 1) * 42, y: CLIFF_Y - 150 - (i === 1 ? 14 : 0) };
+  }
+
+  /** X speaks: his own voice, and his words on screen */
+  private xSay(line: string, ms = 2200) {
+    this.audio.v.xSpeak(line);
+    this.ui.caption(line, ms, true);
+  }
+
+  /** the Edge, as the game plays it: the forest ends, the stars blink out, and they open: they were his eyes */
+  private updateEdgeOpen(dt: number) {
+    this.et += dt;
+    const { ui, audio } = this;
+    const pl = this.player;
+    pl.vx *= 0.8;
+    pl.vy *= 0.8;
+    pl.x += (PLATEAU.x - pl.x) * 0.02;
+    pl.y += (CLIFF_Y + 70 - pl.y) * 0.04;
+    pl.lookX = 0;
+    pl.lookY = this.et > 0.8 ? -1 : 0;
+    pl.squash = 1 + 0.025 * Math.sin(this.time * 3);
+    pl.blink = 0;
+    const c = this.edgeCam();
+    this.camX += (c.x - this.camX) * (1 - Math.exp(-3 * dt));
+    this.camY += (c.y - this.camY) * (1 - Math.exp(-3.5 * dt));
+    playTimed(ui, this.fired, 'edge2-', this.et, STORY.edgeFight.open);
+    this.fire('edge-eyes', this.et >= 2.2, () => audio.sting());
+    // the stars draw together into three eyes, and the eyes open
+    this.xf.eyes = smooth(unlerp(5.6, 6.6, this.et));
+    this.fire('edge-open', this.et >= 5.6, () => {
+      audio.boom();
+      audio.v.xBreath();
+      this.shake(8);
+    });
+    this.fire('edge-hello', this.et >= 6.6, () => {
+      audio.v.xRoar();
+      this.xSay(STORY.edgeFight.x.hello);
+    });
+    if (this.et >= 8.0) this.beginXFight();
+  }
+
+  private beginXFight() {
+    const pl = this.player;
+    this.mode = 'xfight';
+    const f = this.xf;
+    f.t = 0;
+    f.stompT = 0.8;
+    f.rakeT = 7;
+    f.beamT = 14;
+    f.rakes = [];
+    f.beams = [];
+    this.slams = [];
+    pl.maxHearts = this.maxHearts;
+    pl.hearts = pl.maxHearts;
+    pl.invuln = 0.5;
+    this.ui.hearts(pl.hearts, pl.maxHearts);
+    this.input.setMoveEnabled(true);
+    this.audio.setDrone(0.25, 1.5);
+  }
+
+  /** the Edge fight's ground: the strip of plateau on screen, below the cliff */
+  private xBounds() {
+    const c = this.edgeCam();
+    return { x0: c.x + 12, x1: c.x + W - 12, y0: CLIFF_Y + 20, y1: c.y + H - 22 };
+  }
+
+  /** a hit at the Edge: a heart, never the last one (this is not a fight you can lose; it is one you cannot win) */
+  private xHurt(fromX: number, fromY: number) {
+    const pl = this.player;
+    if (pl.invuln > 0 || pl.dashT > 0 || this.mode !== 'xfight') return;
+    pl.hearts = Math.max(1, pl.hearts - 1);
+    pl.calm = 0;
+    this.ui.hearts(pl.hearts, pl.maxHearts);
+    this.audio.hurt();
+    this.ui.red(0.4, 300);
+    this.shake(5);
+    burst(this.parts, pl.x, pl.y - 6, 8, [C.blob, C.blobLight, C.red], 40, 1);
+    pl.invuln = 1.3;
+    const dx = pl.x - fromX;
+    const dy = pl.y - fromY;
+    const l = Math.hypot(dx, dy) || 1;
+    pl.vx = (dx / l) * 150;
+    pl.vy = (dy / l) * 150;
+    // down to the last heart (and he has had his fun): he pins you
+    if (pl.hearts <= 1 && this.xf.t >= 12) this.beginPinned();
+  }
+
+  /** move the blob freely inside a box (the Edge fight) */
+  private moveIn(dt: number, b: { x0: number; x1: number; y0: number; y1: number }, frozen = false) {
+    const { input } = this;
+    const pl = this.player;
+    const mvx = frozen ? 0 : input.moveX;
+    const mvy = frozen ? 0 : input.moveY;
+    const k = 1 - Math.exp(-16 * dt);
+    if (pl.dashT > 0) {
+      pl.dashT -= dt;
+      pl.vx = pl.dashX * DASH_SPEED;
+      pl.vy = pl.dashY * DASH_SPEED;
+      this.ghosts.push({ x: pl.x, y: pl.y, t: 0 });
+    } else {
+      pl.vx += (mvx * SPEED - pl.vx) * k;
+      pl.vy += (mvy * SPEED - pl.vy) * k;
+    }
+    pl.x = clamp(pl.x + pl.vx * dt, b.x0, b.x1);
+    pl.y = clamp(pl.y + pl.vy * dt, b.y0, b.y1);
+    const sp = Math.hypot(pl.vx, pl.vy);
+    if (sp > 8) {
+      pl.lookX = pl.vx / SPEED;
+      pl.lookY = pl.vy / SPEED;
+      this.aim = { x: pl.vx / sp, y: pl.vy / sp };
+    } else {
+      pl.lookX *= 0.9;
+      pl.lookY *= 0.9;
+    }
+    pl.squash = 1 + 0.09 * Math.sin(this.time * 14) * clamp(sp / SPEED, 0, 1) + 0.03 * Math.sin(this.time * 2.5);
+    pl.blink = hash2(Math.floor(this.time * 5), 3) > 0.93 ? 1 : 0;
+  }
+
+  /** about half a minute: his foot, his raking hand, his eyes. It gets quicker. Your light passes through him. */
+  private updateXFight(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    const { ui } = this;
+    f.t += dt;
+    const t = f.t;
+    pl.invuln = Math.max(0, pl.invuln - dt);
+    pl.pulseCd = Math.max(0, pl.pulseCd - dt);
+    pl.dashCd = Math.max(0, pl.dashCd - dt);
+    this.dashPool.update(dt);
+    ui.dashes(this.dashPool.charges, this.dashPool.max, this.dashPool.frac);
+    const b = this.xBounds();
+    this.moveIn(dt, b);
+    // the one button: a pulse (it does nothing to him), a double tap dashes
+    this.input.setAction('light');
+    if (this.input.actionPressed) {
+      if (this.input.doubleTap && pl.dashCd <= 0 && this.dashPool.can()) this.dash();
+      else if (pl.pulseCd <= 0 && pl.dashT <= 0) {
+        this.castPulse();
+        this.fire('x-through', true, () => say(ui, STORY.edgeFight.through));
+      }
+    }
+    for (let i = this.ghosts.length - 1; i >= 0; i--) {
+      this.ghosts[i]!.t += dt;
+      if (this.ghosts[i]!.t > 0.3) this.ghosts.splice(i, 1);
+    }
+    this.fire('x-mid', t >= 11, () => this.xSay(STORY.edgeFight.x.mid));
+    this.fire('x-late', t >= 22, () => this.xSay(STORY.edgeFight.x.late));
+    const k = clamp(t / 30, 0, 1);
+    const tele = D.tele;
+    // his foot: where you are going
+    f.stompT -= dt;
+    if (f.stompT <= 0) {
+      const lead = 0.3;
+      const x = clamp(pl.x + pl.vx * lead, b.x0, b.x1);
+      const y = clamp(pl.y + pl.vy * lead, b.y0, b.y1);
+      this.spawnSlam(x, y, 26 + Math.random() * 6, lerp(1.25, 0.9, k));
+      // late on, a second foot where you would run to
+      if (t > 22) this.spawnSlam(clamp(2 * PLATEAU.x - x, b.x0, b.x1), clamp(y + (Math.random() - 0.5) * 40, b.y0, b.y1), 24, lerp(1.25, 0.95, k));
+      f.stompT = lerp(1.8, 1.0, k) * tele;
+    }
+    // his hand rakes the ground in a line across
+    f.rakeT -= dt;
+    if (t >= 7 && f.rakeT <= 0) {
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      f.rakes.push({ y: clamp(pl.y + (Math.random() - 0.5) * 10, b.y0, b.y1), dir, t: 0, T: 0.9 * tele, hx: 0, hit: false });
+      this.audio.v.xBreath();
+      f.rakeT = lerp(3.4, 2.2, k) * tele;
+    }
+    // his eyes pick you out
+    f.beamT -= dt;
+    if (t >= 14 && f.beamT <= 0) {
+      f.beams.push({ x: pl.x, t: 0, T: 0.95 * tele, eye: Math.floor(Math.random() * 3), hit: false });
+      this.audio.bell(1.2);
+      f.beamT = lerp(3.0, 2.0, k) * tele;
+    }
+    this.updateSlams(dt);
+    this.updateRakes(dt);
+    this.updateBeams(dt);
+    // the camera holds, with his weight in it
+    const c = this.edgeCam();
+    this.camX += (c.x - this.camX) * (1 - Math.exp(-4 * dt));
+    this.camY += (c.y - this.camY) * (1 - Math.exp(-4 * dt));
+    // half a minute is all you get
+    if (t >= 32) this.beginPinned();
+  }
+
+  private updateRakes(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    const c = this.edgeCam();
+    const list = f.rakes;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const r = list[i]!;
+      r.t += dt;
+      if (r.t < r.T) continue;
+      const u = (r.t - r.T) / 0.5;
+      if (r.t - dt < r.T) {
+        this.audio.whoosh();
+        this.shake(4);
+      }
+      // the claw's head crosses the screen
+      r.hx = r.dir > 0 ? lerp(c.x - 30, c.x + W + 30, u) : lerp(c.x + W + 30, c.x - 30, u);
+      const passed = r.dir > 0 ? pl.x < r.hx : pl.x > r.hx;
+      if (!r.hit && u < 1 && passed && Math.abs(pl.y - r.y) < 9) {
+        r.hit = true;
+        this.xHurt(r.hx, r.y);
+        // (that hit pinned you: the rakes are gone)
+        if (f.rakes !== list) return;
+      }
+      if (u >= 1.3) list.splice(i, 1);
+    }
+  }
+
+  private updateBeams(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    const list = f.beams;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const bm = list[i]!;
+      bm.t += dt;
+      // it follows you, a little behind, then holds still for a blink before it fires
+      if (bm.t < bm.T * 0.75) bm.x += (pl.x - bm.x) * (1 - Math.exp(-5 * dt));
+      if (bm.t >= bm.T && bm.t - dt < bm.T) {
+        this.audio.slam();
+        this.shake(6);
+        burst(this.parts, bm.x, pl.y, 14, [C.red, C.redGlow, C.white], 60, 1);
+      }
+      if (bm.t >= bm.T && bm.t < bm.T + 0.35 && !bm.hit && Math.abs(pl.x - bm.x) < 8) {
+        bm.hit = true;
+        this.xHurt(bm.x, pl.y - 20);
+        if (f.beams !== list) return;
+      }
+      if (bm.t > bm.T + 0.5) list.splice(i, 1);
+    }
+  }
+
+  /** he has you: the foot comes down over you, slowly. Mother calls. */
+  private beginPinned() {
+    if (this.mode !== 'xfight') return;
+    const pl = this.player;
+    this.mode = 'pinned';
+    const f = this.xf;
+    f.pinT = 0;
+    f.rakes = [];
+    f.beams = [];
+    this.slams = [];
+    f.foot = { x: pl.x, y: pl.y };
+    this.lookHold = 0;
+    pl.vx = pl.vy = 0;
+    pl.dashT = 0;
+    this.input.setMoveEnabled(false);
+    this.input.setAction(null);
+    this.audio.v.xRoar();
+    this.audio.rumble();
+    this.shake(10);
+  }
+
+  private updatePinned(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    const { ui, input } = this;
+    f.pinT += dt;
+    const t = f.pinT;
+    // you struggle under it
+    pl.squash = 0.82 + 0.06 * Math.sin(this.time * 20);
+    pl.lookY = -1;
+    this.fire('x-pin', t >= 0.3, () => this.xSay(STORY.edgeFight.x.pin, 1600));
+    this.fire('pin-look', t >= 1.4, () => {
+      say(ui, STORY.edgeFight.look);
+      ui.hint('hold to look up');
+      input.setAction('hold');
+    });
+    if (t >= 1.4) {
+      const auto = t >= 5;
+      if (input.actionDown || auto) this.lookHold = Math.min(1, this.lookHold + dt / 1.2);
+      else this.lookHold = Math.max(0, this.lookHold - dt * 0.35);
+    }
+    // looking up: the camera rises to his eyes
+    const c = this.edgeCam();
+    this.camX += (c.x - this.camX) * (1 - Math.exp(-3 * dt));
+    this.camY += (c.y - 95 * smooth(this.lookHold) - this.camY) * (1 - Math.exp(-4 * dt));
+    if (this.lookHold >= 1) this.beginRift();
+  }
+
+  /** the sky tears open between his eyes, all the way down to the ground beside you: the real world is behind it */
+  private beginRift() {
+    const pl = this.player;
+    const f = this.xf;
+    this.mode = 'rift';
+    f.riftT = 0;
+    const c = this.edgeCam();
+    // beside you, on the side with more room
+    const side = pl.x < PLATEAU.x ? 1 : -1;
+    const x = clamp(pl.x + side * 44, c.x + 34, c.x + W - 34);
+    f.rift = { x, top: this.eyePos(1).y + 24, bot: pl.y + 6, open: 0, grow: 0 };
+    this.ui.hint(null);
+    this.input.setAction(null);
+    this.ui.flash(0.8, 500);
+    this.audio.highTone(1.6);
+    this.audio.boom();
+    this.shake(12);
+  }
+
+  private updateRift(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    const { ui, input } = this;
+    f.riftT += dt;
+    const t = f.riftT;
+    f.rift.open = smooth(clamp(t / 0.9, 0, 1));
+    this.fire('rift-see', t >= 0.6, () => say(ui, STORY.edgeFight.see));
+    this.fire('rift-run', t >= 1.6, () => {
+      say(ui, STORY.edgeFight.run);
+      ui.hint('run!');
+      input.setMoveEnabled(true);
+    });
+    // the camera comes halfway back down, so his eyes and the foot of the rift are both on screen
+    const c = this.edgeCam();
+    this.camX += (c.x - this.camX) * (1 - Math.exp(-3 * dt));
+    this.camY += (c.y - 40 - this.camY) * (1 - Math.exp(-3 * dt));
+    // the foot keeps coming
+    const b = this.xBounds();
+    const go = t >= 1.6;
+    this.moveIn(dt, { ...b, y0: Math.min(b.y0, f.rift.bot - 30) }, !go);
+    // too slow, and the rift pulls you in anyway
+    if (t > 6.5) {
+      pl.x += (f.rift.x - pl.x) * (1 - Math.exp(-3 * dt));
+      pl.y += (f.rift.bot - 8 - pl.y) * (1 - Math.exp(-3 * dt));
+    }
+    if (go && Math.abs(pl.x - f.rift.x) < 16 && Math.abs(pl.y - (f.rift.bot - 8)) < 20) this.beginDive();
+  }
+
+  private beginDive() {
+    this.mode = 'dive';
+    this.xf.diveT = 0;
+    this.ui.hint(null);
+    this.input.setMoveEnabled(false);
+    this.input.setAction(null);
+    this.audio.whoosh();
+    this.audio.rumble();
+    this.ui.narrateClear();
+  }
+
+  /** into it: the rift swallows you and opens over everything */
+  private updateDive(dt: number) {
+    const f = this.xf;
+    const pl = this.player;
+    f.diveT += dt;
+    const t = f.diveT;
+    pl.x += (f.rift.x - pl.x) * (1 - Math.exp(-8 * dt));
+    pl.y += (f.rift.bot - 20 - pl.y) * (1 - Math.exp(-6 * dt));
+    pl.squash = Math.max(0.2, 1 - t * 1.6);
+    if (t > 0.45) pl.hide = true;
+    f.rift.grow = smooth(clamp((t - 0.25) / 0.9, 0, 1));
+    this.shake(3);
+    if (t >= 1.25) {
+      this.mode = 'done';
+      pl.hide = false;
+      this.onBoom?.();
+    }
+  }
+
+  /**
+   * What of the 3D world shows through the forest right now (game.ts draws it): a claw-tear when a guardian has just fallen, the
+   * rift at the Edge. `shot` picks what the Crater shows (see Act2.prepareGlimpse), `u` is how far through it is.
+   */
+  portalView(): { view: PortalView; shot: number; u: number } | null {
+    if (this.glitchT > 0 && this.glimpseI > 0) {
+      const age = GLITCH - this.glitchT;
+      const open = smooth(clamp((age - 0.3) / 0.35, 0, 1)) * (1 - smooth(clamp((age - 1.65) / 0.4, 0, 1)));
+      if (open <= 0.01) return null;
+      // along the claw's slash, from top right to bottom left; wider every time
+      const ry = (10 + this.glimpseI * 5) * open;
+      return {
+        view: { x: W / 2, y: H * 0.42, rx: 150, ry, ang: Math.atan2(H * 0.8 + 14, -(W + 28)), jag: 0.18, glow: 0.9, color: 0x9ff4ee },
+        shot: this.glimpseI,
+        u: clamp(age / 2, 0, 1),
+      };
+    }
+    if (this.mode === 'rift' || this.mode === 'dive') {
+      const r = this.xf.rift;
+      const top = r.top - this.camY;
+      const bot = r.bot - this.camY;
+      const cy = (top + bot) / 2;
+      const ry0 = Math.max(4, (bot - top) / 2);
+      const g = r.grow;
+      return {
+        view: { x: lerp(r.x - this.camX, W / 2, g), y: lerp(cy, H / 2, g), rx: lerp(3 + 36 * r.open, 320, g * g), ry: lerp(ry0 * (0.3 + 0.7 * r.open), 420, g * g), ang: 0, jag: 0.12 * (1 - g), glow: 1 - g * 0.8, color: 0xbffcf6 },
+        shot: 0,
+        u: clamp(this.xf.riftT / 8, 0, 1),
+      };
+    }
+    return null;
+  }
+
+  /** (tests) tear the forest open now on the `n`th glimpse */
+  debugGlimpse(n: number) {
+    this.glimpseI = clamp(n, 1, 5);
+    this.glitchT = GLITCH;
+    this.glitchFlash = false;
+    this.audio.slam();
+    this.audio.sting();
+  }
+
+  /** (tests) go straight to the Edge, as if the road there had just been walked */
+  debugEdge() {
+    this.warp('edge');
+    // by the Edge the moth has long been with you
+    this.moth = { has: true, x: this.player.x + 12, y: this.player.y - 10 };
+    this.mode = 'play';
+    this.beginEdge();
+    this.snapCamera();
+  }
+
+  /** the Edge fight drawn: his eyes in the sky, his foot's shadow, the hand that rakes, the beams */
+  private drawXFight() {
+    const p = this.p;
+    const f = this.xf;
+    const t = this.time;
+    const camX = this.camX;
+    const camY = this.camY;
+    // his eyes
+    if (f.eyes > 0.01) {
+      const pl = this.player;
+      for (let i = 0; i < 3; i++) {
+        const e = this.eyePos(i);
+        const sx = e.x - camX;
+        const sy = e.y - camY;
+        if (sy < -30 || sy > H + 30) continue;
+        const blink = hash2(Math.floor(t * 2.3), i + 7) > 0.94 ? 0.15 : 1;
+        const o = f.eyes * blink;
+        p.dither(sx, sy, 26, 14, C.redDark, 0.35 * f.eyes);
+        p.ellipse(sx, sy, 16, Math.max(1, 8 * o), '#d9e4ff');
+        if (o > 0.2) {
+          const lx = clamp((pl.x - e.x) / 160, -1, 1) * 5;
+          const ly = clamp((pl.y - e.y) / 300, -1, 1) * 2;
+          p.ellipse(sx + lx, sy + ly, 7, Math.max(1, 6.5 * o), C.red);
+          p.ellipse(sx + lx, sy + ly, 2, Math.max(1, 5.5 * o), C.ink);
+          p.px(sx + lx + 2, sy + ly - 2, C.white);
+        }
+        p.ring(sx, sy, 16, Math.max(1, 8 * o), 1, C.ink);
+      }
+    }
+    // the rakes: a warning line, then the bony hand across
+    for (const r of f.rakes) {
+      const sy = r.y - camY;
+      if (r.t < r.T) {
+        const on = Math.floor(t * 10) % 2 === 0 || r.t < r.T * 0.5;
+        p.alpha(on ? 0.9 : 0.4);
+        for (let x = 0; x < W; x += 6) p.rect(x, sy, 3, 1, C.red);
+        p.alpha(1);
+        const ex = r.dir > 0 ? 3 : W - 4;
+        p.rect(ex - 1, sy - 3, 3, 7, C.redGlow);
+      } else {
+        // a long bony arm dragged across the ground, knuckled, with three hooked claws at its end
+        const hx = r.hx - camX;
+        const x0 = r.dir > 0 ? -16 : W + 16;
+        p.dither((x0 + hx) / 2, sy + 3, Math.abs(hx - x0) / 2, 4, C.ink, 0.45);
+        p.line(x0, sy - 4, hx, sy - 2, '#0e0818', 9);
+        p.line(x0, sy - 7, hx, sy - 5, '#3a2a5a', 1);
+        p.line(x0, sy - 1, hx, sy + 1, '#1a1030', 1);
+        for (let k = 1; k < 12; k++) {
+          const kx = hx - r.dir * k * 18;
+          if (kx < -10 || kx > W + 10) break;
+          p.ellipse(kx, sy - 3, 5, 6, '#0e0818');
+          p.px(kx - 1, sy - 7, C.boneShade);
+        }
+        for (let k = -1; k <= 1; k++) {
+          const tx = hx + r.dir * 15;
+          const ty = sy + k * 6 - 1;
+          p.line(hx, sy - 2, tx, ty, '#0e0818', 3);
+          p.line(tx, ty, tx + r.dir * 3, ty + 3, '#0e0818', 2);
+          p.px(tx + r.dir * 3, ty + 3, C.bone);
+        }
+        // it tears the moss up as it goes
+        p.dither(hx - r.dir * 8, sy + 2, 14, 4, C.redDark, 0.45);
+      }
+    }
+    // the beams from his eyes
+    for (const bm of f.beams) {
+      const e = this.eyePos(bm.eye);
+      const ex = e.x - camX;
+      const ey = e.y - camY;
+      const gx = bm.x - camX;
+      const gy = this.player.y - camY;
+      if (bm.t < bm.T) {
+        const lock = bm.t > bm.T * 0.75;
+        p.alpha(lock ? (Math.floor(t * 16) % 2 ? 1 : 0.4) : 0.55);
+        p.line(ex, ey, gx, gy, C.red, 1);
+        p.ring(gx, gy, 9, 4, 1, lock ? C.redGlow : C.red);
+        p.alpha(1);
+      } else if (bm.t < bm.T + 0.35) {
+        const w = 7 * (1 - (bm.t - bm.T) / 0.35) + 2;
+        p.line(ex, ey, gx, gy, C.red, Math.round(w + 2));
+        p.line(ex, ey, gx, gy, C.white, Math.max(1, Math.round(w * 0.4)));
+        p.ellipse(gx, gy, 12, 5, C.redGlow);
+      }
+    }
+    // pinned: the foot's shadow closes over you
+    if (this.mode === 'pinned' || this.mode === 'rift' || this.mode === 'dive') {
+      const u = clamp(0.25 + (f.pinT + (this.mode === 'pinned' ? 0 : f.riftT)) / 9, 0, 0.98);
+      this.drawShadow(f.foot.x - camX, f.foot.y - camY, 52, u);
+      // you, still there under it: small, lit by your own light
+      const pl = this.player;
+      if (this.mode !== 'dive') {
+        this.drawGlowUnder(pl.x - camX, pl.y - camY);
+        drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink });
+      }
+    }
+    // the rift: cracks running from between his eyes down to its top (the world behind it is drawn over this, smooth)
+    if (this.mode === 'rift' || this.mode === 'dive') {
+      const r = f.rift;
+      const e = this.eyePos(1);
+      const u = clamp(f.riftT / 0.5, 0, 1);
+      const x0 = e.x - camX;
+      const y0 = e.y - camY + 10;
+      const x1 = r.x - camX;
+      const y1 = r.top - camY;
+      let px = x0;
+      let py = y0;
+      for (let k = 1; k <= 8; k++) {
+        const kk = k / 8;
+        if (kk > u) break;
+        const nx = lerp(x0, x1, kk) + (hash2(k, 31) - 0.5) * 8;
+        const ny = lerp(y0, y1, kk);
+        p.line(px + 1, py + 1, nx + 1, ny + 1, C.ink, 1);
+        p.line(px, py, nx, ny, C.moonCore, 1);
+        px = nx;
+        py = ny;
+      }
     }
   }
 
@@ -1524,7 +2108,7 @@ export class Forest implements Hub {
 
   /** Lances in flight, novas, the afterimages of a dash. */
   private drawFightFx() {
-    if (!this.arena) return;
+    if (!this.arena && this.mode !== 'xfight') return;
     const p = this.p;
     const t = this.time;
     for (const g of this.ghosts) {
@@ -1679,9 +2263,11 @@ export class Forest implements Hub {
     this.drawSeal();
 
     if (opening) this.drawLurkersAndEyes();
-    if (this.mode === 'edge' || this.mode === 'crack' || this.mode === 'done') {
-      land.drawStars(p, camY, t, this.et, 6);
-      this.drawClaws();
+    if (this.mode === 'edge' || this.mode === 'crack' || this.mode === 'done' || this.mode === 'xfight' || this.mode === 'pinned' || this.mode === 'rift' || this.mode === 'dive') {
+      // (in the game's own Edge the stars stop blinking out once his eyes are open: they have all gone to make them)
+      land.drawStars(p, camY, t, this.oldEdge ? this.et : Math.min(this.et, 6), 6);
+      if (this.oldEdge || this.mode === 'crack') this.drawClaws();
+      else this.drawXFight();
     }
     drawParticles(p, this.parts, camX, camY);
 
@@ -1819,7 +2405,7 @@ export class Forest implements Hub {
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     const cols = [C.teal, C.tealMid, C.purple, C.purpleMid, C.blob, C.moon];
-    for (let i = 0; i < 54; i++) {
+    for (let i = 0; i < (this.glimpseI > 0 ? 0 : 54); i++) {
       const hx = hash2(i, 11);
       const hy = hash2(i, 12);
       const sp = 20 + hash2(i, 13) * 90;

@@ -82,6 +82,9 @@ const _stc = new THREE.Color();
  * Thick black stitches across the seams. They sew themselves on in the entrance (white-hot as the thread goes in, black
  * when it cools) and tear off in the death.
  */
+/** the death: when each piece burns white and goes, into light (seconds into it) */
+export const MASH_DISSOLVE = { tendrils: 4.7, tail: 5.1, shell: 5.4, bell: 5.8, bloom: 6.1, eye: 6.5 };
+
 export class StitchSet {
   readonly mesh: THREE.InstancedMesh;
   private base: THREE.Matrix4[] = [];
@@ -918,26 +921,36 @@ export class MashModel {
     for (const mt of this.mats) mt.emissive.setRGB(0, 0, 0);
     this.tail.tint(0, 0, 0);
     this.partScale.tendrils = this.partScale.shell = this.partScale.bell = this.partScale.tail = this.partScale.bloom = this.partScale.eye = 1;
+    this.eye.rotation.set(0, 0, 0);
+    this.root.position.y = MASH_Y;
+    this.root.rotation.x = 0;
   }
 
   /**
-   * The death, t seconds in: every stitch tears, the patches come apart and each turns into its own guardian's colour, then
-   * fades. Returns nothing; the tail's control is written to `ctrl`.
+   * The death, t seconds in. It convulses; every stitch tears and each patch glows the colour of the guardian it was; then it
+   * falls apart for real (the bell slumps, the flower drops off the top, the eye rolls out and comes to rest looking up, the shell
+   * rolls away, the tail comes down like a tree); and one by one the pieces burn white and are gone, into light (see
+   * MASH_DISSOLVE: the boss throws the sparks). The tail's control is written to `ctrl`.
    */
   setDeath(t: number, ctrl: import('./mash-tail').TailCtrl) {
     this.deathT = t;
     const s = this.partScale;
-    const fade = (at: number) => 1 - smooth((t - at) / 0.9);
-    s.tendrils = fade(3.5);
-    s.shell = fade(3.8);
-    s.bell = fade(4.1);
-    s.tail = fade(4.4);
-    s.bloom = fade(4.7);
-    s.eye = fade(4.0);
+    // a piece goes in a blink, quicker and quicker: light, not shrinking
+    const go = (at: number) => {
+      const u = clamp01((t - at) / 0.38);
+      return 1 - u * u;
+    };
+    s.tendrils = go(MASH_DISSOLVE.tendrils) * (1 - 0.35 * smooth((t - 2.6) / 2.0));
+    s.shell = go(MASH_DISSOLVE.shell);
+    s.bell = go(MASH_DISSOLVE.bell);
+    s.tail = go(MASH_DISSOLVE.tail);
+    s.bloom = go(MASH_DISSOLVE.bloom);
+    s.eye = go(MASH_DISSOLVE.eye);
     this.bloomOpen = clamp01(1 - 1.15 * smooth((t - 0.7) / 2.2)) - 0.25 * smooth((t - 2) / 1.5);
-    this.eyeOpen = Math.max(0, 0.45 - (t - 0.5) * 0.4);
+    // the eye stays half open, on you, until it has rolled out; then it closes
+    this.eyeOpen = Math.max(0, 0.55 - Math.max(0, t - 4.6) * 0.4);
     this.roar = Math.max(0, 1 - t * 0.8);
-    this.shake = t < 1.2 ? 1.1 : 0;
+    this.shake = t < 1.2 ? 1.1 : t > 2.9 && t < 3.25 ? 0.7 : 0;
     this.limp = smooth((t - 0.9) / 1.8);
     this.crack = 1;
     P.deadPose(t, ctrl);
@@ -950,23 +963,40 @@ export class MashModel {
     this.bloomStitches.tear(ts);
     this.eyeStitches.tear(ts);
     this.shellStitches.tear(ts);
-    // the patches come apart
-    const sb = smooth((t - 1.4) / 2.6);
-    this.bellG.position.y -= 2.4 * sb;
-    this.bellG.position.x += 0.9 * sb;
-    this.bellG.rotation.z += 0.3 * sb;
-    const sw = smooth((t - 1.0) / 2.4);
-    this.bloom.position.y -= 3.4 * sw;
-    this.bloom.position.z += 2.2 * sw;
-    this.bloom.rotation.x += 0.9 * sw;
-    this.bloom.rotation.z += 0.25 * sw;
-    this.eye.position.y += 2.8 * smooth((t - 1.2) / 2.8);
-    this.eye.position.x += 1.2 * smooth((t - 1.2) / 2.8);
-    const ss = smooth((t - 1.0) / 2.6);
-    this.shell.position.x -= 6.5 * ss;
-    this.spinner.rotateZ(1.4 * ss * Math.min(1, (t - 1.0)));
-    // each patch turns into the colour of the guardian it was
-    const k = 0.62 * smooth((t - 1.2) / 1.8);
+    // falling: slow, then fast (gravity), and a small bounce where it lands
+    const fall = (a: number, b: number) => {
+      const u = clamp01((t - a) / (b - a));
+      return u * u;
+    };
+    const bounce = (at: number) => {
+      const u = t - at;
+      return u > 0 && u < 0.6 ? Math.sin((u / 0.6) * Math.PI) * Math.exp(-u * 5) * 0.3 : 0;
+    };
+    // the bell slumps: it sinks into the floor and leans over, and the whole of it pitches forward
+    const sb = fall(3.0, 4.0);
+    this.root.position.y = MASH_Y - 0.8 * sb + bounce(4.0) * 1.5;
+    this.root.rotation.x = 0.1 * sb;
+    this.bellG.position.y += -1.5 * sb + bounce(4.0);
+    this.bellG.position.x += 0.5 * sb;
+    this.bellG.rotation.z += 0.2 * sb;
+    this.bellG.rotation.x += 0.08 * sb;
+    // the flower drops off the top onto the floor in front, and tips over
+    const sw = fall(3.25, 3.9);
+    this.bloom.position.y += -1.0 * sw + bounce(3.9);
+    this.bloom.position.z += 1.6 * smooth((t - 3.25) / 1.1);
+    this.bloom.rotation.x += 1.0 * smooth((t - 3.5) / 0.9);
+    this.bloom.rotation.z += 0.3 * sw;
+    // the eye rolls out of its socket and comes to rest looking up at the sky
+    const se = smooth((t - 3.4) / 1.2);
+    this.eye.position.z += 1.6 * se;
+    this.eye.position.y -= 0.35 * se;
+    this.eye.rotation.set(-1.1 * se, 0, 0.25 * se);
+    // the shell rolls away to the left
+    const ss = smooth((t - 3.0) / 1.6);
+    this.shell.position.x -= 4.5 * ss;
+    this.spinner.rotateZ(0.75 * ss);
+    // each patch turns into the colour of the guardian it was, and burns brighter before it goes
+    const k = 0.62 * smooth((t - 1.2) / 1.8) + 0.8 * smooth((t - 4.3) / 2.2);
     const tint = (m: THREE.MeshToonMaterial, r: number, g: number, b: number) => m.emissive.setRGB(r * k, g * k, b * k);
     tint(this.bronzeMat, 0.8, 0.62, 1.0);
     tint(this.shellMat, 1.0, 0.62, 0.22);

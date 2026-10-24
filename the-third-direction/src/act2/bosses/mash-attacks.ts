@@ -274,7 +274,8 @@ export class WatchRunner implements Runner {
     m.lookAt(pl.x, 1.2, pl.z);
     this.cd -= dt;
     // it sees what moves
-    const moving = Math.hypot(pl.vx, pl.vz) > 2.6;
+    // (in the ferns it cannot see you at all)
+    const moving = !h.env.hidden && Math.hypot(pl.vx, pl.vz) > 2.6;
     this.seen = moving ? this.seen + dt : Math.max(0, this.seen - dt * 2.4);
     if (!this.beam && this.seen > 0.42 && this.cd <= 0 && !pl.dead && this.t < this.secs - 0.5) {
       const T = 0.62 * D.tele;
@@ -903,6 +904,19 @@ interface Plan {
 }
 
 const BALL_LIMIT = ARENA_R - 1.5;
+/** on the bell's side the shell stops short of the bell (the floor's circle reaches further than the bell lets it go) */
+const BALL_FAR_Z = -16.5;
+
+/** where a roll from (sx, sz) along (dx, dz) leaves the floor: the circle, or the line before the bell; and the wall's normal there */
+function rimExit(sx: number, sz: number, dx: number, dz: number): { t: number; nx: number; nz: number } {
+  const tc = exitT(sx, sz, dx, dz, BALL_LIMIT);
+  const tp = dz < -1e-6 ? (BALL_FAR_Z - sz) / dz : Infinity;
+  if (tp > 1e-3 && tp < tc) return { t: tp, nx: 0, nz: 1 };
+  const hx = sx + dx * tc;
+  const hz = sz + dz * tc;
+  const l = Math.hypot(hx, hz) || 1;
+  return { t: tc, nx: hx / l, nz: hz / l };
+}
 
 /** circle exit: the largest t >= 0 with |s + d t| = R */
 function exitT(sx: number, sz: number, dx: number, dz: number, R: number): number {
@@ -966,7 +980,8 @@ export function planRoll(h: Hub, ball: Ball, tx: number, tz: number, mode: 'play
     }
   } else {
     // through where you are going to be, and on to the rim
-    const t1 = Math.max(4, exitT(sx, sz, dx, dz, BALL_LIMIT));
+    const ex1 = rimExit(sx, sz, dx, dz);
+    const t1 = Math.max(4, ex1.t);
     const hit = stopOnPillar(sx, sz, dx, dz, t1);
     if (hit) {
       pts.push(sx + dx * hit.t, sz + dz * hit.t);
@@ -979,15 +994,15 @@ export function planRoll(h: Hub, ball: Ball, tx: number, tz: number, mode: 'play
       pts.push(hx, hz);
       legs.push(t1);
       // it bounces off the rim: the way back is part of the lane
-      const nx = hx / (Math.hypot(hx, hz) || 1);
-      const nz = hz / (Math.hypot(hx, hz) || 1);
+      const nx = ex1.nx;
+      const nz = ex1.nz;
       const dot = dx * nx + dz * nz;
       const rx = dx - 2 * dot * nx;
       const rz = dz - 2 * dot * nz;
       const rl = Math.hypot(rx, rz) || 1;
       const ex = rx / rl;
       const ez = rz / rl;
-      const t2 = Math.max(3, chordLen(hx, hz, ex, ez, BALL_LIMIT));
+      const t2 = Math.max(3, rimExit(hx, hz, ex, ez).t);
       const hit2 = stopOnPillar(hx, hz, ex, ez, t2);
       if (hit2) {
         pts.push(hx + ex * hit2.t, hz + ez * hit2.t);
@@ -1002,13 +1017,6 @@ export function planRoll(h: Hub, ball: Ball, tx: number, tz: number, mode: 'play
   }
   const total = legs.reduce((a, b) => a + b, 0);
   return { pts, legs, total, end, pillar };
-}
-
-/** how far a ray starting on the circle goes before it leaves it again */
-function chordLen(x: number, z: number, dx: number, dz: number, R: number): number {
-  const b = x * dx + z * dz;
-  // |s + d t|^2 = R^2 with |s| = R: t = -2 b
-  return Math.max(0, -2 * b) || R;
 }
 
 export interface RollOpts {

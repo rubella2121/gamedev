@@ -1,0 +1,15 @@
+[
+  { "wait": 2500 },
+  { "eval": "(() => { document.querySelectorAll('.start,.splash').forEach(e=>e.classList.add('hide')); __tt.debugEdge(); window.__F = __tt.act1; window.__seen = { modes: [], minH: 9 }; setInterval(() => { const s = window.__seen; const m = __F.mode; if (s.modes[s.modes.length - 1] !== m) s.modes.push(m); s.minH = Math.min(s.minH, __F.player.hearts); }, 50); return __F.mode })()" },
+  { "until": "window.__F.mode === 'xfight'", "timeout": 120000 },
+  { "shot": "fight" },
+  { "until": "window.__F.mode === 'pinned'", "timeout": 400000 },
+  { "shot": "pinned" },
+  { "until": "window.__F.mode === 'rift' && window.__F.xf.riftT > 3", "timeout": 200000 },
+  { "shot": "rift" },
+  { "until": "window.__tt.state === 'boom'", "timeout": 200000 },
+  { "until": "window.__tt.state === 'arena' || window.__tt.act2.control === true", "timeout": 400000 },
+  { "eval": "JSON.stringify({ seen: window.__seen, state: __tt.state, fight: __tt.act2.state, boss: __tt.act2.bi })" },
+  { "wait": 3000 },
+  { "shot": "x" }
+]

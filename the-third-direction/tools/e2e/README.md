@@ -20,6 +20,9 @@ QS='?debug' node tools/e2e.mjs dist-standalone tools/e2e/gestures-3d.json /tmp/o
 * `full-3d.json` (+ `full-3d-run.js`): the bot plays all three 3D bosses back to back (X, The Collector, The Mash) at 3x speed and prints
   when each one began, the hearts lost, the deaths and whether the ending was reached. Change `.dtile:nth-child(2)` to `1` / `3` for Gentle / Nightmare.
   Takes 4-8 minutes on a computer without a GPU. Normal: no deaths, about 270 s wall time; Nightmare: a few deaths, still finishes.
+* `edge-transition.json`: the Edge with no input at all. X's short 2D fight cannot kill you, he pins you, the portal opens and pulls you in by
+  itself, and the 3D intro hands over to the X fight. Expected: modes `edge, xfight, pinned, rift, dive, done`, `minH` 1 or more, then `arena` / `fight`
+  with boss 0, and no errors. Run with `STACK=1` to have page errors printed with their stack.
 
 On a computer without a GPU the game runs slowly and the frame time is capped, so real-time button presses do not measure what a
 phone would do; stepping by hand (as above) does.

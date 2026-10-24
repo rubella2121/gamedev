@@ -1,3 +1,4 @@
+import { PortalLayer } from './cinematic/portal';
 import * as THREE from 'three';
 import { Act2 } from './act2/act2';
 import { Forest } from './forest/forest';
@@ -31,8 +32,7 @@ export class Game {
   private last = 0;
   private paused = false;
   private runStart = 0;
-  private flash3D = 0;
-  private res = 1;
+  private res = '';
   private showcaseRun = false;
   private trailer!: Trailer;
   /** the player wants sound for the intro (the score has a bus of its own, so it has to be told) */
@@ -50,7 +50,8 @@ export class Game {
     this.ui = new UI(root);
     this.input = new Input(this.ui.stage);
     try {
-      this.renderer = new THREE.WebGLRenderer({ canvas: this.ui.view, antialias: false, powerPreference: 'high-performance' });
+      // anti-aliased: the 3D part is drawn smooth and sharp; the forest (a single full-screen picture) is not affected
+      this.renderer = new THREE.WebGLRenderer({ canvas: this.ui.view, antialias: true, powerPreference: 'high-performance' });
     } catch {
       this.ui.noWebGL();
       return;
@@ -58,6 +59,10 @@ export class Game {
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(W, H, false);
     this.renderer.setClearColor(0x05060c, 1);
+    // the Crater's shadows are drawn when it asks (when the land has settled, when a stone falls), not every frame
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
 
     const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats };
     this.act1 = new Forest(ctx);
@@ -71,11 +76,10 @@ export class Game {
 
     this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
     this.act2.onEnd = () => this.onEnd();
-    this.act1.onBoom = () => this.beginBoom();
-    this.act1.onTeaserFlash = () => {
-      this.act2.prepareTeaser();
-      this.flash3D = 0.2;
-    };
+    this.act1.onBoom = () => this.beginBoom(0, true);
+    // (the forest's glimpses of the 3D world are drawn through the tear itself now: see drawForest)
+    this.act1.onTeaserFlash = null;
+    this.scene2d.add(this.portal.mesh);
     this.trailer = new Trailer({
       ui: this.ui,
       audio: this.audio,
@@ -156,6 +160,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
+      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -168,10 +173,95 @@ export class Game {
   }
 
   /** The 2D forest is drawn at 216x384; the 3D world gets twice that so the character reads well. */
-  private setRes(k: number) {
-    if (this.res === k) return;
-    this.res = k;
-    this.renderer.setSize(W * k, H * k, false);
+  /**
+   * How finely to draw. 1: the forest's own pixel grid (scaled up, crisp). 'hd': the 3D part at the screen's real resolution
+   * (up to 1.5 device pixels per CSS pixel, and at most about 1.2 million pixels, so a phone keeps its frame rate).
+   */
+  private setRes(k: number | 'hd') {
+    let w = W;
+    let h = H;
+    if (k === 'hd') {
+      const rect = this.ui.view.getBoundingClientRect();
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      h = Math.max(H, Math.round((rect.height || H * 2) * dpr));
+      h = Math.min(h, Math.round(Math.sqrt((this.hdBudget * H) / W)));
+      w = Math.round((h * W) / H);
+    } else {
+      w = W * k;
+      h = H * k;
+    }
+    const key = `${w}x${h}`;
+    if (this.res === key) return;
+    this.res = key;
+    this.renderer.setSize(w, h, false);
+    // the forest is pixel art and stays crisp; the 3D part is smooth
+    this.ui.view.classList.toggle('smooth', k === 'hd');
+  }
+
+  /** how many pixels the 3D part may use: it steps down when frames are slow and back up when there is room */
+  private hdBudget = 1.2e6;
+  private slowT = 0;
+  private fastT = 0;
+
+  /** a phone that cannot keep up gets fewer pixels (never fewer than the old pixel-art size), one that can gets them back */
+  private tuneRes(dt: number, frameMs: number) {
+    if (frameMs > 24) {
+      this.slowT += dt;
+      this.fastT = 0;
+    } else if (frameMs < 13) {
+      this.fastT += dt;
+      this.slowT = 0;
+    } else this.slowT = this.fastT = 0;
+    // (never below twice the forest's own size: the 3D part should not look like pixel art, even on a slow phone)
+    if (this.slowT > 1.5 && this.hdBudget > 4 * W * H) {
+      this.hdBudget = Math.max(4 * W * H, this.hdBudget * 0.7);
+      this.slowT = 0;
+    } else if (this.fastT > 4 && this.hdBudget < 1.2e6) {
+      this.hdBudget = Math.min(1.2e6, this.hdBudget * 1.25);
+      this.fastT = 0;
+    }
+  }
+
+  /** the 3D world, through the forest */
+  private portal = new PortalLayer(W, H);
+  private glimpseShot = -1;
+
+  /**
+   * The forest. When it is torn open (a guardian has just fallen, or the rift at the Edge), the screen is drawn at its real
+   * resolution: the forest stays crisp pixel art, and through the opening the real 3D world shows, smooth and deep.
+   */
+  private drawForest(dt: number) {
+    const pv = this.state === 'act1' ? this.act1.portalView() : null;
+    if (!pv) {
+      if (this.glimpseShot >= 0) {
+        this.glimpseShot = -1;
+        this.portal.set(null, 0);
+      }
+      this.setRes(1);
+      this.act1.render();
+      this.tex2d.needsUpdate = true;
+      this.renderer.render(this.scene2d, this.cam2d);
+      return;
+    }
+    this.setRes('hd');
+    if (pv.shot !== this.glimpseShot) {
+      this.glimpseShot = pv.shot;
+      this.act2.prepareGlimpse(pv.shot);
+    }
+    this.act2.glimpse(pv.u, dt);
+    if (this.act2.arena.takeShadowDirty()) this.renderer.shadowMap.needsUpdate = true;
+    this.portal.capture(this.renderer, this.act2.arena.scene, this.act2.arena.camera);
+    this.act1.render();
+    this.tex2d.needsUpdate = true;
+    this.portal.set(pv.view, performance.now() / 1000);
+    this.renderer.render(this.scene2d, this.cam2d);
+  }
+
+  /** draw the 3D part (and its shadows, when the Crater asks for them) */
+  private render3D() {
+    this.setRes('hd');
+    if (this.act2.arena.takeShadowDirty()) this.renderer.shadowMap.needsUpdate = true;
+    this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
   }
 
   private setPaused(p: boolean) {
@@ -184,6 +274,7 @@ export class Game {
 
   private begin() {
     this.showcaseRun = false;
+    this.reel = null;
     this.audio.start();
     track('game_start');
     this.stats.deaths = 0;
@@ -196,10 +287,11 @@ export class Game {
     this.state = 'act1';
   }
 
-  private beginBoom(boss = 0) {
+  /** into 3D: a real run gets the film (the fall, the cage); the showcase and the debug jumps get the quick boom */
+  private beginBoom(boss = 0, cinematic = false) {
     this.state = 'boom';
     track('boom');
-    this.act2.begin(this.act1.p.canvas, boss);
+    this.act2.begin(this.act1.p.canvas, boss, cinematic);
   }
 
   private onEnd() {
@@ -216,13 +308,70 @@ export class Game {
     }
   }
 
+  /** Debug: go to the Edge of the forest (every guardian down), where X comes down and the rift opens. */
+  debugEdge() {
+    this.begin();
+    this.act1.skipOpening();
+    this.act1.debugEdge();
+  }
+
+  /** New scenes: straight to the Edge with every guardian down. X comes into the forest, the portal, the fall into 3D, his fight. */
+  playEdge() {
+    this.begin();
+    this.showcaseRun = true;
+    this.act1.briefNext = false;
+    this.act1.skipOpening();
+    this.act1.debugEdge();
+  }
+
+  /** New scenes: the ending film (the last lock breaks, the family is free), then the end card. Not ranked. */
+  playEnding() {
+    this.showcase(this.act2.lastBoss);
+    this.act2.skipToEnding();
+    this.state = 'arena';
+  }
+
+  /** New scenes: the forest, and the five glimpses of the 3D world one after another (you can walk about while they play). */
+  playGlimpses() {
+    this.begin();
+    this.showcaseRun = true;
+    this.act1.briefNext = false;
+    this.act1.skipOpening();
+    this.act1.warp('hub');
+    this.act2.buildBosses();
+    this.reel = { n: 0, wait: 1.2 };
+  }
+
+  /** the glimpses reel: the next one a moment after the last has closed (game time, so a slow phone sees each one whole) */
+  private reel: { n: number; wait: number } | null = null;
+  private updateReel(dt: number) {
+    const r = this.reel;
+    if (!r) return;
+    if (this.state !== 'act1') {
+      this.reel = null;
+      return;
+    }
+    if (this.act1.glimpsing) return;
+    r.wait -= dt;
+    if (r.wait > 0) return;
+    r.n++;
+    this.act1.debugGlimpse(r.n);
+    r.wait = 1.0;
+    if (r.n >= 5) this.reel = null;
+  }
+
+  /** Debug: the glimpse of the 3D world that follows the `n`th guardian (1..5), right now. */
+  debugGlimpse(n: number) {
+    this.act1.debugGlimpse(n);
+  }
+
   /** Debug: jump to the boom (builds a fake edge frame first). */
-  debugBoom() {
+  debugBoom(cinematic = false) {
     this.begin();
     this.act1.skipOpening();
     this.act1.warp('edge');
     this.act1.render();
-    this.beginBoom();
+    this.beginBoom(0, cinematic);
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
@@ -277,6 +426,8 @@ export class Game {
     requestAnimationFrame((t) => this.frame(t));
     if (this.paused) return;
     const dt = this.last ? Math.min(0.05, (now - this.last) / 1000) : 0.016;
+    // (the 3D part tunes its resolution to the phone: see tuneRes)
+    if (this.last && (this.state === 'arena' || this.state === 'boom' || this.state === 'ending')) this.tuneRes(dt, now - this.last);
     this.fpsN++;
     this.fpsT += dt;
     if (this.fpsT >= 1) {
@@ -293,7 +444,10 @@ export class Game {
         this.act2.update(dt);
         if (this.state === 'boom' && this.act2.state === 'fight') this.state = 'arena';
         if (this.state === 'arena' && this.act2.state === 'ending') this.state = 'ending';
-      } else if (this.state === 'act1') this.act1.update(dt);
+      } else if (this.state === 'act1') {
+        this.act1.update(dt);
+        this.updateReel(dt);
+      }
       else if (this.state === 'trailer') this.trailer.update(dt);
     }
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest
@@ -304,8 +458,7 @@ export class Game {
     }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
-      this.setRes(2);
-      this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
+      this.render3D();
     } else if (this.state === 'trailer') {
       const layer = this.trailer.layer;
       if (layer === '2d') {
@@ -315,21 +468,12 @@ export class Game {
         this.tex2d.needsUpdate = true;
         this.renderer.render(this.scene2d, this.cam2d);
       } else if (layer === '3d') {
-        this.setRes(2);
-        this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
+        this.render3D();
       } else {
         this.renderer.clear();
       }
     } else if (this.state === 'act1' || this.state === 'menu' || this.state === 'splash') {
-      this.setRes(1);
-      this.act1.render();
-      this.tex2d.needsUpdate = true;
-      if (this.flash3D > 0) {
-        this.flash3D -= dt;
-        this.renderer.render(this.act2.arena.scene, this.act2.arena.camera);
-      } else {
-        this.renderer.render(this.scene2d, this.cam2d);
-      }
+      this.drawForest(dt);
     }
   }
 

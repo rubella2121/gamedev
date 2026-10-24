@@ -37,6 +37,13 @@ const low = (l: Timed): Timed => ({ ...l, low: true });
 
 export const say = (ui: Narrator, l: Line) => ui.narrate(l.text, l.ms, l.tone, l.low);
 
+/** a subtitled line in a cutscene: `who` is shown over it (null: the world, in italics) */
+export interface SubLine {
+  who: 'The Blob' | 'Mother' | 'Father' | null;
+  text: string;
+  ms: number;
+}
+
 /** Play every line of a scene whose time has come, once each (`fired` remembers which). */
 export function playTimed(ui: Narrator, fired: Set<string>, prefix: string, t: number, lines: readonly Timed[]) {
   for (let i = 0; i < lines.length; i++) {
@@ -150,6 +157,20 @@ export const STORY = {
     at(9.6, thought('I want to see.', 1700)),
   ] as readonly Timed[],
 
+  /**
+   * The Edge, the way into 3D: the stars open (they were his eyes), X comes down into the flat world, and a short fight that cannot
+   * be won. When he has you, Mother calls; you look up, the sky tears open on the real world, and you run into it.
+   */
+  edgeFight: {
+    open: [at(0.4, world('the forest ends.', 1600)), at(2.3, world('the stars are blinking out, one by one.', 2300)), at(4.6, thought('They were never stars.', 1900))] as readonly Timed[],
+    /** X speaks (his own voice, on screen as a caption) */
+    x: { hello: 'there you are.', mid: 'hold still, little line.', late: 'so flat. so small.', pin: 'stay.' },
+    through: thought('My light goes straight through him.', 2200),
+    look: warm('Look up!', 2200),
+    see: thought('Mother? Father?', 1900),
+    run: warm('Run to us!', 2200),
+  },
+
   /* ------------------------------ the boom ------------------------------ */
 
   /** in seconds from the moment the boom begins (the white flash is at 0.55, you land at 2.2, the claw tip hits at 4.3) */
@@ -175,6 +196,49 @@ export const STORY = {
     [at(0.8, world('the wall is quiet. it should not be.', 3000)), at(3.9, thought('Someone has been keeping all of this.', 2000))],
     [at(0.8, world('the forest remembers who guarded it.', 3000)), at(3.9, thought('They are all here. Stitched together.', 2000))],
   ] as readonly (readonly Timed[])[],
+
+  /* ------------------------------ the cutscenes of the 3D part ------------------------------ */
+
+  /**
+   * Subtitled like a film: `who` is the name shown over the line (null is the world talking). Mother and Father are here, alive, in the
+   * Collector's cage: they speak in the present now, not as memories.
+   */
+  cut: {
+    /** through the rift: the fall into the Crater, the landing, the cage, and X coming after */
+    intro: {
+      back: { who: 'The Blob', text: 'Everything has a back now.', ms: 2200 },
+      swallow: { who: 'The Blob', text: 'I swallowed a piece of him.', ms: 2200 },
+      coming: { who: 'The Blob', text: "I'm coming.", ms: 1800 },
+      behind: { who: 'Mother', text: 'Behind you!', ms: 1600 },
+    },
+    /** when a boss falls, its lock on the cage breaks: [after X, after The Collector] */
+    locks: [
+      [
+        { who: 'Mother', text: 'We see you, little light.', ms: 2200 },
+        { who: 'The Blob', text: 'Hold on. Two more.', ms: 2000 },
+      ],
+      [
+        { who: 'Father', text: "Don't stop. You're almost here.", ms: 2400 },
+        { who: 'The Blob', text: 'One more.', ms: 1600 },
+      ],
+    ],
+    ending: {
+      last: { who: null, text: 'the last lock breaks.', ms: 2000 },
+      mother: { who: 'Mother', text: 'Little light.', ms: 1800 },
+      blob: { who: 'The Blob', text: 'I found you.', ms: 1800 },
+      flicker: { who: null, text: 'the pinned things flicker. warm.', ms: 2200 },
+      home: { who: null, text: 'most drift home. three stay.', ms: 2200 },
+      touch: { who: 'The Blob', text: 'Close enough to touch.', ms: 2000 },
+      grows: { who: null, text: 'the clearing grows back. the crater stays.', ms: 2600 },
+      look: { who: 'Mother', text: 'Look up.', ms: 1500 },
+      can: { who: 'The Blob', text: 'I can look up now.', ms: 2600 },
+      moon: { who: null, text: 'the moon blinks. the moth is home.', ms: 2600 },
+    },
+  } as {
+    intro: Record<'back' | 'swallow' | 'coming' | 'behind', SubLine>;
+    locks: SubLine[][];
+    ending: Record<'last' | 'mother' | 'blob' | 'flicker' | 'home' | 'touch' | 'grows' | 'look' | 'can' | 'moon', SubLine>;
+  },
 
   /* ------------------------------ the ending ------------------------------ */
 

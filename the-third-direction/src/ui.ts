@@ -10,6 +10,8 @@ export interface HomeOptions {
   onPlay: () => void;
   /** jump straight to a boss's fight: 0 = X, 1 = The Collector, 2 = The Mash */
   onShowcase: (boss: number) => void;
+  /** jump into one of the new scenes: the Edge (X in the forest, the portal, the fall), the five glimpses, or the ending */
+  onScene?: (id: 'edge' | 'glimpses' | 'ending') => void;
   /** play the cinematic intro again */
   onIntro?: () => void;
   onSound: (on: boolean) => void;
@@ -107,6 +109,7 @@ export class UI {
   private endCardEl: HTMLElement;
   private grain: HTMLCanvasElement;
   private grainOn = false;
+  private grainFrames: ImageData[] = [];
   private cineTimer = 0;
   /** the trailer is playing: no HUD, no hints, no story lines of the game itself */
   private mute = false;
@@ -118,6 +121,9 @@ export class UI {
   private pumpTimer = 0;
   private heartMax = 3;
   private recenterEl: HTMLButtonElement;
+  /** cutscene subtitles: who is talking, and what they say */
+  private subEl!: HTMLElement;
+  private subTimer = 0;
   private onRecenter: (() => void) | null = null;
   private onSkip: (() => void) | null = null;
   /** the animation loop of the splash and the home page (logo, fireflies, eyes), and what to do when the stage is resized */
@@ -158,8 +164,8 @@ export class UI {
     this.cineEl.innerHTML = '<div class="cvig"></div><div class="bar top"></div><div class="bar bot"></div>';
     this.grain = document.createElement('canvas');
     this.grain.className = 'cgrain';
-    this.grain.width = 72;
-    this.grain.height = 128;
+    this.grain.width = 270;
+    this.grain.height = 480;
     this.cineEl.appendChild(this.grain);
     this.cardEl2 = mk('tcard');
     this.endCardEl = mk('tend');
@@ -168,6 +174,7 @@ export class UI {
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
     this.titleEl.innerHTML = 'The Third<br>Direction';
+    this.subEl = mk('sub');
     this.skipEl = mk('skip', 'button') as HTMLButtonElement;
     this.skipEl.textContent = 'Skip ▸';
     this.skipEl.addEventListener('click', (e) => {
@@ -314,22 +321,29 @@ export class UI {
     }
   }
 
-  /** film grain: a tiny noise canvas redrawn a few times a second, scaled up and blended over the picture */
+  /** film grain: a few frames of fine noise, made once and cycled a few times a second, blended over the picture */
   private startGrain() {
     if (this.grainOn) return;
     this.grainOn = true;
     const g = this.grain.getContext('2d');
     if (!g) return;
-    const img = g.createImageData(this.grain.width, this.grain.height);
+    if (!this.grainFrames.length) {
+      for (let k = 0; k < 4; k++) {
+        const img = g.createImageData(this.grain.width, this.grain.height);
+        const d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const v = Math.random() * 255;
+          d[i] = d[i + 1] = d[i + 2] = v;
+          d[i + 3] = 255;
+        }
+        this.grainFrames.push(img);
+      }
+    }
+    let k = 0;
     window.clearInterval(this.cineTimer);
     this.cineTimer = window.setInterval(() => {
-      const d = img.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const v = Math.random() * 255;
-        d[i] = d[i + 1] = d[i + 2] = v;
-        d[i + 3] = 255;
-      }
-      g.putImageData(img, 0, 0);
+      k = (k + 1) % this.grainFrames.length;
+      g.putImageData(this.grainFrames[k]!, 0, 0);
     }, 70);
   }
 
@@ -611,6 +625,38 @@ export class UI {
     this.recenterEl.classList.toggle('show', show);
   }
 
+  /**
+   * A cutscene subtitle, the way big games do it: the speaker's name in their colour, the line under it, low on the screen above the letterbox.
+   * `who` null is the world talking (no name, in italics). Works while the cinematic layer is on (narration is muted then).
+   */
+  sub(who: string | null, text: string | null, ms = 2600, colour = '#ffe9a0') {
+    window.clearTimeout(this.subTimer);
+    if (text === null) {
+      this.subEl.classList.remove('show');
+      return;
+    }
+    this.subEl.innerHTML = '';
+    if (who) {
+      const n = document.createElement('b');
+      n.textContent = who;
+      n.style.color = colour;
+      this.subEl.append(n);
+    }
+    const t = document.createElement('span');
+    t.textContent = text;
+    this.subEl.append(t);
+    this.subEl.classList.toggle('world', !who);
+    this.subEl.classList.remove('show');
+    void this.subEl.offsetWidth;
+    this.subEl.classList.add('show');
+    this.subTimer = window.setTimeout(() => this.subEl.classList.remove('show'), ms);
+  }
+
+  /** wider letterbox bars for an in-game cutscene (the trailer keeps the thin ones) */
+  widescreen(on: boolean) {
+    this.cineEl.classList.toggle('wide', on);
+  }
+
   skip(show: boolean, cb?: () => void) {
     this.onSkip = cb ?? null;
     this.skipEl.classList.toggle('show', show);
@@ -773,6 +819,30 @@ export class UI {
       });
       card.append(btn);
     });
+    if (o.onScene) {
+      const onScene = o.onScene;
+      const sub = document.createElement('div');
+      sub.className = 'ssub';
+      sub.textContent = 'New scenes';
+      card.append(sub);
+      const scenes: { id: 'edge' | 'glimpses' | 'ending'; name: string; sub: string; colour: string }[] = [
+        { id: 'edge', name: 'The Edge', sub: 'X comes into the forest · the portal · the fall into 3D', colour: '#9ff4ee' },
+        { id: 'glimpses', name: 'The glimpses', sub: 'the 3D world through the tears, all five', colour: '#f2d36b' },
+        { id: 'ending', name: 'The ending', sub: 'the last lock breaks · the family, free', colour: '#ff9fb8' },
+      ];
+      for (const sc of scenes) {
+        const btn = document.createElement('button');
+        btn.className = 'bcard';
+        btn.style.setProperty('--bc', sc.colour);
+        btn.innerHTML = `<b>${sc.name}</b><i>${sc.sub}</i>`;
+        btn.addEventListener('click', () => {
+          this.startEl.classList.add('hide');
+          card.remove();
+          onScene(sc.id);
+        });
+        card.append(btn);
+      }
+    }
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Back';
@@ -786,7 +856,7 @@ export class UI {
     const card = document.createElement('div');
     card.className = 'sheet';
     const rows = GESTURES.map((g) => `<div class="hrow"><svg viewBox="0 0 24 24">${g.pic}</svg><div><b>${g.name}</b><span>${g.text}</span></div></div>`).join('');
-    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.</div>`;
+    card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div><div class="hlist">${rows}</div><div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.<br>In the Crater: stand still in the Moonwell to heal, hide in the ferns, and take a fallen heart if you dare.</div>`;
     const close = document.createElement('button');
     close.className = 'sclose';
     close.textContent = 'Got it';

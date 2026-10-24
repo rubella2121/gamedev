@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { groundY } from '../ground';
 import { clamp, lerp, smooth, TAU, unlerp } from '../../core/util';
 import { fbm, mix, ridge, rgb, scale, type RGB } from '../kit/noise';
 import { capsule, ellipsoid, inter, meshGen, smin, sphere, ssub, type SDF, type Slicer } from '../kit/sdf';
@@ -275,6 +276,8 @@ export class PropPins {
     for (let i = 0; i < this.size; i++) this.slots.push({ state: 'free', x: 0, z: 0, t: 0, fx: 0, fy: 0, fz: 0, vx: 0, vy: 0, vz: 0, wob: 0, tag: Math.floor(rnd(i, 3) * 4), flyT: PIN_FLY });
     this.pin = new THREE.InstancedMesh(pinGeometry(), skin({ vertexColors: true, rim: 0xe8c880, rimPower: 3.4, steps: 4 }), this.size);
     this.bases = new THREE.InstancedMesh(pinBaseGeometry(), skin({ vertexColors: true, rim: 0x9a8ad0, rimPower: 3 }), this.size);
+    // (lifted to the ground here, by hand: not again by the floor-decal pass)
+    this.bases.userData['noGround'] = true;
     const tg = labelGeometry(0.95, 1.5);
     const tiles = new Float32Array(this.size);
     for (let i = 0; i < this.size; i++) tiles[i] = this.slots[i]!.tag;
@@ -448,6 +451,9 @@ export class PropPins {
         q.multiply(this.q2);
       }
       if (!vis || (s.state === 'fly' && s.t <= 0)) sc = 0.0001;
+      // a pin stabs the ground where it lands, up on a terrace too
+      const gy = groundY(s.x, s.z);
+      py += gy;
       d.position.set(px, py, pz);
       d.quaternion.copy(q);
       d.scale.setScalar(Math.max(0.0001, sc));
@@ -467,7 +473,7 @@ export class PropPins {
       }
       this.tags.setMatrixAt(i, d.matrix);
       // the puncture in the floor
-      d.position.set(s.x, 0.02, s.z);
+      d.position.set(s.x, 0.02 + gy, s.z);
       d.quaternion.identity();
       d.rotation.set(0, i * 2.3, 0);
       d.scale.setScalar(Math.max(0.0001, baseK * 0.85));
@@ -634,7 +640,7 @@ export class PropJar {
   }
 
   setPos(x: number, y: number, z: number) {
-    this.group.position.set(x, y, z);
+    this.group.position.set(x, y + groundY(x, z), z);
   }
 
   /** 0 = none .. 3 */
@@ -1005,7 +1011,7 @@ export class PropMinions {
       s.shown = kind;
     }
     s.root.visible = sc > 0.01;
-    s.root.position.set(x, y, z);
+    s.root.position.set(x, y + groundY(x, z), z);
     s.root.rotation.y = yaw;
     const v = s.kinds[kind]!;
     const sq = 1 - squash * 0.35;
