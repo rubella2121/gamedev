@@ -889,10 +889,19 @@ export class UI {
       ['Bone Wastes', 'Stand beside the bone barricade: the skitterbones pounce straight into it and break it. Then tap the Bone Nest.'],
       ['Moth Meadow', 'Hold the button by the cage to free the moth. Stand still beside each sleeping flower while the moth hovers. Then walk into the Lightseed.'],
     ];
+    const bosses3d = [
+      ['How every 3D boss works', 'None of them can be hurt all the time. Each one has a moment when it is stuck or open: survive its attacks, wait for that moment, then hit the part that glows. Tap to strike up close, or drag the button to aim a lance from afar. Double-tap to dash: you cannot be hurt while you dash. Red marks on the floor show where the next blow lands.'],
+      ['X, the Hollow', "He can only be hurt when he gets stuck after an attack. His foot: step off the shrinking shadow, then strike the foot while it is stuck in the ground (dash through the shock rings). His arms: stand in the gaps between the lanes, then strike the claws stuck at the end. His gaze: hide behind a standing stone from the beam, then lance his head when it hangs low. His maws: keep moving as they open under you; at the end his glowing core drops out — strike it."],
+      ['The Collector', 'Dodge the pins (they stay in the floor: strike them to break them and keep a way out), the spiral volley and the burning spot from his lens. If the glass jar comes down over you, tap the button fast to break out. After each round he lowers his jar-head to look at his collection: the lid comes off and his eye leans out — strike the eye.'],
+      ['The Mash', 'Every guardian stitched into one. Each phase one patch fails and that is the place to hit. The bell: stand in the gap of its golden rings and keep still when its eye watches, then strike the tongue when it drops. The tail: keep moving, then strike the stinger stuck in the floor. The shell: get off the red lanes, then hit it while it lies on its back. Last: resist the flower\'s pull, then hit the lure when it drops.'],
+      ['The Fourth', 'You fight it with Mother and Father. Never go back the way you came (echoes), change direction when the floor glows ahead of you (foresight), cross the rolling ring twice (rewind), stay out of the clock hands, and stand on the half of the floor that is not lit (the fold). After each round its eye comes down to the floor: strike it — when all three of you are at the eye, your hit counts double.'],
+      ['Help in the Crater', 'Stand still in the Moonwell (the pool of moonlight on the west terrace) to win back a heart, once per phase. Strike the crystals for light. Hide in the ferns: what hunts by sight cannot see you there. Sometimes a heart falls into the fight: slip through the gaps in the thorns, take it, get out. The moth takes the first hit of every fight for you.'],
+    ];
     const list = (l: string[][], cls: string) => l.map(([b, t], i) => `<div class="${cls}"><i>${cls === 'hstep' ? i + 1 : ''}</i><div><b>${b}</b><span>${t}</span></div></div>`).join('');
     card.innerHTML = `<div class="sh">How to play</div><div class="hgoal">${STORY.brief.join(' ')}</div>
       <div class="hsec">The way through</div><div class="hlist">${list(steps, 'hstep')}</div>
       <div class="hsec">The five zones</div><div class="hlist">${list(zones, 'hzone')}</div>
+      <div class="hsec">The 3D bosses</div><div class="hlist">${list(bosses3d, 'hzone')}</div>
       <div class="hsec">Controls</div><div class="hlist">${rows}</div>
       <div class="htip">Stay in the light. Freeze in the reeds.<br>Every monster has a weak point: wait for it to show.<br>In the Crater: stand still in the Moonwell to heal, hide in the ferns, and take a fallen heart if you dare.<br>Pause any time with the &#10074;&#10074; button, or P / Esc.</div>`;
     const close = document.createElement('button');
