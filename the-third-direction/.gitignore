@@ -7,3 +7,4 @@ dist/
 dist-standalone/
 dist-gallery/
 dist-artifact/
+__pycache__/
