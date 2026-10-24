@@ -1507,6 +1507,9 @@ export class Act2 {
     ui.light(null);
     ui.hint(null);
     ui.bossBar(null);
+    // whatever the fight was saying stops: the ending has the screen
+    ui.narrateClear();
+    ui.caption(null);
     audio.setDrone(0, 2.5);
     audio.setHeart(0, 0);
     audio.setLullaby(0.9, 0);
@@ -1561,6 +1564,18 @@ export class Act2 {
       { t: 25, pos: V(0, 1.5, 11.9), look: V(0, 44, -72), fov: 62 },
     ];
     // (home: they are already together)
+    let mPath: THREE.Vector3[] | null = null;
+    let fPath: THREE.Vector3[] | null = null;
+    /** a point `u` (0..1) of the way along a path of straight legs */
+    const along = (pts: THREE.Vector3[], u: number) => {
+      const lens = pts.slice(1).map((p, i) => p.distanceTo(pts[i]!));
+      let d = u * lens.reduce((x, y) => x + y, 0);
+      for (let i = 0; i < lens.length; i++) {
+        if (d <= lens[i]! || i === lens.length - 1) return pts[i]!.clone().lerp(pts[i + 1]!, Math.min(1, d / (lens[i]! || 1)));
+        d -= lens[i]!;
+      }
+      return pts[pts.length - 1]!.clone();
+    };
     let mFrom: THREE.Vector3 | null = part === 'home' ? MUM.clone() : null;
     let fFrom: THREE.Vector3 | null = part === 'home' ? DAD.clone() : null;
     let bFrom = V(this.pl.x, 0, this.pl.z);
@@ -1606,6 +1621,14 @@ export class Act2 {
             cg.release(a.world);
             mFrom = cg.mother.g.position.clone().setY(0);
             fFrom = cg.father.g.position.clone().setY(0);
+            // out through the door (never through the bars): to just inside it, out past it, then to the Blob
+            const q = cg.cage.getWorldQuaternion(new THREE.Quaternion());
+            const out = new THREE.Vector3(0, 0, 1).applyQuaternion(q).setY(0).normalize();
+            const side = new THREE.Vector3(1, 0, 0).applyQuaternion(q).setY(0).normalize();
+            const mid = cg.world.setY(0);
+            const via = (s: number, k: number) => mid.clone().addScaledVector(out, k).addScaledVector(side, s * 0.45);
+            mPath = [mFrom, via(-1, 1.7), via(-1, 3.9), MUM];
+            fPath = [fFrom, via(1, 1.5), via(1, 3.7), DAD];
           },
         },
         { at: 7.2, fn: (s) => this.line(L.mother, s) },
@@ -1663,11 +1686,24 @@ export class Act2 {
         // Mother and Father: in the cage they wait; out of it they walk to the Blob and hold on
         const wk = smooth(unlerp(6.6, 8.8, t));
         if (mFrom && fFrom) {
-          cg.mother.g.position.lerpVectors(mFrom, MUM, wk);
-          cg.father.g.position.lerpVectors(fFrom, DAD, wk);
-          for (const r of [cg.mother, cg.father]) {
+          // Mother first, Father a step behind her, each along their way out of the door
+          const legs: [typeof cg.mother, THREE.Vector3[] | null, THREE.Vector3, THREE.Vector3, number][] = [
+            [cg.mother, mPath, mFrom, MUM, smooth(unlerp(6.6, 8.7, t))],
+            [cg.father, fPath, fFrom, DAD, smooth(unlerp(6.85, 8.85, t))],
+          ];
+          for (const [r, path, from, to, u] of legs) {
             const q = r.g.position;
-            r.g.rotation.y = Math.atan2(bp.x - q.x, bp.z - q.z);
+            if (path) {
+              const prev = q.clone();
+              q.copy(along(path, u));
+              // face the way they go; at the end, the Blob
+              const dx = q.x - prev.x;
+              const dz = q.z - prev.z;
+              r.g.rotation.y = u < 0.97 && Math.hypot(dx, dz) > 1e-4 ? Math.atan2(dx, dz) : Math.atan2(bp.x - q.x, bp.z - q.z);
+            } else {
+              q.lerpVectors(from, to, u);
+              r.g.rotation.y = Math.atan2(bp.x - q.x, bp.z - q.z);
+            }
           }
         }
         const walking = wk > 0 && wk < 1 ? 1 : 0;
@@ -2239,6 +2275,7 @@ export class Act2 {
   /** (tests, New scenes) straight to the Fourth: the three are beaten, the cage is open, the family is together */
   skipToFourth() {
     this.skipToFight(0, this.lastBoss);
+    this.boss.state = 'gone';
     this.bossDown();
     const c = this.cut;
     if (c) {
@@ -2492,6 +2529,8 @@ export class Act2 {
   /** New scenes: straight to the ending, as if The Mash had just fallen */
   skipToEnding() {
     this.skipToFight(0, this.bosses.length - 1);
+    // (the fight is skipped: its name card and its first words must not come in over the ending)
+    this.boss.state = 'gone';
     this.bossDown();
   }
 

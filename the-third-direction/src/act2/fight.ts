@@ -179,7 +179,7 @@ export abstract class Boss3D {
     this.bar();
     this.onBegin();
     // starting over after too many falls: the entrance plays again, but without the name card
-    if (!quiet) window.setTimeout(() => !this.cut && this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
+    if (!quiet) window.setTimeout(() => !this.cut && (this.state === 'intro' || this.state === 'fight') && this.env.ui.bossTitle(this.name, this.sub, this.colour), titleDelay);
   }
 
   protected bar() {
