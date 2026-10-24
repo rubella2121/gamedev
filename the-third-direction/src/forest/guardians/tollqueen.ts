@@ -13,7 +13,7 @@ import { Guardian } from './base';
  * The Toll Queen: a bell the size of a house hung from a winged eye. She only sees what moves.
  *   1  hush   her bell tolls golden rings across the water (find the gap), then her eye opens: stand still, or she sees you.
  *             The eye is hurt only by light thrown at it (a Lance), and only while it is open.
- *   2  echo   every ring has an echo, and the eye opens before the rings are gone. Reeds shield what stands behind them.
+ *   2  echo   every ring has an echo a moment later, through the same gap: find it, and stay in it. Reeds shield what stands behind them.
  *   3  dive   she folds her wings and rams along a line; when she crashes her bell is in reach.
  */
 
@@ -25,6 +25,16 @@ const REEDS: [number, number][] = [
 ];
 const HOVER = 30;
 const EYE_UP = 88;
+/**
+ * Her tuning, in one place (it was too much: the echo rings came through a different narrow gap before you were through the
+ * first, and the eye opened while you still had to run, so it saw you every time).
+ *   RING   the gap in a ring (radians) per phase, how fast it spreads, how long after one ring the next comes
+ *   ECHO   in the second phase: how long after its ring the echo comes, and how far its gap is from the ring's
+ *   WATCH  how long her eye stays open; how much movement she needs to see you; the beam's warning and how often it comes
+ */
+const RING = { gap: [0.72, 0.66, 0.68], grow: 52, every: [1.6, 2.5], rings: [2, 2, 1], after: [0.2, 1.4], off: [0.45, 0.5] };
+const ECHO = { delay: 1.1 };
+const WATCH = { len: [4.4, 4.2], see: 0.5, warn: 0.75, cd: 2.1, lanceNoise: 0.18 };
 
 type QMode = 'enter' | 'toll' | 'watch' | 'stagger' | 'warn' | 'dive' | 'crash' | 'rise' | 'dying';
 
@@ -56,7 +66,7 @@ export class TollQueen extends Guardian {
   private heard = new WeakSet<Lance>();
 
   constructor(hub: Hub, a: ArenaDef, onVictory: () => void) {
-    super(hub, a, 'Toll Queen', 'hush', ACCENT, [3, 3, 2], onVictory);
+    super(hub, a, 'Toll Queen', 'hush', ACCENT, [3, 2, 2], onVictory);
     this.homeX = a.x;
     this.homeY = a.boss.y + 58;
     this.qx = this.homeX;
@@ -124,13 +134,13 @@ export class TollQueen extends Guardian {
     this.hover = HOVER;
     this.fold = 0;
     this.seen = 0;
-    if (this.phase === 0) this.beginToll(2);
+    if (this.phase === 0) this.beginToll(RING.rings[0]!);
     else if (this.phase === 1) {
       hub.audio.v.queenShriek(0.9);
       hub.ui.speech('listen', 2000, ACCENT);
       hub.ui.flash(0.4, 260);
       hub.shake(8);
-      this.beginToll(3);
+      this.beginToll(RING.rings[1]!);
     } else {
       hub.audio.v.queenShriek(1);
       hub.ui.speech('come closer', 2200, ACCENT);
@@ -147,7 +157,7 @@ export class TollQueen extends Guardian {
     this.fold = 0;
     this.hitDone = false;
     this.seen = 0;
-    this.beginToll(this.phase === 0 ? 2 : this.phase === 1 ? 3 : 1);
+    this.beginToll(RING.rings[Math.min(this.phase, 2)]!);
   }
 
   private beginToll(rings: number) {
@@ -164,7 +174,7 @@ export class TollQueen extends Guardian {
     this.mode = 'watch';
     this.mt = 0;
     this.seen = 0;
-    this.beamCd = 1.0;
+    this.beamCd = 1.4;
     this.hitDone = false;
     this.hub.audio.v.queenChoir(0.7);
     if (this.told < 2) {
@@ -211,16 +221,18 @@ export class TollQueen extends Guardian {
   }
 
   /** the bell tolls a ring that spreads over the water; there is always a gap */
-  private sendRing(gapW: number) {
+  private lastGap = 0;
+  private sendRing(gapW: number, near?: number) {
     const hub = this.hub;
     const pl = this.pl;
     const toPl = Math.atan2((pl.y - this.qy) / 0.72, pl.x - this.qx);
-    // the gap is near where you are, but never exactly on you
-    const gapA = toPl + (Math.random() < 0.5 ? -1 : 1) * (0.55 + Math.random() * 0.7);
+    // the gap is near where you are, but never exactly on you (an echo is the same ring again: the same gap)
+    const gapA = near !== undefined ? near : toPl + (Math.random() < 0.5 ? -1 : 1) * (RING.off[0]! + Math.random() * RING.off[1]!);
+    this.lastGap = gapA;
     this.toll = 1;
     hub.audio.v.queenToll(0.8 + (this.ringsSent % 3) * 0.12, 0.8);
     hub.shake(3);
-    this.hz.add({ kind: 'ring', x: this.qx, y: this.qy, r: 24, thick: 5, grow: 72 * D.speed, gap: { a: gapA, w: gapW }, warn: 0.6 * D.tele, live: 3.8, fade: 0.4, col: 'gold', dmg: 1 });
+    this.hz.add({ kind: 'ring', x: this.qx, y: this.qy, r: 24, thick: 5, grow: RING.grow * D.speed, gap: { a: gapA, w: gapW }, warn: 0.6 * D.tele, live: 3.8, fade: 0.4, col: 'gold', dmg: 1 });
     this.ringsSent++;
   }
 
@@ -228,15 +240,18 @@ export class TollQueen extends Guardian {
     this.ringT -= dt;
     if (this.ringsLeft > 0 && this.ringT <= 0) {
       this.ringsLeft--;
-      const gap = this.phase === 0 ? 0.46 : 0.4;
+      const gap = RING.gap[Math.min(this.phase, 2)]! * (D.id === 'gentle' ? 1.2 : 1);
       this.sendRing(gap);
       if (this.phase === 1) {
-        // the echo comes right behind it, through a different gap
+        // the echo comes behind it, through the same gap: stay in it
+        const near = this.lastGap;
         window.setTimeout(() => {
-          if (this.state === 'fight' && this.mode !== 'dying') this.sendRing(0.4);
-        }, 800 / D.speed);
+          if (this.state === 'fight' && this.mode !== 'dying') this.sendRing(gap, near);
+        }, (ECHO.delay * 1000) / D.speed);
       }
-      this.ringT = (this.phase === 0 ? 1.15 : 1.4) / D.speed;
+      this.ringT = RING.every[Math.min(this.phase, 1)]! / D.speed;
+      // after the last ring, a breath before her eye opens (in the second phase: once the echo is past you)
+      if (this.ringsLeft === 0) this.ringT += RING.after[Math.min(this.phase, 1)]!;
     }
     if (this.ringsLeft === 0 && this.ringT <= 0) {
       if (this.phase >= 2) this.beginWarn();
@@ -252,13 +267,13 @@ export class TollQueen extends Guardian {
     const moving = Math.hypot(pl.vx, pl.vy) > 14;
     // she hears the Lance and the Nova, and she sees anything that moves
     this.seen = moving ? this.seen + dt : Math.max(0, this.seen - dt * 2.4);
-    if (this.seen > 0.34 && this.beamCd <= 0 && pl.dead <= 0 && !pl.hide) this.fireBeam();
-    const len = (this.phase === 0 ? 3.8 : 3.4) * D.window;
+    if (this.seen > WATCH.see && this.beamCd <= 0 && pl.dead <= 0 && !pl.hide) this.fireBeam();
+    const len = WATCH.len[Math.min(this.phase, 1)]! * D.window;
     if (this.mt > len) {
       this.mode = 'toll';
       this.mt = 0;
       this.open = 0.1;
-      this.ringsLeft = this.phase === 0 ? 2 : 3;
+      this.ringsLeft = RING.rings[Math.min(this.phase, 1)]!;
       this.ringsSent = 0;
       this.ringT = 0.35;
       hub.audio.v.queenToll(0.7, 0.7);
@@ -272,10 +287,10 @@ export class TollQueen extends Guardian {
     const ty = pl.y - 6;
     const ang = Math.atan2(ty - e.y, tx - e.x);
     const d = Math.hypot(tx - e.x, ty - e.y);
-    this.beamCd = 1.5 / D.speed;
+    this.beamCd = WATCH.cd / D.speed;
     this.seen = 0;
     this.hub.audio.warnPing();
-    this.hz.add({ kind: 'line', x: e.x, y: e.y, ang, len: d + 36, wd: 5, warn: 0.5 * D.tele, live: 0.16, fade: 0.25, col: 'violet', tag: 'beam', onLive: () => this.hub.audio.v.queenShriek(0.35) });
+    this.hz.add({ kind: 'line', x: e.x, y: e.y, ang, len: d + 36, wd: 5, warn: WATCH.warn * D.tele, live: 0.16, fade: 0.25, col: 'violet', tag: 'beam', onLive: () => this.hub.audio.v.queenShriek(0.35) });
   }
 
   private doStagger(dt: number) {
@@ -283,7 +298,7 @@ export class TollQueen extends Guardian {
     this.hover += (HOVER + 14 - this.hover) * (1 - Math.exp(-6 * dt));
     if (this.mt > 1.2) {
       // the bell answers with a ring, then it goes on
-      this.beginToll(this.phase === 0 ? 2 : this.phase === 1 ? 3 : 1);
+      this.beginToll(RING.rings[Math.min(this.phase, 2)]!);
       this.crack = Math.max(this.crack, 0.2);
     }
   }
@@ -341,7 +356,7 @@ export class TollQueen extends Guardian {
     this.qy += d.dy * step;
     this.hover += (6 - this.hover) * (1 - Math.exp(-8 * dt));
     if (Math.floor(this.mt * 30) !== Math.floor((this.mt - dt) * 30)) burst(hub.parts, this.qx, this.qy - 4, 1, ['#ffe9a0', '#fff4c0', ACCENT], 30, 0.4);
-    if (!d.hit && pl.dead <= 0 && !pl.hide && Math.abs(pl.x - this.qx) < 30 && Math.abs(pl.y - this.qy) < 13) {
+    if (!d.hit && pl.dead <= 0 && !pl.hide && Math.abs(pl.x - this.qx) < 24 && Math.abs(pl.y - this.qy) < 11) {
       d.hit = true;
       hub.hurt(this.qx, this.qy, 1);
     }
@@ -421,11 +436,11 @@ export class TollQueen extends Guardian {
     // throwing light makes a noise she hears: once per lance
     if (!this.heard.has(l)) {
       this.heard.add(l);
-      if (this.mode === 'watch') this.seen += 0.34;
+      if (this.mode === 'watch') this.seen += WATCH.lanceNoise;
     }
     if (this.mode === 'watch' && this.open > 0.7 && !this.hitDone) {
       const e = this.eye();
-      if (dist(l.x, l.y, e.x, e.y) < 15) {
+      if (dist(l.x, l.y, e.x, e.y) < 22) {
         this.hurtEye(e.x, e.y);
         return true;
       }
