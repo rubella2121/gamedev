@@ -27,14 +27,14 @@ type Kind = 'foot' | 'rake' | 'gaze' | 'jaws';
 type Step = { w: number; T: number; lead?: number; fin?: boolean; flip?: boolean; off?: number; quake?: boolean; cross?: boolean };
 
 const FOOT_STEPS: Step[] = [
-  { w: 1.1, T: 1.35, lead: 0.22 },
-  { w: 0.5, T: 1.1, lead: 0.45, quake: true },
-  { w: 0.25, T: 0.9, lead: 0.6 },
-  { w: 0.25, T: 0.8, lead: 0.65 },
-  { w: 0.5, T: 1.0, lead: 0.3, quake: true },
-  { w: 0.25, T: 0.75, lead: 0.65 },
-  { w: 0.2, T: 0.7, lead: 0.7 },
-  { w: 0.6, T: 1.05, lead: 0.3, fin: true },
+  { w: 1.2, T: 1.6, lead: 0.15 },
+  { w: 0.7, T: 1.4, lead: 0.3, quake: true },
+  { w: 0.55, T: 1.25, lead: 0.35 },
+  { w: 0.55, T: 1.2, lead: 0.4 },
+  { w: 0.75, T: 1.35, lead: 0.25, quake: true },
+  { w: 0.55, T: 1.15, lead: 0.4 },
+  { w: 0.55, T: 1.1, lead: 0.4 },
+  { w: 0.8, T: 1.35, lead: 0.2, fin: true },
 ];
 const RAKE_STEPS: Step[] = [
   { w: 1.1, T: 1.2 },
@@ -133,7 +133,8 @@ export class XBoss extends Boss3D {
 
   /** how long his warnings and waits are: each hit he takes makes the next round quicker, an easier mode gives more time */
   private get speedK(): number {
-    return Math.pow(0.9, this.cycle) * D.tele;
+    // a little quicker each time round, but never more than a fifth
+    return Math.max(0.8, Math.pow(0.93, this.cycle)) * D.tele;
   }
 
   show() {
@@ -472,7 +473,7 @@ export class XBoss extends Boss3D {
     } else if (this.fst === 'impact') {
       if (kind === 'foot') {
         // the foot falls the last of the way in a blink, and lands
-        const fall = clamp(ft / 0.09, 0, 1);
+        const fall = clamp(ft / 0.14, 0, 1);
         m.foot.position.set(this.foot.x, lerp(FOOT_HOVER, 1.3, fall * fall) + groundY(this.foot.x, this.foot.z), this.foot.z);
         if (fall >= 1 && !this.footLanded) {
           this.footLanded = true;
@@ -482,7 +483,7 @@ export class XBoss extends Boss3D {
           env.ui.flash(0.4, 260);
           env.shake(1.1);
           a.burst3(this.foot.x, 0.4, this.foot.z, 22, [0x3a2a62, 0x46346f, 0x120a22], 9);
-          if (Math.hypot(pl.x - this.foot.x, pl.z - this.foot.z) < FOOT_R * 0.92) env.hurt(pl.x - this.foot.x, pl.z - this.foot.z);
+          if (Math.hypot(pl.x - this.foot.x, pl.z - this.foot.z) < FOOT_R * 0.85) env.hurt(pl.x - this.foot.x, pl.z - this.foot.z);
           if (step.quake) {
             // the floor cracks: a ring of shock runs out from the foot
             this.quake = { x: this.foot.x, z: this.foot.z, r: FOOT_R, hit: false, wait: QUAKE.wait * D.tele };
@@ -491,7 +492,7 @@ export class XBoss extends Boss3D {
             a.burst3(this.foot.x, 0.3, this.foot.z, 30, [0xb070ff, 0xe8d0ff, 0x3a2a62], 12);
           }
         }
-        if (ft >= 0.09 + 0.2) {
+        if (ft >= 0.14 + 0.2) {
           this.ft = 0;
           this.fst = step.fin ? 'stuck' : 'retract';
         }

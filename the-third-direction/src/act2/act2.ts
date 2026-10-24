@@ -1853,6 +1853,17 @@ export class Act2 {
     for (const b of this.bosses) b.cut = true;
   }
 
+  /** the last boss's number (The Mash) */
+  get lastBoss() {
+    return this.bosses.length - 1;
+  }
+
+  /** New scenes: straight to the ending, as if The Mash had just fallen */
+  skipToEnding() {
+    this.skipToFight(0, this.bosses.length - 1);
+    this.bossDown();
+  }
+
   skipToFight(phase = 0, boss = 0) {
     if (this.cut) this.endCut(false);
     this.t = 9;

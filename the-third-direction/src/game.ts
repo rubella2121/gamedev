@@ -160,7 +160,7 @@ export class Game {
       onPlay: () => this.begin(),
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.showcase(boss),
-      onScene: (id) => (id === 'edge' ? this.playEdge() : this.playGlimpses()),
+      onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
       difficulty: D.id,
@@ -322,6 +322,13 @@ export class Game {
     this.act1.briefNext = false;
     this.act1.skipOpening();
     this.act1.debugEdge();
+  }
+
+  /** New scenes: the ending film (the last lock breaks, the family is free), then the end card. Not ranked. */
+  playEnding() {
+    this.showcase(this.act2.lastBoss);
+    this.act2.skipToEnding();
+    this.state = 'arena';
   }
 
   /** New scenes: the forest, and the five glimpses of the 3D world one after another (you can walk about while they play). */

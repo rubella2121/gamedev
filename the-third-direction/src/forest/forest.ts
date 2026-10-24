@@ -1609,9 +1609,9 @@ export class Forest implements Hub {
       const lead = 0.3;
       const x = clamp(pl.x + pl.vx * lead, b.x0, b.x1);
       const y = clamp(pl.y + pl.vy * lead, b.y0, b.y1);
-      this.spawnSlam(x, y, 26 + Math.random() * 6, lerp(1.1, 0.75, k));
+      this.spawnSlam(x, y, 26 + Math.random() * 6, lerp(1.25, 0.9, k));
       // late on, a second foot where you would run to
-      if (t > 22) this.spawnSlam(clamp(2 * PLATEAU.x - x, b.x0, b.x1), clamp(y + (Math.random() - 0.5) * 40, b.y0, b.y1), 24, lerp(1.1, 0.8, k));
+      if (t > 22) this.spawnSlam(clamp(2 * PLATEAU.x - x, b.x0, b.x1), clamp(y + (Math.random() - 0.5) * 40, b.y0, b.y1), 24, lerp(1.25, 0.95, k));
       f.stompT = lerp(1.8, 1.0, k) * tele;
     }
     // his hand rakes the ground in a line across

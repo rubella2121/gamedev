@@ -10,8 +10,8 @@ export interface HomeOptions {
   onPlay: () => void;
   /** jump straight to a boss's fight: 0 = X, 1 = The Collector, 2 = The Mash */
   onShowcase: (boss: number) => void;
-  /** jump into one of the new scenes: the Edge (X in the forest, the portal, the fall), or the five glimpses */
-  onScene?: (id: 'edge' | 'glimpses') => void;
+  /** jump into one of the new scenes: the Edge (X in the forest, the portal, the fall), the five glimpses, or the ending */
+  onScene?: (id: 'edge' | 'glimpses' | 'ending') => void;
   /** play the cinematic intro again */
   onIntro?: () => void;
   onSound: (on: boolean) => void;
@@ -825,9 +825,10 @@ export class UI {
       sub.className = 'ssub';
       sub.textContent = 'New scenes';
       card.append(sub);
-      const scenes: { id: 'edge' | 'glimpses'; name: string; sub: string; colour: string }[] = [
+      const scenes: { id: 'edge' | 'glimpses' | 'ending'; name: string; sub: string; colour: string }[] = [
         { id: 'edge', name: 'The Edge', sub: 'X comes into the forest · the portal · the fall into 3D', colour: '#9ff4ee' },
         { id: 'glimpses', name: 'The glimpses', sub: 'the 3D world through the tears, all five', colour: '#f2d36b' },
+        { id: 'ending', name: 'The ending', sub: 'the last lock breaks · the family, free', colour: '#ff9fb8' },
       ];
       for (const sc of scenes) {
         const btn = document.createElement('button');

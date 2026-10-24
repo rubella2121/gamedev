@@ -58,7 +58,7 @@ const RING_SEGS = 40;
 /** the heart */
 const GUARD_R = 4.4;
 const HEDGE_R = 2.6;
-const HEART_LIFE = 18;
+const HEART_LIFE = 24;
 const MARK_GUARD = 15;
 
 const CRYSTALS: [number, number][] = [
@@ -147,7 +147,7 @@ export class Features {
   }
 
   private rollFirstDrop() {
-    return 16 + Math.random() * 16;
+    return 12 + Math.random() * 12;
   }
 
   /* ---------------------------------------------------------------- */
@@ -334,7 +334,7 @@ export class Features {
       solids.push({ x: spot.x + Math.cos(a) * HEDGE_R, z: spot.z + Math.sin(a) * HEDGE_R, r: 0.42, alive: true });
     }
     env.solids.push(...solids);
-    this.heart = { x: spot.x, z: spot.z, t: 0, gap, taken: false, solids, strikeT: 0.5, strike: null };
+    this.heart = { x: spot.x, z: spot.z, t: 0, gap, taken: false, solids, strikeT: 0.8, strike: null };
     this.heartG.position.set(spot.x, 0, spot.z);
     this.heartG.visible = true;
     env.sfx.chime();
@@ -401,7 +401,7 @@ export class Features {
     (this.guardRing.material as THREE.MeshBasicMaterial).opacity = (0.35 + 0.2 * Math.sin(this.time * 4)) * grow;
     // take it
     const d = Math.hypot(p.x - h.x, p.z - h.z);
-    if (!p.dead && fall >= 1 && d < 1.1) {
+    if (!p.dead && fall >= 1 && d < 1.5) {
       if (env.hearts < env.maxHearts) env.heal(1);
       else env.addLight(2);
       env.sfx.warm();
@@ -409,14 +409,14 @@ export class Features {
       this.arena.burst3(h.x, 1.7, h.z, 30, [0xff3a50, 0xffffff, 0xffb0c0], 8);
       env.say(env.hearts >= env.maxHearts ? 'got it.' : 'a heart. warm.');
       this.clearHeart(env);
-      this.nextDrop = this.fightT + 45 + Math.random() * 30;
+      this.nextDrop = this.fightT + 32 + Math.random() * 20;
       return;
     }
     // the guard: near it, the ground under you erupts
     const s = h.strike;
     if (s) {
       s.t += dt;
-      const T = 0.72 * D.tele;
+      const T = 0.95 * D.tele;
       const u = Math.min(1, s.t / T);
       if (s.t < T) this.arena.marks.set(MARK_GUARD, true, s.x, s.z, 1.45, { col: 0xff2a40, fill: 0.15 + 0.5 * u, hot: u > 0.7 && Math.floor(this.time * 14) % 2 === 0 });
       else {
@@ -425,21 +425,21 @@ export class Features {
         this.spikeAt = { x: s.x, z: s.z };
         env.sfx.snap();
         this.arena.burst3(s.x, 0.4, s.z, 12, [0x3a0614, 0xff3a50, 0x160a12], 7);
-        if (!p.dead && Math.hypot(p.x - s.x, p.z - s.z) < 1.45) env.hurt(p.x - s.x, p.z - s.z);
+        if (!p.dead && Math.hypot(p.x - s.x, p.z - s.z) < 1.3) env.hurt(p.x - s.x, p.z - s.z);
         h.strike = null;
-        h.strikeT = 1.05 * D.tele;
+        h.strikeT = 1.6 * D.tele;
       }
     } else if (fall >= 1 && d < GUARD_R && !p.dead) {
       h.strikeT -= dt;
       if (h.strikeT <= 0) {
-        // where you are about to be
-        h.strike = { x: p.x + p.vx * 0.2, z: p.z + p.vz * 0.2, t: 0 };
+        // where you are now: keep moving and it misses
+        h.strike = { x: p.x, z: p.z, t: 0 };
         env.sfx.click();
       }
-    } else h.strikeT = Math.max(h.strikeT, 0.35);
+    } else h.strikeT = Math.max(h.strikeT, 0.8);
     if (h.t >= HEART_LIFE) {
       this.clearHeart(env);
-      this.nextDrop = this.fightT + 40 + Math.random() * 30;
+      this.nextDrop = this.fightT + 25 + Math.random() * 15;
     }
   }
 
