@@ -50,10 +50,11 @@ CUTS = [
     (77.4, 80.4, 't-unfold', 60, 1.0, None),
     (80.4, 83.4, 't-eye', 10, 1.0, None),
     (83.4, 84.6, 't-family', 20, 1.0, None),
-    (84.6, 87.0, 't-lift', 20, 1.0, None),
-    (87.0, 89.4, 't-dial', 20, 1.0, None),
-    (89.4, 91.8, 'fourth-fight', 30, 1.0, None),
-    (91.8, 94.8, 'flee', 190, 1.0, None),
+    (84.6, 87.0, 't-lift', 50, 1.0, None),
+    (87.0, 89.4, 't-dial', 30, 1.0, None),
+    (89.4, 90.6, 't-descend', 104, 1.0, None),
+    (90.6, 91.8, 'fourth-fight', 150, 1.0, None),
+    (91.8, 94.8, 'flee', 200, 1.0, None),
     # the sting after the title: its eye, once more
     (103.6, 105.4, 't-eye', 12, 0.6, None),
 ]
