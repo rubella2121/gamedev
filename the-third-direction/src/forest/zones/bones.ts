@@ -36,6 +36,10 @@ const PATCHES: Patch[] = [
   { x: 885, y: 1280, rx: 26, ry: 18 },
   { x: 1200, y: 1330, rx: 22, ry: 15 },
 ];
+/** how many of the homes are behind the barricade (the first ones) */
+const PACK = 3;
+/** seconds before the nest hatches another skitterbone, when one of the pack behind the barricade is gone */
+const HATCH_T = 3.5;
 const HOMES = [
   // the pack behind the barricade
   [1172, 1190], [1178, 1248], [1215, 1262],
@@ -51,6 +55,7 @@ const PLATES = [
 /**
  * Bone Wastes. Skitterbones mark where they will pounce, then leap. A pulse knocks one out of the air.
  * A barricade of bones seals the Bone Nest: stand beside it so the pack behind it pounces straight into it.
+ * The nest keeps that pack whole while the barricade stands (kill one and another hatches), so it can always be broken.
  */
 export class BonesZone implements Zone {
   readonly id = 'bones' as const;
@@ -61,6 +66,8 @@ export class BonesZone implements Zone {
   private plates = new LightPuzzle(PLATES, 8, 0);
   private plateDone = false;
   private t = 0;
+  private hatchT = 0;
+  private hatched = 0;
   private guardian: BoneWyrm | null = null;
 
   constructor(private hub: Hub) {
@@ -99,6 +106,7 @@ export class BonesZone implements Zone {
   reset() {
     this.cleared = false;
     this.sk = HOMES.map((h, i) => this.make(h[0], h[1], i));
+    this.hatchT = 0;
     this.bar = { hp: 3, shake: 0, broken: 0, breaking: false };
     this.nest = { ...NEST, flash: 0, dead: false };
     this.plates.reset();
@@ -109,6 +117,51 @@ export class BonesZone implements Zone {
 
   private make(x: number, y: number, seed: number): Sk {
     return { x, y, hx: x, hy: y, st: 'idle', t: 0, hp: 2, mx: x, my: y, sx: x, sy: y, cool: 1 + (seed % 3) * 0.4, seed, flash: 0, fade: 1, dead: false };
+  }
+
+  /** is the barricade still standing (so the pack behind it is still needed) */
+  private get sealed() {
+    return !this.cleared && !this.bar.breaking && this.bar.broken < 0.85;
+  }
+
+  /** the living skitterbones behind the barricade */
+  private packBehind(): Sk[] {
+    return this.sk.filter((s) => !s.dead && s.hx > BAR.x1);
+  }
+
+  /** a home behind the barricade that nobody lives in */
+  private freeHome(): readonly [number, number] | null {
+    const pack = this.packBehind();
+    for (let i = 0; i < PACK; i++) {
+      const h = HOMES[i]!;
+      if (!pack.some((s) => s.hx === h[0] && s.hy === h[1])) return h;
+    }
+    return null;
+  }
+
+  /** the nest hatches a skitterbone: it crawls out and goes to an empty home behind the barricade */
+  private hatch(quiet = false) {
+    const home = this.freeHome();
+    if (!home) return;
+    const s = this.make(NEST.x, NEST.y + 6, 100 + this.hatched++);
+    s.hx = home[0];
+    s.hy = home[1];
+    // it has to find its feet first
+    s.st = 'rest';
+    s.t = 0;
+    s.cool = 1.6;
+    this.sk.push(s);
+    if (quiet) {
+      s.x = home[0];
+      s.y = home[1];
+      s.st = 'idle';
+      return;
+    }
+    const hub = this.hub;
+    this.nest.flash = 0.3;
+    hub.audio.pop();
+    hub.audio.rumble();
+    burst(hub.parts, NEST.x, NEST.y - 8, 16, [C.bone, C.boneShade, C.red], 46, 1);
   }
 
   onRespawn() {
@@ -127,6 +180,9 @@ export class BonesZone implements Zone {
     });
     this.plates.reset(this.plateDone);
     if (!this.cleared && !this.nest.dead) this.nest.hp = NEST.hp;
+    // the pack behind the barricade is whole again
+    if (this.sealed) while (this.freeHome()) this.hatch(true);
+    this.hatchT = 0;
   }
 
   complete() {
@@ -245,6 +301,15 @@ export class BonesZone implements Zone {
       }
     }
     if (this.cleared) return;
+
+    // --- the nest keeps the pack behind the barricade whole while the barricade stands
+    if (this.sealed && this.packBehind().length < PACK) {
+      this.hatchT += dt;
+      if (this.hatchT >= HATCH_T) {
+        this.hatchT = 0;
+        this.hatch();
+      }
+    } else this.hatchT = 0;
 
     // --- Skitterbones
     const sight = 110 * D.vision;

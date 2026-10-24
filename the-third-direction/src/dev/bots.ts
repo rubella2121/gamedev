@@ -52,17 +52,13 @@ export function installBots(game: Game) {
     let d = 0;
     const name: string = g.name;
     if (name === 'Thornback King') {
-      if (g.mode === 'roll') {
-        const bx = g.x + g.roll.vx * 168 * ahead;
-        const by = g.y + g.roll.vy * 168 * ahead;
-        if (Math.hypot(x - bx, (y - (by - 10)) / 0.9) < 30) d += 12;
-      } else if (g.mode === 'charge') {
-        const bx = g.x + g.face * 238 * ahead;
-        if (Math.abs(x - bx) < 44 && Math.abs(y - g.y) < 16) d += 12;
-      } else if (g.mode === 'windup' && g.lane) {
-        // the lane is the red line: stay out of the row unless something stands in the way
-        if (Math.abs(y - g.lane.y) < 18 && (x - g.x) * g.lane.dir > 20 && (g.lane.endX - x) * g.lane.dir > 0) d += 6;
+      // a crawling root's head (its thorns are hazards, and are seen like any other), and the spinning ball
+      for (const r of g.runners) {
+        const bx = r.x + Math.cos(r.ang) * 52 * ahead;
+        const by = r.y + Math.sin(r.ang) * 42 * ahead;
+        if (Math.hypot(x - bx, y - by) < 16) d += 8;
       }
+      if (g.mode === 'spin' && Math.hypot(x - g.x, (y - g.y) / 0.8) < 60) d += 12;
     } else if (name === 'Toll Queen') {
       if (g.mode === 'dive') {
         const bx = g.qx + g.dive.dx * 290 * ahead;
@@ -294,31 +290,29 @@ export function installBots(game: Game) {
   }
 
   function brainKing(g: Any): Brain {
+    const A = f.arena;
     const p = P();
-    if (g.mode === 'stun' && !g.hitDone) {
-      const h = g.head();
-      const d = Math.hypot(p.x - h.x, (p.y - h.y) / 0.8);
-      if (d <= 44) pulse();
-      return { goal: [h.x + (p.x > h.x ? 14 : -14), h.y + 18] };
+    // his back is open: get beside him and pulse
+    if (g.mode === 'open') {
+      const w = g.weak();
+      const d = Math.hypot(p.x - g.x, (p.y - (g.y - 12)) / 0.8);
+      if (d <= 36 + 34 - 6) pulse();
+      else if (Math.hypot(p.x - w.x, p.y - w.y) < 200 && Math.hypot(p.x - g.x, p.y - g.y) > 90) lanceAt(w.x, w.y);
+      return { goal: [g.x + (p.x > g.x ? 46 : -46), g.y + 6] };
     }
-    if (g.mode === 'prowl' || g.mode === 'recover') {
-      const side = g.prowlSide;
-      let best: Any = null;
-      let bd = 1e9;
-      for (const t of g.trees) {
-        if (t.state !== 'up') continue;
-        const d = Math.hypot(t.x - p.x, t.y - p.y);
-        if (d < bd) {
-          bd = d;
-          best = t;
-        }
-      }
-      if (best) return { goal: [best.x - side * 26, best.y + 1], stand: true };
-      return { goal: [p.x, p.y] };
+    // the wheel: stand well off
+    if (g.mode === 'spin' || (g.mode === 'windup' && g.attack === 'wheel')) {
+      const ax = p.x - g.x;
+      const ay = p.y - g.y;
+      const l = Math.hypot(ax, ay) || 1;
+      return { goal: [clamp(g.x + (ax / l) * 120, A.x - 150, A.x + 150), clamp(g.y + (ay / l) * 90, A.y - 60, A.y + 150)] };
     }
-    if (g.mode === 'windup' || g.mode === 'charge') return { goal: [p.x, p.y], stand: true };
-    if (g.mode === 'roll') return { goal: [p.x, p.y] };
-    return { goal: [p.x, p.y], stand: true };
+    // otherwise keep a little way off, near him, ready to step in
+    const ax = p.x - g.x;
+    const ay = p.y - g.y;
+    const l = Math.hypot(ax, ay) || 1;
+    if (g.runners.length) return { goal: [p.x, p.y] };
+    return { goal: [clamp(g.x + (ax / l) * 80, A.x - 150, A.x + 150), clamp(g.y + (ay / l) * 60, A.y - 60, A.y + 150)] };
   }
 
   function brainQueen(g: Any): Brain {
