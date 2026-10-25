@@ -55,15 +55,28 @@ script inline) for pasting into a claude.ai Artifact. It is a playtest copy: no 
 Add `?debug` to the URL to expose `window.__tt` (the game object) for testing.
 
 ## Deploy to RUN.world
-Needs the RUN CLI (`rundot`) and a signed-in RUN account — see https://events.run.world/events/cli-setup/agent.md
+Needs the RUN CLI (`rundot`) and a RUN account (a Google sign-in). The CLI's own guide is https://events.run.world/events/cli-setup/agent.md; the SDK's
+docs (`node_modules/@series-inc/rundot-game-sdk/docs/rundot-developer-platform/`) cover every command used below.
 
 ```bash
-rundot login
-rundot init --name "The Third Direction" --description "A baby blob, a forest of strange monsters, and the third dimension." --build-path ./dist --orientation Portrait
-npm run build
-rundot deploy          # private + unlisted by default; prints a share link
-rundot game set-public # only when ready: submits the game for review
+# once: install the CLI (macOS / Linux; Windows PowerShell: irm https://github.com/series-ai/rundot-cli-releases/releases/latest/download/install.ps1 | iex)
+curl -fsSL https://github.com/series-ai/rundot-cli-releases/releases/latest/download/install.sh | bash
+rundot login                       # opens a browser
+
+git clone https://github.com/rubella2121/gamedev && cd gamedev/the-third-direction && npm install
+
+rundot list-games                  # is "The Third Direction" already there? then skip init (it would create a second game)
+rundot init --name "The Third Direction" --description "A baby blob, a forest of strange monsters, and the third dimension." --build-path ./dist --orientation Portrait --keywords "horror,pixel-art,boss-fight,monsters,action"
+                                   # writes game.config.prod.json (the game's id and build folder): commit it, so later deploys know the game
+npm run deploy                     # = npm run build && rundot deploy: private + unlisted; prints a share link. Play it on a phone and on a computer.
+rundot deploy --public             # when you are happy: lists it on Explore (submits it for review). Every submission is a new version.
+rundot jam promo                   # the October Jam's play and vote links, and social share links
 ```
+Shipping a fix later: `git pull`, then `rundot deploy --public --bump patch` (a new version each time). `rundot game set-private` hides it again.
+
+The build (`npm run build`) is about 1.3 MB (0.5 MB zipped; RUN's limit is 100 MB). It loads Three.js from RUN's own library CDN when the game starts
+(`rundotGameLibrariesPlugin` in `vite.config.ts`), so it needs the network, which RUN always has; it will not start from a bare `dist/` with the CDN blocked.
+
 `public/thumbnail.jpg` (512x512) is the required store thumbnail. It is made from the game itself by `node tools/thumbnail.mjs` (the title, the family with
 Mother's bow, a pair of eyes in the dark and the hero's name card; the header of that script says how to run it).
 
