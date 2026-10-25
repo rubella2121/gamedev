@@ -150,6 +150,14 @@ export class Cage {
     return l.g.getWorldPosition(new THREE.Vector3());
   }
 
+  /** a lock that is already gone (its boss was beaten before this fight began): no flare, it is simply not there */
+  clearLock(i: number) {
+    const l = this.locks[i]!;
+    l.broken = true;
+    l.t = 0;
+    l.g.visible = false;
+  }
+
   /** the parents step out: they leave the cage and stand in the world (so they can walk to the Blob) */
   release(world: THREE.Group) {
     for (const p of [this.mother, this.father]) {

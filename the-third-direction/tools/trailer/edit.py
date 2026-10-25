@@ -52,6 +52,10 @@ def clamp(x, a=0.0, b=1.0):
     return a if x < a else b if x > b else x
 
 
+def lerp(a, b, u):
+    return a + (b - a) * u
+
+
 def smooth(x):
     x = clamp(x)
     return x * x * (3 - 2 * x)
@@ -96,7 +100,7 @@ SLOW_LO, SLOW_R = 0.3, 0.55
 
 
 def clip_pos(cut, t):
-    start, _, _, first, speed, _ = cut
+    start, first, speed = cut[0], cut[3], cut[4]
     u = t - start
     if FX_AT.get(round(start, 2)) == 'flash' and u > 0:
         x = min(u, SLOW_R)
@@ -118,14 +122,16 @@ def footage(ci, t):
         # (the edge clip turns from the 2D forest into 3D: no blending across that)
         if nx.size == im.size:
             im = Image.blend(im, nx, k)
-    # a slow push in, drifting one way or the other; a flash cut punches in and settles
+    # a slow push in, drifting one way or the other (or the cut's own framing); a flash cut punches in and settles
     u = (t - start) / (end - start)
-    z = 1.0 + 0.05 * ease_io(u)
+    fr = cut[6] if len(cut) > 6 else None
+    z = lerp(*fr['z'], ease_io(u)) if fr else 1.0 + 0.05 * ease_io(u)
     if FX_AT.get(round(start, 2)) == 'flash':
         z += 0.12 * math.exp(-max(0.0, t - start) / 0.16)
     side = 1 if ci % 2 else -1
-    cx = 0.5 + side * 0.012 * (u - 0.5)
-    cy = 0.5 - 0.008 * (u - 0.5)
+    fx0, fy0 = fr['c'] if fr else (0.5, 0.5)
+    cx = fx0 + side * 0.012 * (u - 0.5)
+    cy = fy0 - 0.008 * (u - 0.5)
     sw, sh = im.size
     bw, bh = sw / z, sh / z
     x0 = clamp(cx * sw - bw / 2, 0, sw - bw)
@@ -432,7 +438,7 @@ def hero(img, t, t0, t1, text, col):
 
 
 def label(img, t, ci, fi):
-    start, end, *_, text = CUTS[ci]
+    start, end, text = CUTS[ci][0], CUTS[ci][1], CUTS[ci][5]
     idx = sum(1 for c in CUTS[:ci + 1] if c[5])
     full = f'{idx:02d}  {text}'
     nch = int(clamp((t - start - 0.04) / 0.03, 0, len(full)))

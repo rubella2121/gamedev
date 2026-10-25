@@ -298,6 +298,8 @@ export class Act2 {
     this.bi = Math.min(Math.max(0, boss), this.bosses.length - 1);
     this.boss = this.bosses[this.bi]!;
     for (const b of this.bosses) b.hide();
+    // starting at a later boss (Fight a boss, Scenes): the bosses before it are beaten, so their locks are gone
+    for (let i = 0; i < this.bi; i++) a.cage.clearLock(i);
     this.hearts = this.maxHearts;
     this.light = 0;
     this.control = false;
@@ -1663,6 +1665,13 @@ export class Act2 {
         {
           at: 2.2,
           fn: (s) => {
+            // any other lock still on the door goes with it (the door must never lift with a lock across it)
+            const cols = [0xff3a4a, 0xffcf5a];
+            cg.locks.forEach((l, i) => {
+              if (i === 2 || l.broken) return;
+              const q = cg.breakLock(i);
+              if (!s) a.burst3(q.x, q.y, q.z, 16, [cols[i]!, 0xfff1a6, 0xffffff], 6);
+            });
             const p = cg.breakLock(2);
             if (s) return;
             a.burst3(p.x, p.y, p.z, 24, [0xff8aa8, 0xfff1a6, 0xffffff], 7);
@@ -2646,6 +2655,7 @@ export class Act2 {
     this.camLook.copy(BOOM_LOOK);
     this.bi = boss;
     for (const b of this.bosses) b.hide();
+    for (let i = 0; i < boss; i++) a.cage.clearLock(i);
     this.startBoss(300);
     this.boss.debugSkipTo(phase);
     this.beginFight();

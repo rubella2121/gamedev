@@ -1,8 +1,10 @@
 """The trailer's voices, from the raw Kokoro takes (lines.py), placed and treated for the mix.
    python3 tools/trailer/voices.py <linesDir> <outDir>        (needs numpy, scipy, soundfile; ffmpeg)
 
-No pitch shifting and no echo taps: both made the first cut sound synthetic. Each voice gets a real-sounding space instead
-(a convolution reverb from a generated room), gentle EQ and compression, and is resampled cleanly to 48 kHz.
+No echo taps and no crude pitch shifting: both made the first cut sound synthetic. Each voice gets a real-sounding space
+instead (a convolution reverb from a generated room), EQ and compression, and is resampled cleanly to 48 kHz. The narrator is
+taken down to a trailer voice's depth with Praat's PSOLA (it moves the pitch and keeps the voice's own shape, a little larger),
+with more range in his pitch, so he sounds deeper and more dramatic, not processed.
 For every line the slowest take that still fits before the next line (timeline.VOICE) is kept.
 The last line is a true whisper: the take's own vocal-tract filter (LPC) driven by breath noise instead of a voice.
 """
@@ -12,7 +14,9 @@ import subprocess
 import sys
 
 import numpy as np
+import parselmouth
 import soundfile as sf
+from parselmouth.praat import call
 from scipy.signal import lfilter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -51,11 +55,14 @@ def room(secs, decay, bright, name):
 
 ROOM = room(0.6, 0.45, 0.55, 'room')
 HALL = room(2.4, 1.9, 0.35, 'hall')
+PLATE = room(1.4, 1.0, 0.3, 'plate')
 
 #  name prefix -> (eq/dynamics chain, reverb, wet)
 DRY = 'highpass=f=75,equalizer=f=190:t=q:w=0.9:g=1.5,equalizer=f=3400:t=q:w=1.2:g=2.2,deesser=i=0.35,acompressor=threshold=-24dB:ratio=2.6:attack=8:release=160:makeup=2'
+NARR = ('highpass=f=50,equalizer=f=105:t=q:w=0.9:g=3.5,equalizer=f=320:t=q:w=1.1:g=-2.5,equalizer=f=2900:t=q:w=1.2:g=2.5,'
+        'deesser=i=0.4,acompressor=threshold=-27dB:ratio=3.6:attack=5:release=200:makeup=3.2')
 KIND = {
-    'n': (DRY, ROOM, 0.10),
+    'n': (NARR, PLATE, 0.13),
     'm': (DRY + ',lowpass=f=9500', HALL, 0.26),
     'f': (DRY + ',lowpass=f=9000', HALL, 0.26),
     'b': ('highpass=f=110,equalizer=f=3800:t=q:w=1.2:g=2,deesser=i=0.3,acompressor=threshold=-24dB:ratio=2.4:attack=8:release=160:makeup=2', ROOM, 0.16),
@@ -87,6 +94,13 @@ def whisper(x, sr):
     return y / (np.abs(y).max() + 1e-9) * 0.8
 
 
+def deepen(x, sr, median=92, formants=0.95, spread=1.2):
+    """the narrator's depth: pitch median down to `median` Hz, formants a touch lower, the melody of the line a touch wider"""
+    out = call(parselmouth.Sound(x.astype(np.float64), sr), 'Change gender', 60, 400, formants, median, spread, 1.0)
+    y = out.values[0]
+    return y / (np.abs(y).max() + 1e-9) * 0.85
+
+
 def ff(inp, chain, ir, wet, dst):
     fc = (f'[0:a]aresample={SR}:resampler=soxr,aformat=channel_layouts=stereo,{chain},apad=pad_dur=2.2,asplit=2[d][w];'
           f'[w][1:a]afir=dry=10:wet=10[r];[r]volume={wet}[rw];[d][rw]amix=inputs=2:normalize=0,'
@@ -103,6 +117,10 @@ for i, (t0, name, _) in enumerate(starts):
     kind = name[0]
     chain, ir, wet = KIND[kind]
     inp = pick
+    if kind == 'n':
+        x, sr = sf.read(pick)
+        inp = f'{out}/_n_{name}.wav'
+        sf.write(inp, deepen(x, sr).astype(np.float32), sr)
     if kind == 'w':
         x, sr = sf.read(pick)
         inp = f'{out}/_w_{name}.wav'
