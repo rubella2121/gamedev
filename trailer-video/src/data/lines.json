@@ -1,0 +1,12 @@
+[
+  {"id": "m1", "voice": "af_heart", "speeds": [0.9, 0.95], "at": 3.05, "style": "close", "gain": 1.0, "text": "Every night...|I sang you the same song.", "caption": "Every night… I sang you the same song."},
+  {"id": "m2", "voice": "af_heart", "speeds": [0.9, 0.95], "at": 6.55, "style": "close", "gain": 1.0, "text": "And every night, I told you...", "caption": "And every night, I told you…"},
+  {"id": "m3", "voice": "af_heart", "speeds": [0.85, 0.9], "at": 8.85, "style": "breathy", "gain": 1.1, "text": "Don't look up.", "caption": "Don't look up."},
+  {"id": "m4", "voice": "af_heart", "speeds": [0.88, 0.93], "at": 10.35, "style": "close", "gain": 1.0, "text": "I never told you why.", "caption": "I never told you why."},
+  {"id": "m5", "voice": "af_heart", "speeds": [0.85, 0.9], "at": 15.35, "style": "far", "gain": 1.05, "text": "Find us.", "caption": "Find us."},
+  {"id": "m6", "voice": "af_heart", "speeds": [0.88, 0.93], "at": 25.75, "style": "far", "gain": 1.05, "text": "When the last star goes out...", "caption": "When the last star goes out…"},
+  {"id": "m7", "voice": "af_heart", "speeds": [0.85, 0.9], "at": 28.75, "style": "far", "gain": 1.15, "text": "look up.", "caption": "…look up."},
+  {"id": "b1", "voice": "af_nicole", "speeds": [0.9, 0.95], "at": 51.3, "style": "close", "gain": 0.95, "text": "I found you.", "caption": "I found you."},
+  {"id": "m8", "voice": "af_heart", "speeds": [0.88, 0.93], "at": 53.1, "style": "close", "gain": 1.0, "text": "You looked up.", "caption": "You looked up."},
+  {"id": "w1", "voice": "am_fenrir", "speeds": [0.8, 0.85], "at": 64.55, "style": "whisper", "gain": 1.6, "text": "Look up.", "caption": null}
+]

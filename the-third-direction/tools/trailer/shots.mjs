@@ -46,7 +46,25 @@ const walk = (id, name, x, y, jx, jy, frames = 120, pulseAt = -1, dt) => ({
   ...(dt ? { dt } : {}),
 });
 
+// sharper 3D for the Remotion cut: 720x1280 within a matching pixel budget
+const HI = { viewport: [720, 1280], budget: 9.3e5 };
+// a guardian fight in the forest, played by the bot from the moment the guardian is up (the action, not the entrance)
+const fight2d = (id) => ({
+  name: `f-${id}`,
+  setup: `${begin} __bot.run('${id}', 1)`,
+  until: `(() => { const z = __tt.act1.zones.find((q) => q.guardian && q.guardian.state !== 'gone'); return z && z.guardian.state === 'fight' })()`,
+  frames: 540,
+});
+
 export const SHOTS = [
+  // ---- the Remotion cut (v4) ----
+  ...['gloom', 'thicket', 'marsh', 'bones', 'meadow'].map(fight2d),
+  // X's foot comes down beside the Blob, from the Blob's own height, in slow motion
+  still3(0, 'h-x-slam', 120, cam(120, [0.6, 1.25, 18.6], [0.4, 1.6, 17.6], [0, 9.5, -29], [0, 11.5, -29], 54, 58), { ...HI, dt: 1 / 60, warm: 190 }),
+  // his gaze: the beam, from low beside the Blob
+  still3(0, 'h-x-gaze', 120, cam(120, [-3.2, 1.0, 17.5], [-2.4, 1.3, 15.5], [0, 11, -29], [0, 9, -10], 56), { ...HI, setup: '__tt.debugFight(2, 0)' }),
+  // X falls, and his lock on the cage breaks (the game's own cameras)
+  { name: 'h-x-death', setup: '__tt.debugFight(3, 0)', until: "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control", atStart: 'const b = __tt.act2.boss; b.hp = 1; b.iframes = 0; b.damage(1, 0, 12, -29)', warm: 4, frames: 330, ...HI },
   // ---- the cinematic cut (v3) ----
   walk('gloom', 'w-gloom', 330, 1330, -0.22, -0.42),
   walk('thicket', 'w-thicket', 300, 940, -0.18, -0.44),
