@@ -20,7 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from timeline import CUTS, EDGE, FPS, FX, H, LENGTH, TEXT, W  # noqa: E402
+from timeline import CUE, CUTS, FPS, FX, H, LENGTH, TEXT, TT, W  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument('foot')
@@ -97,7 +97,6 @@ SLOW_LO, SLOW_R = 0.3, 0.55
 
 def clip_pos(cut, t):
     start, _, _, first, speed, _ = cut
-    first = EDGE[first] if isinstance(first, str) else first
     u = t - start
     if FX_AT.get(round(start, 2)) == 'flash' and u > 0:
         x = min(u, SLOW_R)
@@ -115,7 +114,10 @@ def footage(ci, t):
     im = src(clip, i)
     flat = im.width >= 1000  # the forest, blown up from 216 wide
     if 0.08 < k < 0.92:
-        im = Image.blend(im, src(clip, i + 1), k)
+        nx = src(clip, i + 1)
+        # (the edge clip turns from the 2D forest into 3D: no blending across that)
+        if nx.size == im.size:
+            im = Image.blend(im, nx, k)
     # a slow push in, drifting one way or the other; a flash cut punches in and settles
     u = (t - start) / (end - start)
     z = 1.0 + 0.05 * ease_io(u)
@@ -200,7 +202,7 @@ GRAIN = [RNG.normal(0, 1, (OH, OW)).astype(np.float16) for _ in range(5)]
 def grain(img, fi):
     g = np.roll(GRAIN[fi % 5], (fi * 131) % OH, axis=0).astype(np.float32)
     lum = img.mean(2, keepdims=True)
-    return img + g[..., None] * (0.016 + 0.03 * lum * (1 - lum))
+    return img + g[..., None] * (0.012 + 0.024 * lum * (1 - lum))
 
 
 # drifting dust in the light: (x, y, speed, size, phase)
@@ -232,7 +234,7 @@ def dust(img, t, k=1.0):
         add_sprite(img, dot(max(1.0, (1.2 + sz * 3.2) * SC)), xx, yy, col, 0.10 * tw * k)
 
 
-LEAKS = [(61.6, 3.4), (64.6, 2.8), (95.2, 2.2), (100.3, 2.6)]
+LEAKS = [(CUE['lock'] - 0.1, 2.6), (CUE['family'] + 3.5, 3.4), (TT - 0.2, 2.2), (CUE['playNow'] - 0.6, 2.6)]
 _ly, _lx = np.mgrid[0:48, 0:27].astype(np.float32) / np.array([48, 27], np.float32)[:, None, None]
 
 
@@ -413,6 +415,22 @@ def world(img, t, t0, t1, text, col):
     put(img, m, OW / 2, y, col, a * p)
 
 
+def hero(img, t, t0, t1, text, col):
+    """the one you play: a name, a line drawn under it, and what it is, in italics"""
+    name, what = text.split('\n')
+    a = env(t, t0, t1, 0.5, 0.5)
+    p = ease_out((t - t0) / 0.8)
+    m, g = sprite(name, XBOLD, 66, 0.34, 16)
+    y = OH * 0.79 - (1 - p) * 22 * SC
+    put(img, g, OW / 2, y, col, a * 0.8, add=True)
+    put(img, m, OW / 2, y, WHITE * 0.45 + col * 0.55, a)
+    bar(img, OW / 2, y + m.height * 0.3, m.width * 0.42 * ease_out((t - t0 - 0.2) / 0.6), max(1, 2 * SC), col, a * 0.8)
+    sm, sg = sprite(what, SERIF, 46, 0.03, 8)
+    a2 = a * smooth((t - t0 - 0.4) / 0.6)
+    put(img, sg, OW / 2, y + m.height * 0.62, hexc('#9ff4ee'), a2 * 0.5, add=True)
+    put(img, sm, OW / 2, y + m.height * 0.62, hexc('#e8fffb'), a2)
+
+
 def label(img, t, ci, fi):
     start, end, *_, text = CUTS[ci]
     idx = sum(1 for c in CUTS[:ci + 1] if c[5])
@@ -431,10 +449,10 @@ def label(img, t, ci, fi):
 # ================================================================ the title: a line, a square, a cube; the name
 
 GOLD = hexc('#ffd77a')
-VIOLET = hexc('#b18cff')
-TT = 95.4
 EDGES3 = [(a, b) for a in range(8) for b in range(a + 1, 8) if bin(a ^ b).count('1') == 1]
-EDGES4 = [(a, b) for a in range(16) for b in range(a + 1, 16) if bin(a ^ b).count('1') == 1]
+# when the title's parts come in, after the hit (TT): the name with the narrator, then what it asks of you, then play now
+NAME_AT, SWEEP_AT, ASK_AT = TT + 2.0, TT + 3.25, TT + 3.5
+FADE_AT = CUE['fadeOut'] - 0.6
 
 
 def project(p, size, cx, cy, f=7.0):
@@ -468,9 +486,10 @@ def glow_of(m, r):
 
 def title(img, t, fi):
     T = t - TT
-    if T < -0.6 or t > 103.62:
+    if T < -0.6 or t > FADE_AT + 0.62:
         return
-    fade = 1 - smooth((t - 102.7) / 0.6)
+    fade = 1 - smooth((t - FADE_AT) / 0.6)
+    pn = CUE['playNow']
     # the cube: a line shot out on the hit, opened into a square, pulled out into the third direction
     sx = ease_out(T / 0.5)
     sy = ease_io((T - 0.45) / 0.55)
@@ -484,7 +503,7 @@ def title(img, t, fi):
     pts = project(rot(v, yaw, pitch), OW * 0.17, OW / 2, OH * (0.36 + bob))
     if T > 0 and fade > 0:
         m = wire(pts, EDGES3, max(2, round(4 * SC)))
-        pulse = 1 + 0.6 * math.exp(-T / 0.3) + 0.3 * math.exp(-max(0, t - 100.4) / 0.4) * (t > 100.4)
+        pulse = 1 + 0.6 * math.exp(-T / 0.3) + (0.4 * math.exp(-(t - pn) / 0.4) if t > pn else 0)
         put(img, glow_of(m, 26), OW / 2, OH / 2, GOLD, 1.5 * pulse * fade, add=True)
         put(img, m, OW / 2, OH / 2, GOLD * 0.6 + WHITE * 0.4, fade)
     # the name, letter by letter, out of the dark
@@ -498,11 +517,11 @@ def title(img, t, fi):
         x += fnt.getlength(ch) + sp
     x0 = OW / 2 - (x - sp) / 2
     ty = OH * 0.6
-    sweep = (t - 98.7) / 0.9
+    sweep = (t - SWEEP_AT) / 0.9
     for i, ch in enumerate(name):
         if ch == ' ':
             continue
-        u = t - (97.45 + i * 0.04)
+        u = t - (NAME_AT + i * 0.04)
         if u <= 0:
             continue
         m, g = sprite(ch, BLACK, size, 0, 18)
@@ -512,35 +531,24 @@ def title(img, t, fi):
         shine = math.exp(-((cx / OW - (sweep * 1.4 - 0.2)) / 0.08) ** 2) if 0 < sweep < 1 else 0
         put(img, g, cx, ty, GOLD, a * (0.7 + 1.2 * math.exp(-u / 0.2) + 1.5 * shine), s, add=True)
         put(img, m, cx, ty, WHITE * (0.75 + 0.25 * shine) + GOLD * 0.25 * (1 - shine), a, s)
-    bar(img, OW / 2, ty + fnt.size * 0.85, (x - sp) * 0.5 * ease_out((t - 98.4) / 0.6), max(1, 2 * SC), GOLD, 0.8 * fade)
+    bar(img, OW / 2, ty + fnt.size * 0.85, (x - sp) * 0.5 * ease_out((t - SWEEP_AT + 0.3) / 0.6), max(1, 2 * SC), GOLD, 0.8 * fade)
     # and what it asks of you
-    if t > 99.3:
-        a = smooth((t - 99.3) / 0.7) * fade
-        m = text_mask("DON'T LOOK UP.", font(LIGHT, 40), 0.62 - 0.18 * ease_out((t - 99.3) / 1.6))
+    if t > ASK_AT:
+        a = smooth((t - ASK_AT) / 0.7) * fade
+        m = text_mask("DON'T LOOK UP.", font(LIGHT, 40), 0.62 - 0.18 * ease_out((t - ASK_AT) / 1.6))
         put(img, m, OW / 2, ty + fnt.size * 1.7, hexc('#e8fffb'), a)
-    if t > 100.7:
-        a = smooth((t - 100.7) / 0.4) * fade
+    if t > pn:
+        a = smooth((t - pn) / 0.4) * fade
         m, g = sprite('PLAY NOW', MONO, 38, 0.3, 12)
         y = OH * 0.79
         w, h = m.width + 30 * SC, m.height * 0.9
         box = Image.new('L', (int(w + 40 * SC), int(h + 40 * SC)))
         ImageDraw.Draw(box).rounded_rectangle((20 * SC, 20 * SC, 20 * SC + w, 20 * SC + h), radius=h / 2, outline=255, width=max(1, round(3 * SC)))
-        beat = 0.5 + 0.5 * math.cos((t - 100.7) * math.pi / 0.6)
+        beat = 0.5 + 0.5 * math.cos((t - pn) * math.pi / 0.6)
         put(img, box.filter(ImageFilter.GaussianBlur(10 * SC)), OW / 2, y, GOLD, a * (0.8 + 0.8 * beat), add=True)
         put(img, box, OW / 2, y, GOLD, a)
         put(img, g, OW / 2, y, GOLD, a * 0.6, add=True)
         put(img, m, OW / 2, y, WHITE, a)
-    # on the tick, for a breath, it is not a cube at all
-    if 103.32 < t < 103.62 and (fi % 3 != 1):
-        p = np.array([[(i >> k & 1) * 2 - 1 for k in range(4)] for i in range(16)], np.float32)
-        w4 = 0.9 * (t - 103.3) * 6
-        c, s = math.cos(w4), math.sin(w4)
-        p[:, 0], p[:, 3] = p[:, 0] * c - p[:, 3] * s, p[:, 0] * s + p[:, 3] * c
-        q = p[:, :3] * (1.6 / (2.6 - p[:, 3:4] * 0.8))
-        pts = project(rot(q, yaw, pitch), OW * 0.15, OW / 2, OH * 0.36)
-        m = wire(pts, EDGES4, max(2, round(3 * SC)))
-        put(img, glow_of(m, 30), OW / 2, OH / 2, VIOLET, 2.0, add=True)
-        put(img, m, OW / 2, OH / 2, VIOLET * 0.7 + WHITE * 0.3, 1.0)
 
 
 _ty, _tx = np.mgrid[0:OH // 8, 0:OW // 8].astype(np.float32)
@@ -559,11 +567,14 @@ def frame(fi):
         img = np.asarray(im.point(LUT), np.float32) / 255 * up
     else:
         img = np.zeros((OH, OW, 3), np.float32)
-    if 94.9 < t < 103.6:
-        img += TITLE_BG * smooth((t - 95.0) / 1.2) * (1 - smooth((t - 102.7) / 0.7))
+    if TT - 0.6 < t < FADE_AT + 0.8:
+        img += TITLE_BG * smooth((t - TT + 0.5) / 1.2) * (1 - smooth((t - FADE_AT) / 0.7))
+    # after the end: the light over the three of them goes out
+    if CUE['sting'] <= t < CUE['stingOut']:
+        img *= 1 - 0.88 * smooth((t - (CUE['stingOut'] - 1.15)) / 1.0)
     fx(img, t, fi)
     leak(img, t)
-    dust(img, t, 1.0 if im is not None else (0.6 if 95 < t < 103.4 else 0.25))
+    dust(img, t, 1.0 if im is not None else (0.6 if TT - 0.5 < t < FADE_AT + 0.5 else 0.25))
     img *= VIGNETTE
     title(img, t, fi)
     for t0, t1, kind, text, col in TEXT:
@@ -578,6 +589,8 @@ def frame(fi):
             big(img, t, t0, t1, text, c)
         elif kind == 'world':
             world(img, t, t0, t1, text, c)
+        elif kind == 'hero':
+            hero(img, t, t0, t1, text, c)
     ci = next((i for i, c in enumerate(CUTS) if c[0] <= t < c[1] and c[5]), None)
     if ci is not None:
         label(img, t, ci, fi)

@@ -1,6 +1,6 @@
 """The trailer's sound: the music under the voices.
    python3 tools/trailer/mix.py music.wav voiceDir out.wav
-Every voice goes in where timeline.VOICE puts it; the music steps back (about 7 dB, smoothly) while anyone speaks."""
+Every voice goes in where timeline.VOICE puts it; the music steps back (about 8 dB, smoothly) while anyone speaks."""
 import sys
 import wave
 
@@ -44,8 +44,8 @@ for s in range(0, n, step):
     target = speak[s]
     e += (target - e) * (1 - (1 - (a_in if target > e else a_out)) ** step)
     env[s : s + step] = e
-duck = 1 - 0.55 * env
-mix = music * duck[:, None] * 0.9 + voice * 1.0
+duck = 1 - 0.62 * env
+mix = music * duck[:, None] * 0.9 + voice * 1.6
 # a soft ceiling
 mix = np.tanh(mix * 1.1) / np.tanh(1.1)
 with wave.open(out_path, 'wb') as w:

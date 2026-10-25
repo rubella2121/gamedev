@@ -46,17 +46,6 @@ export const SHOTS = [
   boss3(2, 3, 'mash-3'),
   // the ending: the last lock, the cage, the family
   { name: 'reunion', setup: '__tt.playEnding()', until: '!!__tt.act2.cut', frames: 430 },
-  // the Fourth comes, and takes all three of them (the scene in pieces: the clock jumps to each)
-  ...[
-    ['t-unfold', 1.4, 150],
-    ['t-eye', 6.45, 120],
-    ['t-family', 10.45, 75],
-    ['t-lift', 15.2, 135],
-    ['t-dial', 20.7, 130],
-    ['t-descend', 28.25, 160],
-  ].map(([name, at, frames]) => ({ name, setup: '__tt.playFourth()', until: '!!__tt.act2.cut && __tt.act2.cut.len > 30', atStart: `__tt.act2.cut.t = ${at}`, frames })),
-  // the fight beside Mother and Father
-  { name: 'fourth-fight', setup: "__tt.playFourth(); window.__sk = setInterval(() => { const a = __tt.act2; if (a.cut) { a.cut.skip(); a.endCut(true); } }, 200)", until: "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control", atStart: 'clearInterval(window.__sk); __bot3.attach(1)', warm: 20, frames: 240 },
-  // it runs: "I will come back."
-  { name: 'flee', setup: "__tt.playFourth(); window.__sk = setInterval(() => { const a = __tt.act2; if (a.cut) { a.cut.skip(); a.endCut(true); } }, 200)", until: "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control", atStart: 'clearInterval(window.__sk); __tt.act2.boss.hide(); __tt.act2.boss.show(); __tt.act2.fourthFled()', frames: 560 },
+  // the three of them under the moon, after: the opening seconds of what comes next, and no more (the trailer keeps it a secret)
+  { name: 'moonlit', setup: '__tt.playFourth()', until: '!!__tt.act2.cut && __tt.act2.cut.len > 30', atStart: '__tt.act2.cut.t = 1.4', frames: 66 },
 ];
