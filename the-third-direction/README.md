@@ -89,15 +89,22 @@ Mother's bow, a pair of eyes in the dark and the hero's name card; the header of
   lit with a toon ramp, and moved with tube chains (necks, tails, bony arms). They are built a few milliseconds at a time while you play
   the forest. How a boss is made and how it plugs into the fight: [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md).
   No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`, `src/core/voice.ts`).
-- The landing page (the first-visit splash, `src/landing.ts`): a night in the forest on the forest's own 216 x 384 grid, in five pixel layers
-  (the sky with the moon and its clouds, a far tree line, a near tree line with the two big trees that frame it, the clearing with the family,
-  and boughs and ferns right in front of the glass) that slide against each other when the pointer moves or the phone tilts, and drift on
-  their own. The light (the moon's glow and rays, mist, the family's warmth, fireflies, eyes) is one soft canvas laid over them with a screen
-  blend. The title builds itself: flat cubes first, then the depth comes out with a thump and eyes open all round. Then things happen: eyes in
+- The landing page (the first-visit splash, `src/landing.ts`): a night in the forest on the forest's own 216 x 384 grid, in four pixel layers
+  (the sky with the moon and its clouds and the far trees, a near tree line with the two big trees that frame it, the clearing with the
+  family, and boughs and ferns right in front of the glass) that slide against each other when the pointer moves, and drift on their own.
+  The light (the moon's glow and rays, mist, the family's warmth, fireflies, eyes) is stamped from sprites onto one more small canvas.
+  The title builds itself: flat cubes first, then the depth comes out with a thump and eyes open all round. Then things happen: eyes in
   the dark follow you (a mouse carries a little light that scares them shut), gusts go through the grass, the Mournmoth comes down from the
   moon to the baby, and the moon opens an eye while some of the stars turn out to be eyes too. A tap sends out the baby's pulse of light (the
-  same as a tap in the game): the eyes snap shut, the title is pulled away into the screen, a flash, and the intro is already playing under it.
-  `prefers-reduced-motion` keeps it still (no parallax, no shake, no tearing, the title already built).
+  same as a tap in the game): the eyes snap shut, the title is pulled away into the screen, a flash, and the intro starts a moment later
+  under it. `prefers-reduced-motion` keeps it still (no parallax, no shake, the title already built).
+  **Built for phones:** everything is put together on ONE canvas (3 canvas pixels per scene pixel, so the pixel art is crisp and cannot
+  shimmer) and the only other things on the page are the title canvas and some text. There are no CSS blend modes, filters, grain layers or
+  stacked full-screen layers: those made the first version stutter and flash on phones (about ten layers, several blended, at three times the
+  screen's pixels, with the game still drawing its forest behind them). The game does not draw the forest while the landing page is up. The
+  title is only repainted when something on it moved by a pixel. If a phone cannot keep up (the median picture takes more than 9 ms, or comes
+  at under 70% of its rate) the page steps down for good: fewer lights, a smaller canvas, fewer pictures a second (`QUALITY` in
+  `landing.ts`). Resizing never shows an empty frame (a canvas is cleared when its size is set, so it is put back in the same moment).
 - The home page (`src/ui.ts`): the title is a pixel logo built from little cubes with a red depth that sways and beats like a heart
   (`src/logo.ts`, drawn at the screen's own resolution so the cubes stay crisp), over a living background of fireflies and red eyes opening in
   the dark (`src/ambient.ts`). The how-to and the boss picker are sheets over the home page, and the end card uses the same pieces. The
