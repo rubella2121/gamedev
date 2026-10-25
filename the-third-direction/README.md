@@ -4,7 +4,7 @@ A baby blob loses its family, crosses a forest of strange monsters, and discover
 Built for the RUN.world **October Jam** (theme: *Monster Mash*). The full design lives in [`GAME_SCRIPT.md`](./GAME_SCRIPT.md).
 
 ## Status: the whole game is playable
-First visit: a **"tap to begin"** splash (with a **skip intro** button) and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
+First visit: a living **landing page** ("tap to begin", with a **skip intro** button) and then a 48-second **cinematic intro** (a real-time trailer made of the game's own forest and
 3D arena, with a score and sound effects made in code; **Skip** is always on screen, and the home page has a **▶ intro** chip to watch it again).
 Home page (Play, Gentle / Normal / Nightmare cards with their hearts and best times, Trailer, Fight a boss, How to play, a sound switch) -> opening -> the **open forest**
 (walk in any direction; a crossroads and five zones you can do in any order) -> in each zone you reach the **heart**, which
@@ -89,10 +89,19 @@ Mother's bow, a pair of eyes in the dark and the hero's name card; the header of
   lit with a toon ramp, and moved with tube chains (necks, tails, bony arms). They are built a few milliseconds at a time while you play
   the forest. How a boss is made and how it plugs into the fight: [`docs/3D-BOSSES.md`](./docs/3D-BOSSES.md).
   No art or audio files: sprites are drawn in code, sound is synthesised (`src/core/audio.ts`, `src/core/voice.ts`).
-- The splash and the home page (`src/ui.ts`): the title is a pixel logo built from little cubes with a red depth that sways (`src/logo.ts`,
-  drawn at the screen's own resolution so the cubes stay crisp), over a living background of fireflies and red eyes opening in the dark
-  (`src/ambient.ts`, on the forest's own 216 x 384 grid). The how-to and the boss picker are sheets over the home page, and the end card
-  uses the same pieces. The animation loop stops when the page is hidden.
+- The landing page (the first-visit splash, `src/landing.ts`): a night in the forest on the forest's own 216 x 384 grid, in five pixel layers
+  (the sky with the moon and its clouds, a far tree line, a near tree line with the two big trees that frame it, the clearing with the family,
+  and boughs and ferns right in front of the glass) that slide against each other when the pointer moves or the phone tilts, and drift on
+  their own. The light (the moon's glow and rays, mist, the family's warmth, fireflies, eyes) is one soft canvas laid over them with a screen
+  blend. The title builds itself: flat cubes first, then the depth comes out with a thump and eyes open all round. Then things happen: eyes in
+  the dark follow you (a mouse carries a little light that scares them shut), gusts go through the grass, the Mournmoth comes down from the
+  moon to the baby, and the moon opens an eye while some of the stars turn out to be eyes too. A tap sends out the baby's pulse of light (the
+  same as a tap in the game): the eyes snap shut, the title is pulled away into the screen, a flash, and the intro is already playing under it.
+  `prefers-reduced-motion` keeps it still (no parallax, no shake, no tearing, the title already built).
+- The home page (`src/ui.ts`): the title is a pixel logo built from little cubes with a red depth that sways and beats like a heart
+  (`src/logo.ts`, drawn at the screen's own resolution so the cubes stay crisp), over a living background of fireflies and red eyes opening in
+  the dark (`src/ambient.ts`). The how-to and the boss picker are sheets over the home page, and the end card uses the same pieces. The
+  animation loops stop when their page is hidden.
 - The cinematic intro (`src/cinematic/`): `cues.ts` is the shot list (one table of times that both the picture and the music read),
   `trailer.ts` directs the real game scenes (it borrows the forest and the 3D arena through the `trailer*` methods on them), and
   `score.ts` is the music: A minor like the in-game lullaby, planned note by note on the WebAudio clock (a second of the future at a
