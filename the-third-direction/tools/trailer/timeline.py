@@ -1,118 +1,164 @@
-"""The trailer's timeline: one sheet that the picture (edit.py), the music (music.py) and the mix (mix.py) all read, so a cut,
-a hit in the music and a line of voice land together.
+"""The trailer's timeline: one sheet that the picture (edit.py), the music (score.ts, through --cues) and the mix (mix.py) all read,
+so a cut, a hit in the music and a line of voice land together.
 
-Seconds from the first frame. 100 beats a minute in the action (a beat is 0.6 s, a bar 2.4 s).
+Seconds from the first frame. The music is the game's own intro score, re-timed: 96 beats a minute in the action, a bar is 1.6 s.
+What comes after the family stays a secret: the trailer never shows it.
+
+    python3 timeline.py --cues > cues.json      the music's cue sheet, for score-render.mjs
 """
 
 FPS = 30
 W, H = 1080, 1920
-LENGTH = 106.0
-BEAT = 0.6
+BAR = 1.6
 
-# ---- the cuts: (start, end, clip, first frame of the clip to use, speed, label) ----
-# speed 1 = as captured (30 a second of game time); 0.5 = slow motion (each frame shown twice, blended)
+# ---- the music's cue sheet (score.ts reads exactly these names) ----
+CUE = {
+    'bar': BAR,
+    'cardIn': 0.8,
+    # the clearing: the lullaby; the shadow creeps in and the tune sags; the jump cut; the foot
+    'openingStart': 3.0,
+    'shadowCreep': 7.1,
+    'jumpCut': 10.4,
+    'slam': 11.0,
+    # the crater in the dark; red eyes
+    'eyesOpen': 12.8,
+    # five places, five guardians: a bar each
+    'montageStart': 13.6,
+    'zoneCuts': [13.6, 15.2, 16.8, 18.4, 20.0],
+    'footLands': 20.8,
+    'guardianCuts': [21.6, 23.2, 24.8, 26.4, 28.0],
+    # the Edge: the stars go out one by one; look up; the crack; the boom; the fall
+    'edgeStart': 29.6,
+    'starPings': [30.2, 30.6, 31.05, 31.4, 31.8, 32.15, 32.5, 32.8],
+    'riserStart': 32.2,
+    'crack': 33.9,
+    'boom': 35.3,
+    'landAfter': 3.0,
+    # X, whole, and his fight (a bar a cut); the other two; the rush; the last lock
+    'reveal': 40.3,
+    'xCuts': [40.3, 41.9, 43.5, 45.1],
+    'collector': 46.7,
+    'mash': 48.7,
+    'rush': 50.7,
+    'rushCuts': [50.7, 51.3, 51.8, 52.2, 52.5, 52.75, 52.95],
+    'lock': 53.1,
+    # the family, the lullaby in tune
+    'family': 55.0,
+    # the title; the tune falls asleep; play now; black
+    'title': 66.0,
+    'endTune': 68.9,
+    'playNow': 71.0,
+    'fadeOut': 72.6,
+    # after the end
+    'sting': 73.4,
+    'stingOut': 75.7,
+    'length': 78.0,
+}
+LENGTH = CUE['length']
+TT = CUE['title']
+
+# ---- the cuts: (start, end, clip, first frame of the clip, speed, label) ----
+# speed 1 = as captured; below 1 = slow motion (blended); negative = backwards
+_Z, _G, _X, _R = CUE['zoneCuts'], CUE['guardianCuts'], CUE['xCuts'], CUE['rushCuts']
 CUTS = [
-    # cold open: black, the card, then three small lights in the dark wood, a shadow over them, and the foot (frame 392, at 8.5)
-    (3.2, 8.7, 'opening', 233, 1.0, None),
-    (9.0, 12.0, 'z-gloom', 0, 1.0, None),
+    # the clearing: three small lights, the lullaby; the shadow; the foot (frame 392 of the opening lands on the slam)
+    (3.0, 10.4, 'opening', 152, 1.0, None),
+    (10.4, 11.0, 'opening', 374, 1.0, None),
+    # the crater, and red eyes over it
+    (11.0, 12.8, 'opening', 394, 0.5, None),
+    (12.8, 13.6, 'edge', 300, 1.0, None),
     # five places
-    (12.0, 13.2, 'z-gloom', 40, 1.0, 'GLOOM HOLLOW'),
-    (13.2, 14.4, 'z-thicket', 20, 1.0, 'ROOTMAW THICKET'),
-    (14.4, 15.6, 'z-marsh', 20, 1.0, 'ECHO MARSH'),
-    (15.6, 16.8, 'z-bones', 20, 1.0, 'BONE WASTES'),
-    (16.8, 18.0, 'z-meadow', 20, 1.0, 'MOTH MEADOW'),
-    # five guardians
-    (19.2, 21.6, 'g-gloom', 20, 1.0, None),
-    (21.6, 24.0, 'g-thicket', 20, 1.0, None),
-    (24.0, 26.4, 'g-marsh', 20, 1.0, None),
-    (26.4, 28.8, 'g-bones', 20, 1.0, None),
-    (28.8, 31.2, 'g-meadow', 20, 1.0, None),
-    # the Edge, the boom, the fall (frames picked from the edge clip: see EDGE below)
-    (31.2, 36.0, 'edge', 'x-arrives', 1.0, None),
-    (36.0, 38.4, 'edge', 'x-pins', 1.0, None),
-    (38.4, 40.8, 'edge', 'boom', 1.0, None),
-    (40.8, 45.6, 'edge', 'fall', 1.0, None),
-    # the three in the Crater
-    (45.6, 47.4, 'x-foot', 40, 1.0, None),
-    (47.4, 49.2, 'x-rake', 74, 1.0, None),
-    (49.2, 51.0, 'x-gaze', 100, 1.0, None),
-    (51.0, 52.8, 'x-jaws', 44, 1.0, None),
-    (52.8, 54.6, 'collector-0', 40, 1.0, None),
-    (54.6, 56.4, 'collector-2', 40, 1.0, None),
-    (56.4, 58.2, 'mash-0', 40, 1.0, None),
-    (58.2, 60.0, 'mash-2', 52, 1.0, None),
-    (60.0, 61.8, 'mash-3', 30, 1.0, None),
-    # the last lock, and the family
-    (61.8, 64.8, 'reunion', 30, 1.0, None),
-    (64.8, 75.0, 'reunion', 120, 1.0, None),
-    # the Fourth
-    (75.0, 77.4, 't-unfold', 6, 1.0, None),
-    (77.4, 80.4, 't-unfold', 60, 1.0, None),
-    (80.4, 83.4, 't-eye', 10, 1.0, None),
-    (83.4, 84.6, 't-family', 20, 1.0, None),
-    (84.6, 87.0, 't-lift', 50, 1.0, None),
-    (87.0, 89.4, 't-dial', 30, 1.0, None),
-    (89.4, 90.6, 't-descend', 104, 1.0, None),
-    (90.6, 91.8, 'fourth-fight', 150, 1.0, None),
-    (91.8, 94.8, 'flee', 200, 1.0, None),
-    # the sting after the title: its eye, once more
-    (103.6, 105.4, 't-eye', 12, 0.6, None),
+    (_Z[0], _Z[1], 'z-gloom', 30, 1.0, 'GLOOM HOLLOW'),
+    (_Z[1], _Z[2], 'z-thicket', 20, 1.0, 'ROOTMAW THICKET'),
+    (_Z[2], _Z[3], 'z-marsh', 20, 1.0, 'ECHO MARSH'),
+    (_Z[3], _Z[4], 'z-bones', 20, 1.0, 'BONE WASTES'),
+    (_Z[4], _G[0], 'z-meadow', 30, 1.0, 'MOTH MEADOW'),
+    # five guardians, each cut on its entrance
+    (_G[0], _G[1], 'g-gloom', 62, 1.0, None),
+    (_G[1], _G[2], 'g-thicket', 150, 1.0, None),
+    (_G[2], _G[3], 'g-marsh', 78, 1.0, None),
+    (_G[3], _G[4], 'g-bones', 70, 1.0, None),
+    (_G[4], CUE['edgeStart'], 'g-meadow', 44, 1.0, None),
+    # the Edge: the stars go out (the clip played backwards), then the eyes; the crack shows the cage; the fall
+    (CUE['edgeStart'], 32.9, 'edge', 178, -1.0, None),
+    (32.9, CUE['crack'], 'edge', 182, 1.0, None),
+    (CUE['crack'], CUE['boom'], 'edge', 828, 1.0, None),
+    (CUE['boom'], CUE['reveal'], 'edge', 1080, 1.0, None),
+    # X: a bar a cut
+    (_X[0], _X[1], 'x-foot', 34, 1.0, None),
+    (_X[1], _X[2], 'x-rake', 74, 1.0, None),
+    (_X[2], _X[3], 'x-gaze', 104, 1.0, None),
+    (_X[3], CUE['collector'], 'x-jaws', 40, 1.0, None),
+    # the Collector, the Mash
+    (CUE['collector'], 47.7, 'collector-0', 40, 1.0, None),
+    (47.7, CUE['mash'], 'collector-2', 46, 1.0, None),
+    (CUE['mash'], 49.7, 'mash-0', 40, 1.0, None),
+    (49.7, CUE['rush'], 'mash-3', 44, 1.0, None),
+    # the rush: faster and faster
+    (_R[0], _R[1], 'g-thicket', 225, 1.0, None),
+    (_R[1], _R[2], 'x-gaze', 128, 1.0, None),
+    (_R[2], _R[3], 'g-marsh', 200, 1.0, None),
+    (_R[3], _R[4], 'mash-2', 96, 1.0, None),
+    (_R[4], _R[5], 'edge', 455, 1.0, None),
+    (_R[5], _R[6], 'x-jaws', 84, 1.0, None),
+    (_R[6], CUE['lock'], 'collector-2', 138, 1.0, None),
+    # the last lock breaks, and the family
+    (CUE['lock'], CUE['family'], 'reunion', 74, 1.0, None),
+    (CUE['family'], TT, 'reunion', 135, 0.88, None),
+    # after the end: the three of them under the moon, and the light going out
+    (CUE['sting'], CUE['stingOut'], 'moonlit', 10, 0.7, None),
 ]
 
-# where in the edge clip each part is (frame numbers, picked from a contact sheet of the clip)
-EDGE = {'x-arrives': 180, 'x-pins': 430, 'boom': 826, 'fall': 1075}
-
 # ---- the words on the screen ----
-#   (start, end, kind, text, colour)   kinds: card (thin, tracked), slam (huge, hits), label (low, small), world (italic line), title
+#   (start, end, kind, text, colour)   kinds: card, hero, slam, big, world, title
 TEXT = [
-    (0.6, 3.4, 'card', 'SOMETHING HUGE\nTOOK YOUR FAMILY', '#e8fffb'),
-    (18.15, 19.15, 'card', 'FIVE GUARDIANS', '#e8fffb'),
-    (19.3, 21.5, 'slam', 'GLOOMMOTHER', '#7fe6ff'),
-    (21.7, 23.9, 'slam', 'THORNBACK KING', '#e0a050'),
-    (24.1, 26.3, 'slam', 'TOLL QUEEN', '#d9b8ff'),
-    (26.5, 28.7, 'slam', 'BONE WYRM', '#f4efe0'),
-    (28.9, 31.1, 'slam', 'MIMIC QUEEN', '#ff8aa8'),
-    (40.9, 44.6, 'big', 'THERE IS A\nTHIRD DIRECTION', '#ffe9a0'),
-    (45.7, 48.6, 'slam', 'X, THE HOLLOW', '#ff3a4a'),
-    (52.9, 55.6, 'slam', 'THE COLLECTOR', '#ffcf5a'),
-    (56.5, 59.4, 'slam', 'THE MASH', '#ff8aa8'),
-    (75.3, 77.3, 'world', 'and then nothing moves.', '#cfeee8'),
-    (87.1, 89.3, 'big', 'THE FOURTH\nDIMENSION', '#c9b8ff'),
-    (95.6, 102.8, 'title', 'THE THIRD DIRECTION', '#ffe9a0'),
+    (7.8, 10.3, 'hero', 'THE BLOB\nthe last small light', '#ffe9a0'),
+    (_G[0] + 0.05, _G[1] - 0.1, 'slam', 'GLOOMMOTHER', '#7fe6ff'),
+    (_G[1] + 0.05, _G[2] - 0.1, 'slam', 'THORNBACK KING', '#e0a050'),
+    (_G[2] + 0.05, _G[3] - 0.1, 'slam', 'TOLL QUEEN', '#d9b8ff'),
+    (_G[3] + 0.05, _G[4] - 0.1, 'slam', 'BONE WYRM', '#f4efe0'),
+    (_G[4] + 0.05, CUE['edgeStart'] - 0.1, 'slam', 'MIMIC QUEEN', '#ff8aa8'),
+    (36.5, 40.1, 'big', 'THERE IS A\nTHIRD DIRECTION', '#ffe9a0'),
+    (CUE['reveal'] + 0.05, _X[2] - 0.1, 'slam', 'X, THE HOLLOW', '#ff3a4a'),
+    (CUE['collector'] + 0.05, CUE['mash'] - 0.1, 'slam', 'THE COLLECTOR', '#ffcf5a'),
+    (CUE['mash'] + 0.05, CUE['rush'] - 0.1, 'slam', 'THE MASH', '#ff8aa8'),
+    (TT, CUE['fadeOut'], 'title', 'THE THIRD DIRECTION', '#ffe9a0'),
 ]
 
 # ---- the voices: (start, file, gain) ----
 VOICE = [
-    (0.8, 'n1', 1.0),
-    (4.4, 'm1', 0.95),
-    (6.4, 'f1', 0.95),
-    (9.4, 'n2', 1.0),
-    (12.2, 'n3', 1.0),
-    (16.4, 'n4', 0.95),
-    (31.6, 'n5', 1.0),
-    (41.0, 'n6', 1.05),
-    (46.0, 'n7', 0.95),
-    (66.4, 'm2', 1.0),
-    (68.8, 'b1', 0.95),
-    (71.6, 'b2', 1.0),
-    (75.2, 'n8', 0.9),
-    (80.6, 'w1', 0.5), (80.95, 'x1', 1.0), (80.97, 'x1u', 0.55),
-    (83.5, 'm3', 1.0),
-    (84.7, 'w2', 0.5), (85.05, 'x2', 1.0), (85.07, 'x2u', 0.55),
-    (90.0, 'm4', 0.95),
-    (92.0, 'w3', 0.5), (92.35, 'x3', 1.1), (92.37, 'x3u', 0.6),
-    (97.4, 'n9', 1.05),
-    (104.0, 'w4', 0.6), (104.3, 'x4', 0.9), (104.32, 'x4u', 0.5),
+    (0.6, 'n1', 1.0),    # Every night, she sang you the same song.
+    (4.55, 'm1', 0.9),   # Don't look up.
+    (7.3, 'n2', 1.0),    # But something up there was listening.
+    (11.55, 'n3', 1.0),  # It took them.
+    (13.75, 'n4', 1.0),  # So you run.
+    (18.55, 'n5', 0.95), # Five guardians stand in your way.
+    (29.9, 'n6', 1.0),   # And when the last star goes out...
+    (32.85, 'n7', 1.05), # ...look up.
+    (36.6, 'n8', 1.05),  # There is a third direction.
+    (56.0, 'm2', 0.95),  # Little light.
+    (58.6, 'b1', 0.95),  # I found you.
+    (60.9, 'f1', 0.9),   # You looked up.
+    (63.0, 'b2', 0.95),  # I'm not afraid of it anymore.
+    (68.0, 'n9', 1.05),  # The Third Direction.
+    (74.3, 'w1', 1.5),   # Look up.
 ]
 
-# ---- the big transitions (edit.py draws them; music.py hits them) ----
-# (time, kind)  kinds: flash, glitch, whip, black (a beat of black), shatter
+# ---- the big transitions (edit.py draws them) ----
+# (time, kind)  kinds: flash, glitch, whip, cut (a plain hard cut; any other seam dissolves)
 FX = [
-    (12.0, 'whip'), (13.2, 'glitch'), (14.4, 'whip'), (15.6, 'glitch'), (16.8, 'whip'),
-    (19.2, 'flash'), (21.6, 'flash'), (24.0, 'flash'), (26.4, 'flash'), (28.8, 'flash'),
-    (31.2, 'glitch'), (38.4, 'glitch'), (40.8, 'flash'),
-    (45.6, 'flash'), (47.4, 'whip'), (49.2, 'glitch'), (51.0, 'whip'), (52.8, 'flash'), (54.6, 'whip'),
-    (56.4, 'flash'), (58.2, 'glitch'), (60.0, 'whip'), (61.8, 'glitch'),
-    (77.4, 'glitch'), (80.4, 'glitch'), (83.4, 'whip'), (84.6, 'glitch'), (87.0, 'flash'), (89.4, 'whip'), (91.8, 'glitch'),
-    (103.6, 'glitch'),
+    (CUE['jumpCut'], 'glitch'), (CUE['slam'], 'flash'),
+    (_Z[1], 'whip'), (_Z[2], 'glitch'), (_Z[3], 'whip'), (_Z[4], 'glitch'),
+    (_G[0], 'flash'), (_G[1], 'flash'), (_G[2], 'flash'), (_G[3], 'flash'), (_G[4], 'flash'),
+    (CUE['edgeStart'], 'glitch'), (CUE['crack'], 'flash'), (CUE['boom'], 'glitch'),
+    (CUE['reveal'], 'flash'), (_X[1], 'whip'), (_X[2], 'glitch'), (_X[3], 'whip'),
+    (CUE['collector'], 'flash'), (47.7, 'whip'), (CUE['mash'], 'flash'), (49.7, 'glitch'),
+    (_R[1], 'cut'), (_R[2], 'glitch'), (_R[3], 'cut'), (_R[4], 'glitch'), (_R[5], 'cut'), (_R[6], 'glitch'),
+    (CUE['lock'], 'flash'), (CUE['stingOut'], 'glitch'),
 ]
+
+if __name__ == '__main__':
+    import json
+    import sys
+    if '--cues' in sys.argv:
+        print(json.dumps(CUE))
