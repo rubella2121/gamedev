@@ -15,15 +15,22 @@ import { Title } from "./components/Title";
 import { Captions, Card, ITALIC, Names, SANS, SERIF } from "./components/Words";
 import { FPS } from "./lib/time";
 
-/** wait for the type before the first frame is taken (a frame drawn in a fallback font would flicker) */
+/**
+ * Wait for the type before the first frame is taken (a frame drawn in a fallback font would flicker), and only then draw the
+ * words: their sizes are measured in the real fonts.
+ */
 const useFonts = () => {
   const [handle] = useState(() => delayRender("fonts"));
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     const faces = [`400 40px ${SERIF}`, `700 40px ${SERIF}`, `900 40px ${SERIF}`, `italic 600 40px "${ITALIC}"`, `600 40px ${SANS}`, `800 40px ${SANS}`];
-    Promise.all(faces.map((f) => document.fonts.load(f)))
-      .then(() => continueRender(handle))
-      .catch(() => continueRender(handle));
+    const done = () => {
+      setReady(true);
+      continueRender(handle);
+    };
+    Promise.all(faces.map((f) => document.fonts.load(f))).then(done, done);
   }, [handle]);
+  return ready;
 };
 
 /**
@@ -32,7 +39,7 @@ const useFonts = () => {
  * Mother's voice are built on; over it the boom, the names, her words and the title. Then the grade, the light and the grain.
  */
 export const Trailer: React.FC = () => {
-  useFonts();
+  const ready = useFonts();
   const frame = useCurrentFrame();
   const t = frame / FPS;
   const shake = useShake();
@@ -45,14 +52,18 @@ export const Trailer: React.FC = () => {
           <Shot key={i} cut={c} next={CUTS[i + 1]} />
         ))}
         <Shatter />
-        <Title />
+        {ready ? <Title /> : null}
         <Leaks />
         <Look />
       </AbsoluteFill>
       <Flash />
-      <Names />
-      <Card at={cues.boom + 0.85} end={cues.reveal - 0.25} lines={["THERE IS A", "THIRD DIRECTION"]} />
-      <Captions />
+      {ready ? (
+        <>
+          <Names />
+          <Card at={cues.boom + 0.85} end={cues.reveal - 0.25} lines={["THERE IS A", "THIRD DIRECTION"]} />
+          <Captions />
+        </>
+      ) : null}
       {/* the very end: black */}
       {t > cues.stingOut ? <AbsoluteFill style={{ backgroundColor: "#000" }} /> : null}
       <Audio src={staticFile("audio/mix.wav")} />

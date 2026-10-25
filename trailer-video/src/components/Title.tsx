@@ -1,3 +1,4 @@
+import { fitText } from "@remotion/layout-utils";
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import cues from "../data/cues.json";
@@ -44,6 +45,7 @@ export const Title: React.FC = () => {
   const sweep = (t - (C.name + 1.25)) / 0.9;
   const ask = t - C.ask;
   const play = t - C.playNow;
+  const size = Math.min(80, fitText({ text: NAME, withinWidth: W * 0.88, fontFamily: SERIF, fontWeight: 900, letterSpacing: "0.06em" }).fontSize);
   return (
     <AbsoluteFill style={{ opacity: fade }}>
       <AbsoluteFill style={{ background: `radial-gradient(ellipse 70% 40% at 50% 38%, rgba(30,70,80,${0.55 * smooth(T / 1.2)}), rgba(0,0,0,0) 70%)` }} />
@@ -69,7 +71,7 @@ export const Title: React.FC = () => {
                 style={{
                   fontFamily: SERIF,
                   fontWeight: 900,
-                  fontSize: 76,
+                  fontSize: size,
                   letterSpacing: "0.06em",
                   display: "inline-block",
                   opacity: u > 0 ? o : 0,

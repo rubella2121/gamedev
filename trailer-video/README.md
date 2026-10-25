@@ -31,7 +31,7 @@ design is `../the-third-direction/tools/trailer/sfx.ts`.
 npm install
 # the soundfont and its player
 sudo apt install fluidsynth musescore-general-soundfont
-# Python: kokoro-onnx soundfile scipy praat-parselmouth mido numpy pillow; Kokoro's model files:
+# Python: kokoro-onnx soundfile scipy mido numpy pillow; Kokoro's model files:
 #   https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx
 #   https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin
 FOOT=../foot KOKORO=../kokoro PY=python3 scripts/make.sh            # voices, music, clips, render

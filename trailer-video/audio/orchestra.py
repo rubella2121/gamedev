@@ -419,7 +419,7 @@ for tick, _, m in ev:
 tr.append(mido.MetaMessage('end_of_track', time=T(2.0)))
 midpath = out.rsplit('.', 1)[0] + '.mid'
 mid.save(midpath)
-subprocess.run(['fluidsynth', '-ni', '-q', '-F', out, '-r', '48000', '-g', '0.55', '-o', 'synth.reverb.active=1',
+subprocess.run(['fluidsynth', '-ni', '-q', '-F', out, '-r', '48000', '-g', '0.5', '-o', 'synth.reverb.active=1',
                 '-o', 'synth.reverb.room-size=0.75', '-o', 'synth.reverb.level=0.55', '-o', 'synth.chorus.active=0', '-o', 'synth.polyphony=512',
                 sf3, midpath], check=True)
 print('orchestra', out, len(ev), 'events')

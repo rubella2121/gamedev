@@ -1,6 +1,6 @@
+import { fitText } from "@remotion/layout-utils";
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
-import cues from "../data/cues.json";
 import lines from "../data/lines.json";
 import voice from "../data/voice.json";
 import { CUTS } from "../edit";
@@ -23,7 +23,7 @@ export const Names: React.FC = () => {
   const out = smooth((t - (c.end - 0.14)) / 0.12);
   const s = 1.5 - 0.5 * easeOut(u / 0.18) + 0.03 * (u / len) + 0.05 * out;
   const op = smooth(u / 0.05) * (1 - out);
-  const size = Math.min(150, (0.9 * W) / (text.length * 0.74));
+  const size = Math.min(150, fitText({ text, withinWidth: W * 0.86, fontFamily: SERIF, fontWeight: 900, letterSpacing: "0.04em" }).fontSize);
   const typed = sub.slice(0, Math.floor(clamp((u - 0.08) / 0.025, 0, sub.length)));
   const j = u > 0.16 ? 14 * Math.exp(-(u - 0.16) / 0.08) : 0;
   const dx = (rand(Math.floor(t * 60)) - 0.5) * 2 * j;
@@ -64,16 +64,19 @@ export const Card: React.FC<{ at: number; end: number; lines: string[]; y?: numb
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * y, opacity: 1 - out }}>
       {ls.map((ln, i) => {
         const p = easeOut((t - at - i * 0.28) / 0.7);
+        // sized in the real font so that, drawn together (0.1em apart), the line fills nine tenths of the frame at most
+        const size = Math.min(i === 0 ? 70 : 100, fitText({ text: ln, withinWidth: W * 0.9, fontFamily: SERIF, fontWeight: 700, letterSpacing: "0.1em" }).fontSize);
+        const sp = 0.24 - 0.14 * p;
         return (
           <div key={i} style={{ overflow: "hidden", height: 118 }}>
             <div
               style={{
                 fontFamily: SERIF,
                 fontWeight: 700,
-                fontSize: i === 0 ? 70 : 96,
+                fontSize: size,
                 lineHeight: "118px",
-                letterSpacing: `${0.32 - 0.22 * p}em`,
-                paddingLeft: `${0.32 - 0.22 * p}em`,
+                letterSpacing: `${sp}em`,
+                paddingLeft: `${sp}em`,
                 color: "#fff3d6",
                 transform: `translateY(${(1 - p) * 118}px)`,
                 textShadow: "0 0 30px rgba(255,200,120,0.75), 0 0 70px rgba(255,170,80,0.45), 0 4px 0 rgba(0,0,0,0.8)",
@@ -126,6 +129,3 @@ export const Captions: React.FC = () => {
     </AbsoluteFill>
   );
 };
-
-/** the closing of the sting: nothing to read, the light has gone out */
-export const isQuiet = (t: number) => t > cues.fadeOut + 0.7;
