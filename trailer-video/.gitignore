@@ -5,3 +5,9 @@ dist
 
 # Ignore the output video from Git but not videos you import into src/.
 out
+
+# made by scripts/clips.py and audio/*.py from the capture (large, and always made again)
+public/clips
+public/stills
+public/grain
+public/audio

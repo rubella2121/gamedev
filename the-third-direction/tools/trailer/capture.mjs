@@ -34,7 +34,9 @@ for (const shot of SHOTS) {
   if (only.length && !only.includes(shot.name)) continue;
   const dir = path.join(outDir, shot.name);
   fs.mkdirSync(dir, { recursive: true });
-  const ctx = await browser.newContext({ viewport: { width: 540, height: 960 }, deviceScaleFactor: 1 });
+  // (a shot can ask for a bigger picture: the 3D is drawn at the page's size, within the shot's pixel budget)
+  const [vw, vh] = shot.viewport ?? [540, 960];
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log(`[${shot.name}] pageerror ${e.message}`));
   await page.goto(`http://localhost:${port}/?debug`, { waitUntil: 'load' });

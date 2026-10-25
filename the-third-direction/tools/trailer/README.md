@@ -6,6 +6,11 @@ Nothing here ships with the game.
 
 What comes after the family is left out on purpose: the trailer keeps it a secret.
 
+The current trailer is made with Remotion in `../../../trailer-video/` (its own README). It uses this folder's capture
+(`capture.mjs`, `shots.mjs`) and its sound design layer, `sfx.ts` (the game's own sounds on that trailer's cue sheet, rendered
+by `score-render.mjs <cues.json> <out.wav> tools/trailer/sfx.ts __renderSfx`). The Python compositor here (`edit.py` and the rest)
+made the earlier cuts.
+
 | File | What it does |
 |---|---|
 | `timeline.py` | The one sheet everything reads: the music's cues, the cuts, the words on screen, where each voice line lands, the transitions. |
