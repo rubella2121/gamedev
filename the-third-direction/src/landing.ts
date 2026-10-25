@@ -2,17 +2,18 @@
  * The landing page, the first thing anyone sees: a night in the forest, painted on the forest's own pixel grid (216 x 384).
  * A sky full of stars, a big pale moon, two tree lines with fog between them, tall trunks framing it all, and the family in a
  * clearing with a small light of their own. The layers sit at different depths and slide against each other when the pointer
- * moves (or the phone tilts, where the browser allows that without asking), and drift slowly on their own, so the flat
- * picture has a third direction.
+ * moves, and drift slowly on their own, so the flat picture has a third direction.
  *
  * Things happen in it. The title builds itself and its depth comes out with a thump; eyes open in the dark between the trees
  * and follow you; the wind goes through the grass; the Mournmoth comes down from the moon to the baby; and now and then the
  * moon opens an eye and some of the stars turn out to be eyes too ("don't look up"). A tap sends out the baby's pulse of light,
  * the same as a tap in the game: the eyes snap shut, the fireflies scatter, and the intro begins.
  *
- * Every layer is a canvas of its own, so the parallax is a CSS transform (smooth at any speed) while the pixels stay whole.
- * The light (the moon's glow and rays, the family's warmth, fireflies, eyes) is one soft canvas laid over the picture with a
- * screen blend.
+ * How it is drawn, for phones: the four pixel layers are small canvases (216 x 384 plus a margin), the light is one more at half
+ * that size, and all of it is put together on ONE canvas, which is the only thing the page has to composite (no CSS blend modes,
+ * filters or stacked full-screen layers: those are what make a phone flicker). Every light is a sprite baked once. The canvas is
+ * at most about 0.9 megapixels, and if the phone cannot keep up the page steps itself down (fewer lights, a smaller canvas,
+ * fewer frames) instead of stuttering.
  */
 import { drawBlob, drawRedEyes, makeBush, makeFlower, makeRock } from './core/art';
 import { C } from './core/palette';
@@ -44,10 +45,11 @@ const BABY = { x: 108, y: 282 };
 /** the top of the clearing at scene x: highest in the middle, falling away to the sides */
 const groundY = (x: number) => Math.round(293 + ((x - 108) / 108) ** 2 * 28 + Math.sin(x * 0.23) * 1.2);
 
-export const LAYERS = ['sky', 'far', 'mid', 'ground', 'near'] as const;
+/** back to front. The sky and the far trees are one layer: they are so far away that they move together. */
+const LAYERS = ['back', 'mid', 'ground', 'near'] as const;
 type LayerName = (typeof LAYERS)[number];
 /** how far each layer slides, as a share of SWING */
-const DEPTH: Record<LayerName, number> = { sky: 0.05, far: 0.16, mid: 0.36, ground: 0.6, near: 1 };
+const DEPTH: Record<LayerName, number> = { back: 0.1, mid: 0.36, ground: 0.6, near: 1 };
 /** scene pixels of slide, at depth 1, for a full swing of the pointer */
 const SWING = 9;
 
@@ -57,10 +59,10 @@ export const INTRO = {
   logo: 0.25,
   /** its depth comes out (EXTRUDE_AT later, at the top of its overshoot): the page shakes and eyes open all around */
   thump: 0.25 + EXTRUDE_AT + 0.16,
-  /** the first time the moon opens its eye, just after "don't look up" has been read */
-  moon: 4.4,
+  /** the first time the moon opens its eye, after "don't look up" has been read and the calm picture has been seen */
+  moon: 6.5,
   /** the Mournmoth's first visit */
-  moth: 10.5,
+  moth: 13,
 };
 
 /** toadstools glowing at the roots of the big trees */
@@ -74,6 +76,8 @@ const SHROOMS = [
 
 const STAR_COLS = ['#d8ecff', '#9ff4ee', '#ffeccc', '#ffffff'];
 const LEAF = '#040b14';
+const FLY_WARM = '#ffe68c';
+const FLY_COOL = '#96f5ff';
 
 interface Star {
   x: number;
@@ -101,6 +105,10 @@ interface Fly {
   oy: number;
   vx: number;
   vy: number;
+  /** where it is now, and how brightly it glows (this frame) */
+  x: number;
+  y: number;
+  glow: number;
 }
 
 interface Eye {
@@ -169,16 +177,47 @@ const MOTH = [
 ];
 const MOTH_COL: Record<string, string> = { W: '#cfeee8', L: '#ffffff', B: '#9ff4ee' };
 
+/** how the page is drawn at each quality: canvas pixels per scene pixel (a whole number where it can be: the pixel art stays
+ * crisp and cannot shimmer), the least time between pictures, and which lights are drawn */
+const QUALITY = [
+  { k: 1.5, gap: 0.05, mist: false, rays: false, flies: 12, twinkle: 0, blades: 2 },
+  { k: 2, gap: 0.04, mist: false, rays: true, flies: 24, twinkle: 30, blades: 1 },
+  { k: 3, gap: 1 / 30, mist: true, rays: true, flies: 34, twinkle: 56, blades: 1 },
+];
+
+interface Sprites {
+  warm: HTMLCanvasElement;
+  cool: HTMLCanvasElement;
+  red: HTMLCanvasElement;
+  moth: HTMLCanvasElement;
+  blue: HTMLCanvasElement;
+  haloCool: HTMLCanvasElement;
+  haloRed: HTMLCanvasElement;
+  fan: HTMLCanvasElement;
+  home: HTMLCanvasElement;
+  mist: HTMLCanvasElement;
+  bloom: HTMLCanvasElement;
+  title: HTMLCanvasElement;
+  vignette: HTMLCanvasElement;
+}
+
 export class Landing {
-  /** the pixel layers, back to front */
-  readonly layers: Record<LayerName, Pix>;
-  /** the soft light, laid over everything but the nearest layer */
-  readonly glow: HTMLCanvasElement;
+  /** the whole picture: the one canvas the page shows (device pixels, shown at the size of the stage) */
+  readonly canvas = document.createElement('canvas');
   /** 0..1: how hard the moon is staring right now (the title's heart beats faster, the page darkens and reddens) */
   dread = 0;
-  /** -1..1: where the picture is seen from (pointer, tilt, or the slow drift) */
+  /** the title's heartbeat, 0..1 (set by whoever draws the title): the glow behind the title follows it */
+  beat = 0;
+  /** -1..1: where the picture is seen from (pointer, or the slow drift) */
   readonly view = { x: 0, y: 0 };
+  /** how far the title should be moved to sit in the parallax, in CSS pixels (set by `draw`) */
+  readonly titleAt = { x: 0, y: 0 };
 
+  private sg: CanvasRenderingContext2D;
+  /** the pixel layers */
+  private layers: Record<LayerName, Pix>;
+  /** the light, at half size */
+  private glow = document.createElement('canvas');
   private gl: CanvasRenderingContext2D;
   private skyBase: HTMLCanvasElement;
   private moonImg: HTMLCanvasElement;
@@ -190,7 +229,7 @@ export class Landing {
   private clouds: { img: HTMLCanvasElement; x0: number; y: number; sp: number }[] = [];
   private flowerOpen = makeFlower(true);
   private flowerShut = makeFlower(false);
-  private glows: Record<'warm' | 'cool' | 'red' | 'moth' | 'blue', HTMLCanvasElement>;
+  private sp: Sprites;
 
   private stars: Star[] = [];
   private starEyes: { x: number; y: number }[] = [];
@@ -206,11 +245,29 @@ export class Landing {
 
   private aim = { x: 0, y: 0 };
   private aimAt = -99;
-  private tilt0: { g: number; b: number } | null = null;
   private cursor: { x: number; y: number; at: number } | null = null;
   private now = 0;
   private last = 0;
   private seed = 7;
+
+  /* the size of the picture */
+  private cw = 0;
+  private ch = 0;
+  /** device pixels per scene pixel */
+  private sc = 1;
+  /** CSS pixels per scene pixel */
+  private cssPerScene = 1;
+  private cssW = 0;
+  private dpr = 1;
+
+  /* quality: how fast the phone really is, and what the page does about it */
+  private q = 2;
+  /** the time each of the last pictures took to make, and how long it was since the one before (a few seconds' worth) */
+  private costs: number[] = [];
+  private gaps: number[] = [];
+  private judgeAt = 4.5;
+  /** (tests) what the quality check saw, and when it stepped down */
+  readonly trace: string[] = [];
 
   /* the director: when each thing last happened, and when it happens next */
   private moonAt = -99;
@@ -230,51 +287,46 @@ export class Landing {
   private sparkT = 0;
 
   constructor(private reduced = false) {
-    this.layers = Object.fromEntries(
-      LAYERS.map((n) => {
-        const p = new Pix(LW, LH);
-        p.canvas.className = `ll ll-${n}`;
-        return [n, p];
-      }),
-    ) as Record<LayerName, Pix>;
-    this.glow = document.createElement('canvas');
-    this.glow.className = 'll ll-glow';
+    this.layers = Object.fromEntries(LAYERS.map((n) => [n, new Pix(LW, LH)])) as Record<LayerName, Pix>;
+    this.canvas.className = 'lscene';
+    this.sg = this.canvas.getContext('2d', { alpha: false })!;
     this.glow.width = GW;
     this.glow.height = GH;
     this.gl = this.glow.getContext('2d')!;
-    this.glows = {
+    this.sp = {
       warm: glowSprite('255,214,120'),
       cool: glowSprite('150,245,255'),
       red: glowSprite('255,40,56'),
       moth: glowSprite('205,255,250'),
       blue: glowSprite('110,210,255'),
+      haloCool: radialSprite(96, '150,240,235', [[0, 0.36], [0.236, 0.36], [0.465, 0.13], [1, 0]]),
+      haloRed: radialSprite(96, '235,50,64', [[0, 0.36], [0.236, 0.36], [0.465, 0.13], [1, 0]]),
+      fan: fanSprite(),
+      home: radialSprite(64, '255,214,120', [[0, 0.44], [0.4, 0.16], [1, 0]], '255,170,80'),
+      mist: mistSprite(),
+      bloom: radialSprite(64, '255,236,170', [[0, 0.55], [1, 0]]),
+      title: radialSprite(64, '224,43,58', [[0, 0.55], [0.45, 0.24], [1, 0]]),
+      vignette: vignetteSprite(),
     };
 
-    this.skyBase = this.makeSky();
-    this.moonImg = this.makeMoon();
-    this.farBase = this.makeFar();
-    this.midBase = this.makeMid();
-    this.groundBase = this.makeGround();
-    this.nearBase = this.makeNear();
-    this.fog = [this.makeFog(3, 30), this.makeFog(8, 22), this.makeFog(13, 14)];
-    this.clouds = [
-      { img: this.makeCloud(5, 104, 18), x0: 20, y: MOON.y - 14, sp: 2.4 },
-      { img: this.makeCloud(9, 78, 14), x0: 200, y: MOON.y + 10, sp: 3.8 },
-      { img: this.makeCloud(17, 124, 16), x0: 120, y: 112, sp: 1.6 },
-    ];
-
-    // the stars: thicker toward the top, more again along the band of dusk across the sky; none behind the moon
+    // the stars: thicker toward the top, more again along the band of dusk across the sky; none behind the moon. Most are baked
+    // into the sky; the ones that twinkle are drawn every frame.
     const r = rng(7);
+    const all: Star[] = [];
     const star = (x: number, y: number, dim: number) => {
       if (Math.hypot(x - MOON.x, y - MOON.y) < MOON.r + 3) return;
       const k = r();
-      this.stars.push({ x, y, b: (0.35 + r() * 0.65) * dim, sp: 0.5 + r() * 2.3, ph: r() * TAU, kind: k < 0.06 ? 2 : k < 0.3 ? 1 : 0, col: STAR_COLS[(r() * STAR_COLS.length) | 0]! });
+      all.push({ x, y, b: (0.35 + r() * 0.65) * dim, sp: 0.5 + r() * 2.3, ph: r() * TAU, kind: k < 0.06 ? 2 : k < 0.3 ? 1 : 0, col: STAR_COLS[(r() * STAR_COLS.length) | 0]! });
     };
     for (let i = 0; i < 160; i++) star(-M + r() * LW, -M + Math.pow(r(), 1.5) * 248, 1);
     for (let i = 0; i < 80; i++) {
       const x = -M + r() * LW;
       star(x, 110 - 0.4167 * x + (r() - 0.5) * 34, 0.6);
     }
+    // (the brightest and the ones with a cross twinkle: they are the ones the eye goes to)
+    const ranked = [...all].sort((a, b) => b.b + b.kind * 0.4 - (a.b + a.kind * 0.4));
+    this.stars = ranked.slice(0, QUALITY[2]!.twinkle);
+    const still = ranked.slice(QUALITY[2]!.twinkle);
     // the stars that are not stars
     this.starEyes = [
       { x: 22, y: 10 },
@@ -287,12 +339,25 @@ export class Landing {
       { x: 144, y: 212 },
     ];
 
+    this.skyBase = this.makeSky(still);
+    this.moonImg = this.makeMoon();
+    this.farBase = this.makeFar();
+    this.midBase = this.makeMid();
+    this.groundBase = this.makeGround();
+    this.nearBase = this.makeNear();
+    this.fog = [this.makeFog(3, 30), this.makeFog(8, 22), this.makeFog(13, 14)];
+    this.clouds = [
+      { img: this.makeCloud(5, 104, 18), x0: 20, y: MOON.y - 14, sp: 2.4 },
+      { img: this.makeCloud(9, 78, 14), x0: 200, y: MOON.y + 10, sp: 3.8 },
+      { img: this.makeCloud(17, 124, 16), x0: 120, y: 112, sp: 1.6 },
+    ];
+
     // fireflies: most around the clearing, some up in the air, a few close to the glass
     for (let i = 0; i < 34; i++) {
       const band = r();
       const hy = band < 0.5 ? 228 + r() * 70 : band < 0.8 ? 150 + r() * 80 : 300 + r() * 60;
       const d = band < 0.8 ? 0.35 + r() * 0.35 : 0.8 + r() * 0.25;
-      this.flies.push({ hx: 6 + r() * 204, hy, ax: 5 + r() * 14, ay: 3 + r() * 9, sp: 0.25 + r() * 0.5, ph: r() * TAU, warm: r() < 0.62, d, ox: 0, oy: 0, vx: 0, vy: 0 });
+      this.flies.push({ hx: 6 + r() * 204, hy, ax: 5 + r() * 14, ay: 3 + r() * 9, sp: 0.25 + r() * 0.5, ph: r() * TAU, warm: r() < 0.62, d, ox: 0, oy: 0, vx: 0, vy: 0, x: 0, y: 0, glow: 0 });
     }
 
     this.kin = [
@@ -302,12 +367,12 @@ export class Landing {
     ];
 
     // grass on the lip of the clearing: a row behind the family and short tufts in front of their feet
-    for (let x = -M; x < W + M; x += 2 + r() * 3) {
+    for (let x = -M; x < W + M; x += 2.4 + r() * 3.2) {
       const nearKin = Math.abs(x - BABY.x) < 46;
       const warm = Math.abs(x - BABY.x) < 34;
-      const n = 2 + ((r() * 3) | 0);
+      const n = r() < 0.45 ? 2 : 1;
       for (let k = 0; k < n; k++) {
-        this.back.push({ x: x + (r() - 0.5) * 3, y: groundY(x) + 1, h: (nearKin ? 3 : 5) + r() * (nearKin ? 4 : 9), lean: (r() - 0.5) * 3, ph: r() * TAU, w: 1, col: '#0a2a31', tip: warm ? '#9a8a4a' : '#2a7a6c' });
+        this.back.push({ x: x + (r() - 0.5) * 3, y: groundY(x) + 1, h: (nearKin ? 3 : 5) + r() * (nearKin ? 5 : 10), lean: (r() - 0.5) * 3, ph: r() * TAU, w: 1, col: '#0a2a31', tip: warm ? '#9a8a4a' : '#2a7a6c' });
       }
     }
     for (let x = BABY.x - 50; x < BABY.x + 50; x += 3 + r() * 4) {
@@ -315,8 +380,8 @@ export class Landing {
     }
     // tall dark ferns in the bottom corners, right against the glass
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 9; i++) {
-        const x = side < 0 ? -M + i * 7 + r() * 5 : W + M - i * 7 - r() * 5;
+      for (let i = 0; i < 8; i++) {
+        const x = side < 0 ? -M + i * 8 + r() * 5 : W + M - i * 8 - r() * 5;
         this.fern.push({ x, y: H + M + 2, h: 26 + r() * 44 - i * 2.5, lean: side * -(4 + r() * 10), ph: r() * TAU, w: 3 + r() * 2.5, col: '#02050a', tip: '#0d2a33' });
       }
     }
@@ -326,6 +391,85 @@ export class Landing {
   private rand() {
     this.seed = (this.seed * 16807) % 2147483647;
     return this.seed / 2147483647;
+  }
+
+  /* ------------------------------------------------------------------------------------------------ size and speed */
+
+  /** Fit the picture to the stage (CSS pixels, and the screen's device pixel ratio). */
+  resize(cssW: number, dpr: number) {
+    this.cssW = cssW;
+    this.dpr = dpr;
+    this.fit();
+  }
+
+  private fit() {
+    // as many canvas pixels per scene pixel as the screen can show (a 3x phone does not need more than three for this), up to what
+    // this quality allows
+    const fits = this.cssW * Math.min(this.dpr, 2) / W;
+    const k = fits >= 3 ? 3 : fits >= 2 ? 2 : Math.max(1.5, fits);
+    const sc = Math.min(QUALITY[this.q]!.k, k);
+    this.cssPerScene = this.cssW / W;
+    const cw = Math.round(W * sc);
+    const ch = Math.round(H * sc);
+    // (setting a canvas' size clears it, even to the same size: a phone's address bar sliding in and out resizes the page again and
+    // again, so only a real change counts, and the picture is put back at once, in the same moment, so no empty frame is ever shown)
+    if (cw === this.cw && ch === this.ch) return;
+    this.sc = sc;
+    this.cw = cw;
+    this.ch = ch;
+    this.canvas.width = cw;
+    this.canvas.height = ch;
+    this.compose(this.now);
+  }
+
+  /** The least time between two pictures (seconds): thirty a second, fewer on a phone that is busy, sixty while the pulse goes out. */
+  get frameGap(): number {
+    if (this.burstAt >= 0) return 1 / 60;
+    return this.reduced ? 0.08 : QUALITY[this.q]!.gap;
+  }
+
+  /** the page stepped itself down (for tests, and so the page can say so) */
+  get quality(): number {
+    return this.q;
+  }
+
+  /** (tests) draw at a given quality, and stay there */
+  forceQuality(q: number) {
+    this.q = clamp(Math.round(q), 0, 2);
+    this.judgeAt = 1e9;
+    this.fit();
+  }
+
+  /**
+   * Watch how long a picture takes and how often one is made: if the phone cannot keep up, give up something it will not miss.
+   * It goes by the middle value of the last second or two, so one long pause (the game starting up, a garbage collection) does
+   * not count, only a phone that is slow all the time. It only steps down, never back up: a page that changes its mind about its
+   * look every few seconds is worse than a plainer one.
+   */
+  private judge(t: number, ms: number, gap: number) {
+    this.costs.push(ms);
+    this.gaps.push(gap);
+    if (this.costs.length > 40) {
+      this.costs.shift();
+      this.gaps.shift();
+    }
+    if (this.q === 0 || this.burstAt >= 0 || this.costs.length < 20) return;
+    const mid = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1]!;
+    // (a picture that takes more than a frame and a half is too much for any phone: no need to wait for the start-up to settle)
+    if (t > 1.5 && t < this.judgeAt && mid(this.costs) > 24) this.judgeAt = t;
+    if (t < this.judgeAt) return;
+    const cost = mid(this.costs);
+    const gapNow = mid(this.gaps);
+    // (a picture that takes a good part of a frame, or pictures that come at well under the rate they are asked for)
+    const slow = cost > 9 || gapNow > QUALITY[this.q]!.gap * 1.45;
+    if (this.trace.length < 24) this.trace.push(`${t.toFixed(1)}s q${this.q} cost ${cost.toFixed(1)}ms gap ${(gapNow * 1000).toFixed(0)}ms${slow ? ' -> step down' : ''}`);
+    this.judgeAt = t + 1;
+    if (!slow) return;
+    // far too slow (a phone drawing the canvas on its processor): skip a step
+    this.q = cost > 24 ? 0 : this.q - 1;
+    this.costs = [];
+    this.gaps = [];
+    this.fit();
   }
 
   /* ------------------------------------------------------------------------------------------------ input */
@@ -343,31 +487,13 @@ export class Landing {
     this.aimAt = -99;
   }
 
-  private onTilt = (e: DeviceOrientationEvent) => {
-    if (e.gamma === null || e.beta === null) return;
-    if (!this.tilt0) this.tilt0 = { g: e.gamma, b: e.beta };
-    this.aim.x = clamp((e.gamma - this.tilt0.g) / 22, -1, 1);
-    this.aim.y = clamp((e.beta - this.tilt0.b) / 22, -1, 1);
-    this.aimAt = this.now;
-  };
-
-  /** start listening to the phone's tilt (only where the browser gives it without asking: asking needs a tap, and a tap leaves) */
-  listen() {
-    if (!this.reduced) window.addEventListener('deviceorientation', this.onTilt);
-  }
-
-  dispose() {
-    window.removeEventListener('deviceorientation', this.onTilt);
-  }
-
   /** The tap: the baby's pulse of light goes out over everything. */
   burst(t: number) {
     if (this.burstAt >= 0) return;
     this.burstAt = t;
     for (const f of this.flies) {
-      const { x, y } = this.flyPos(f, t);
-      const dx = x - BABY.x;
-      const dy = y - BABY.y;
+      const dx = f.x - BABY.x;
+      const dy = f.y - BABY.y;
       const d = Math.hypot(dx, dy) || 1;
       const sp = 140 + 160 * this.rand();
       f.vx += (dx / d) * sp;
@@ -375,7 +501,7 @@ export class Landing {
     }
   }
 
-  /** the pulse is going out (draw every frame, not every other one) */
+  /** the pulse is going out */
   get busy() {
     return this.burstAt >= 0;
   }
@@ -389,35 +515,9 @@ export class Landing {
   /** the thump's shake, in scene pixels */
   private shake(t: number) {
     const u = t - INTRO.thump;
-    if (this.reduced || u < 0 || u > 0.45) return { x: 0, y: 0 };
-    const a = 1.6 * (1 - u / 0.45) ** 2;
+    if (this.reduced || u < 0 || u > 0.4) return { x: 0, y: 0 };
+    const a = 1.1 * (1 - u / 0.4) ** 2;
     return { x: Math.sin(u * 91) * a, y: Math.cos(u * 77) * a };
-  }
-
-  /**
-   * Every animation frame: ease the point of view toward where it is aimed, and slide the layers. `scale` is CSS pixels per
-   * scene pixel. Returns how far something at depth `titleDepth` slides (CSS pixels), for the title.
-   */
-  place(t: number, scale: number, titleDepth = 0.7) {
-    const dt = clamp(t - this.now, 0, 0.1);
-    this.now = t;
-    if (this.reduced) {
-      this.aim.x = this.aim.y = 0;
-    } else if (t - this.aimAt > 2.5) {
-      // nobody is steering: drift, slowly, like breathing
-      this.aim.x = 0.5 * Math.sin(t * 0.21) + 0.12 * Math.sin(t * 0.53);
-      this.aim.y = 0.32 * Math.sin(t * 0.16 + 1.1);
-    }
-    const k = 1 - Math.exp(-dt * 2.8);
-    this.view.x += (this.aim.x - this.view.x) * k;
-    this.view.y += (this.aim.y - this.view.y) * k;
-    const sh = this.shake(t);
-    for (const n of LAYERS) {
-      const s = this.slide(DEPTH[n]);
-      this.layers[n].canvas.style.transform = `translate3d(${((s.x + sh.x) * scale).toFixed(2)}px,${((s.y + sh.y) * scale).toFixed(2)}px,0)`;
-    }
-    const s = this.slide(titleDepth);
-    return { x: (s.x + sh.x * 0.6) * scale, y: (s.y + sh.y * 0.6) * scale };
   }
 
   /* ------------------------------------------------------------------------------------------------ the director */
@@ -425,13 +525,13 @@ export class Landing {
   private direct(t: number, dt: number) {
     if (!this.thumped && t >= INTRO.thump) {
       this.thumped = true;
-      if (!this.reduced) this.chorus(9, 1.5);
+      if (!this.reduced) this.chorus(7, 1.5);
     }
     if (this.burstAt >= 0) return;
-    const busy = t - this.moonAt < 4.8 || t - this.mothAt < 8.2;
+    const busy = t - this.moonAt < 5.4 || t - this.mothAt < 8.2;
     if (t >= this.nextMoon && !busy) {
       this.moonAt = t;
-      this.nextMoon = t + (this.reduced ? 26 : 17) + this.rand() * 6;
+      this.nextMoon = t + (this.reduced ? 30 : 22) + this.rand() * 8;
     }
     if (t >= this.nextMoth && !busy) {
       this.mothAt = t;
@@ -444,7 +544,7 @@ export class Landing {
       const sp = 150 + this.rand() * 60;
       const a = high ? 0.12 : 0.38 + this.rand() * 0.2;
       this.shoot = { at: t, x: left ? 70 - this.rand() * 40 : 146 + this.rand() * 40, y: high ? 6 + this.rand() * 10 : 128 + this.rand() * 18, vx: (left ? -1 : 1) * Math.cos(a) * sp, vy: Math.sin(a) * sp };
-      this.nextShoot = t + 6 + this.rand() * 7;
+      this.nextShoot = t + 7 + this.rand() * 8;
     }
     if (t >= this.nextGust) {
       this.gustAt = t;
@@ -461,7 +561,7 @@ export class Landing {
       this.nextBloom = t + 2.5 + this.rand() * 3;
     }
     if ((this.nextEyes -= dt) <= 0) {
-      this.nextEyes = 2 + this.rand() * 3;
+      this.nextEyes = 2.4 + this.rand() * 3;
       if (this.eyes.filter((e) => e.big).length < 3) this.spawnEye(this.rand() < 0.7, 3 + this.rand() * 2.6);
     }
   }
@@ -484,10 +584,10 @@ export class Landing {
   /** the moon's stare: 0..1 open, and how the eye looks (scene pixels) */
   private moonEye(t: number) {
     const u = t - this.moonAt;
-    if (u < 0 || u > 4.8) return { open: 0, lx: 0, ly: 0 };
-    let open = smooth((u - 0.9) / 0.45) * (1 - smooth((u - 3.55) / 0.35));
+    if (u < 0 || u > 5.4) return { open: 0, lx: 0, ly: 0 };
+    let open = smooth((u - 1.1) / 0.6) * (1 - smooth((u - 4)) );
     // it narrows once, as if it is making sure
-    open *= 1 - 0.45 * Math.exp(-(((u - 2.55) / 0.09) ** 2));
+    open *= 1 - 0.4 * Math.exp(-(((u - 2.7) / 0.14) ** 2));
     if (this.burstAt >= 0) open *= 1 - clamp((t - this.burstAt) / 0.12, 0, 1);
     let lx = 2.6 * Math.sin((u - 1.2) * 1.5);
     let ly = 3.2;
@@ -498,18 +598,22 @@ export class Landing {
     return { open, lx, ly };
   }
 
+  /** how afraid the page is: it rises over a second as the moon opens its eye, and eases away over a second and a half */
   private dreadAt(t: number) {
     const u = t - this.moonAt;
-    if (u < 0 || u > 4.8) return 0;
-    const d = smooth((u - 0.2) / 0.7) * (1 - smooth((u - 3.7) / 0.8));
+    if (u < 0 || u > 5.4) return 0;
+    const d = smooth((u - 0.3) / 1.1) * (1 - smooth((u - 3.9) / 1.4));
     return this.burstAt >= 0 ? d * (1 - clamp((t - this.burstAt) / 0.2, 0, 1)) : d;
   }
 
   /** the wind: a breath of it always, gusts now and then (none while the moon stares) */
   private wind(t: number) {
+    return (0.25 + 0.75 * this.windGust(t)) * (1 - 0.8 * this.dread) * (this.reduced ? 0.4 : 1);
+  }
+
+  private windGust(t: number) {
     const u = t - this.gustAt;
-    const gust = u < 0 ? 0 : smooth(u / 0.8) * (1 - smooth((u - 1.6) / 1.6));
-    return (0.25 + 0.75 * gust) * (1 - 0.8 * this.dread) * (this.reduced ? 0.4 : 1);
+    return u < 0 ? 0 : smooth(u / 0.8) * (1 - smooth((u - 1.6) / 1.6));
   }
 
   /** where the Mournmoth is (scene pixels) and which wing beat, or null when it is not here */
@@ -544,21 +648,78 @@ export class Landing {
 
   /* ------------------------------------------------------------------------------------------------ drawing */
 
-  /** Draw a frame. `t` is seconds since the page was shown. */
+  /**
+   * Make the picture for time `t` (seconds since the page was shown) and put it on the canvas. Sets `titleAt`.
+   * Call it no more often than `frameGap`.
+   */
   draw(t: number) {
-    const dt = this.last ? clamp(t - this.last, 0, 0.1) : 0;
+    const t0 = performance.now();
+    const rawDt = this.last ? t - this.last : 1 / 30;
+    const dt = clamp(rawDt, 0, 0.1);
     this.last = t;
+    this.now = t;
+    // the point of view: where the pointer is, or, when nobody is steering, a slow drift like breathing
+    if (this.reduced) {
+      this.aim.x = this.aim.y = 0;
+    } else if (t - this.aimAt > 2.5) {
+      this.aim.x = 0.5 * Math.sin(t * 0.21) + 0.12 * Math.sin(t * 0.53);
+      this.aim.y = 0.32 * Math.sin(t * 0.16 + 1.1);
+    }
+    const k = 1 - Math.exp(-dt * 2.8);
+    this.view.x += (this.aim.x - this.view.x) * k;
+    this.view.y += (this.aim.y - this.view.y) * k;
+
     this.direct(t, dt);
     this.dread = this.dreadAt(t);
     const eye = this.moonEye(t);
     const moth = this.moth(t);
     this.updateEyes(t, dt, moth);
-    this.drawSky(t, eye);
-    this.drawFar(t);
+    this.drawBack(t, eye);
     this.drawMid(t);
-    this.drawGround(t, dt, eye, moth);
+    this.drawGround(t, dt, moth);
     this.drawNear(t, dt);
     this.drawGlow(t, eye, moth);
+    this.compose(t);
+    this.judge(t, performance.now() - t0, rawDt);
+  }
+
+  /** the four pixel layers and the light, put together (the only thing the page has to show) */
+  private compose(t: number) {
+    const g = this.sg;
+    const sc = this.sc;
+    const sh = this.shake(t);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = 'source-over';
+    for (const n of LAYERS) {
+      if (n === 'near') {
+        // the light goes over everything but the boughs and ferns right in front of the glass
+        g.imageSmoothingEnabled = true;
+        g.globalCompositeOperation = 'lighter';
+        g.drawImage(this.glow, Math.round(-M * sc), Math.round(-M * sc), LW * sc, LH * sc);
+        g.globalCompositeOperation = 'source-over';
+      }
+      g.imageSmoothingEnabled = false;
+      const s = this.slide(DEPTH[n]);
+      g.drawImage(this.layers[n].canvas, Math.round((s.x + sh.x - M) * sc), Math.round((s.y + sh.y - M) * sc), LW * sc, LH * sc);
+    }
+    // while the moon stares the whole picture goes dark and red
+    if (this.dread > 0.01) {
+      g.fillStyle = `rgba(70,4,14,${(0.36 * this.dread).toFixed(3)})`;
+      g.fillRect(0, 0, this.cw, this.ch);
+    }
+    g.imageSmoothingEnabled = true;
+    g.drawImage(this.sp.vignette, 0, 0, this.cw, this.ch);
+    // it comes up out of black
+    const up = 1 - smooth(t / 1.2);
+    if (up > 0.004) {
+      g.globalAlpha = up;
+      g.fillStyle = '#000';
+      g.fillRect(0, 0, this.cw, this.ch);
+      g.globalAlpha = 1;
+    }
+    const st = this.slide(0.7);
+    this.titleAt.x = (st.x + sh.x * 0.6) * this.cssPerScene;
+    this.titleAt.y = (st.y + sh.y * 0.6) * this.cssPerScene;
   }
 
   private updateEyes(t: number, dt: number, moth: { x: number; y: number } | null) {
@@ -589,12 +750,16 @@ export class Landing {
     return 6 + 340 * easeOutCubic((t - this.burstAt) / 0.75);
   }
 
-  private drawSky(t: number, eye: { open: number; lx: number; ly: number }) {
-    const p = this.layers.sky;
+  /** the sky, the moon and its eye, the clouds, and the far trees with their fog and the eyes among them */
+  private drawBack(t: number, eye: { open: number; lx: number; ly: number }) {
+    const p = this.layers.back;
     const g = p.ctx;
+    const Q = QUALITY[this.q]!;
     g.globalAlpha = 1;
     g.drawImage(this.skyBase, 0, 0);
-    for (const s of this.stars) {
+    // the stars that twinkle (the rest are in the picture)
+    for (let i = 0; i < Q.twinkle; i++) {
+      const s = this.stars[i]!;
       const tw = 0.55 + 0.45 * Math.sin(t * s.sp + s.ph);
       const a = s.b * tw;
       if (a < 0.08) continue;
@@ -615,7 +780,7 @@ export class Landing {
     // the stars that are eyes: two points that, while the moon stares, turn red and open
     const u = t - this.moonAt;
     this.starEyes.forEach((se, i) => {
-      const o = u < 0 || u > 4.8 ? 0 : smooth((u - 1.05 - i * 0.12) / 0.2) * (1 - smooth((u - 3.4 - i * 0.05) / 0.25)) * (this.burstAt >= 0 ? 0 : 1);
+      const o = u < 0 || u > 5.4 ? 0 : smooth((u - 1.3 - i * 0.14) / 0.3) * (1 - smooth((u - 3.9 - i * 0.06) / 0.4)) * (this.burstAt >= 0 ? 0 : 1);
       const x = Math.round(se.x + M);
       const y = Math.round(se.y + M);
       if (o < 0.3) {
@@ -661,6 +826,10 @@ export class Landing {
       g.drawImage(c.img, Math.round(x), Math.round(c.y + M));
     }
     g.globalAlpha = 1;
+    // the far trees stand in front of the sky
+    g.drawImage(this.farBase, 0, 0);
+    this.drawEyes(p, 'far');
+    this.drawFog(p, this.fog[0]!, 212 + M, t * 3.2 * (1 + 2 * this.windGust(t)), 0.22);
   }
 
   /**
@@ -729,15 +898,6 @@ export class Landing {
     if (hh > 3) p.px(icx - ir * 0.38, icy - ir * 0.42, '#ffffff');
   }
 
-  private drawFar(t: number) {
-    const p = this.layers.far;
-    const g = p.ctx;
-    g.clearRect(0, 0, LW, LH);
-    g.drawImage(this.farBase, 0, 0);
-    this.drawEyes(p, 'far');
-    this.drawFog(p, this.fog[0]!, 212 + M, t * 3.2 * (1 + 2 * this.windGust(t)), 0.22);
-  }
-
   private drawMid(t: number) {
     const p = this.layers.mid;
     const g = p.ctx;
@@ -745,11 +905,6 @@ export class Landing {
     g.drawImage(this.midBase, 0, 0);
     this.drawEyes(p, 'mid');
     this.drawFog(p, this.fog[1]!, 262 + M, -t * 5 * (1 + 2 * this.windGust(t)), 0.17);
-  }
-
-  private windGust(t: number) {
-    const u = t - this.gustAt;
-    return u < 0 ? 0 : smooth(u / 0.8) * (1 - smooth((u - 1.6) / 1.6));
   }
 
   private drawFog(p: Pix, img: HTMLCanvasElement, y: number, offset: number, alpha: number) {
@@ -786,15 +941,14 @@ export class Landing {
   private flyPos(f: Fly, t: number) {
     const slow = 1 - 0.6 * this.dread;
     const tt = t * slow;
-    return {
-      x: f.hx + Math.sin(tt * f.sp + f.ph) * f.ax + Math.sin(tt * f.sp * 2.3 + f.ph * 1.7) * f.ax * 0.35 + f.ox,
-      y: f.hy + Math.cos(tt * f.sp * 0.8 + f.ph * 1.3) * f.ay + f.oy,
-    };
+    f.x = f.hx + Math.sin(tt * f.sp + f.ph) * f.ax + Math.sin(tt * f.sp * 2.3 + f.ph * 1.7) * f.ax * 0.35 + f.ox;
+    f.y = f.hy + Math.cos(tt * f.sp * 0.8 + f.ph * 1.3) * f.ay + f.oy;
   }
 
-  private drawGround(t: number, dt: number, eye: { open: number }, moth: MothAt) {
+  private drawGround(t: number, dt: number, moth: MothAt) {
     const p = this.layers.ground;
     const g = p.ctx;
+    const Q = QUALITY[this.q]!;
     g.clearRect(0, 0, LW, LH);
     g.drawImage(this.groundBase, 0, 0);
     const wind = this.wind(t);
@@ -809,11 +963,11 @@ export class Landing {
       f.open += (want - f.open) * (1 - Math.exp(-dt * 5));
       g.drawImage(f.open > 0.5 ? this.flowerOpen : this.flowerShut, Math.round(f.x + M - 6), Math.round(y + M - 15));
     }
-    this.drawBlades(p, this.back, t, wind, 1);
+    this.drawBlades(p, this.back, t, wind, 1, Q.blades);
 
     // the family: they breathe and blink, glance at each other, look where something moves, and look up when the moon does
     const u = t - this.moonAt;
-    const staring = u > 0.45 && u < 4.2 && this.burstAt < 0;
+    const staring = u > 0.6 && u < 4.6 && this.burstAt < 0;
     const hu = (t - this.hopAt) / 0.52;
     const bu = this.burstAt >= 0 ? t - this.burstAt : -1;
     const cur = this.cursor && t - this.cursor.at < 2.5 ? this.cursor : null;
@@ -823,7 +977,7 @@ export class Landing {
       if (bu >= 0) {
         tx = i === 1 ? 0 : i === 0 ? 0.8 : -0.8;
         ty = i === 1 ? -0.4 : 0.3;
-      } else if (staring && u > 0.45 + (i === 1 ? 0.25 : 0)) {
+      } else if (staring && u > 0.6 + (i === 1 ? 0.25 : 0)) {
         tx = clamp((MOON.x - k.x) / 40, -1, 1);
         ty = -1;
       } else if (moth && moth.u > 0.6) {
@@ -866,9 +1020,9 @@ export class Landing {
       let dx = 0;
       let dy = 0;
       if (staring) {
-        // they tremble, and the parents lean in over the baby
-        squash += 0.04 * Math.sin(t * 37 + i * 2);
-        dx = (Math.sin(t * 41 + i * 3) > 0.3 ? 1 : 0) * (i === 1 ? 0 : 1) + (i === 0 ? 2 : i === 2 ? -2 : 0) * smooth((u - 0.6) / 0.5);
+        // they tremble a little, and the parents lean in over the baby
+        squash += 0.03 * Math.sin(t * 29 + i * 2);
+        dx = (i === 0 ? 2 : i === 2 ? -2 : 0) * smooth((u - 0.8) / 0.7);
       }
       if (i === 1 && hu >= 0 && hu < 1 && bu < 0) {
         // the baby hops: down, up, and a squash on landing
@@ -884,20 +1038,20 @@ export class Landing {
       }
       drawBlob(p, k.x + M + dx, groundY(k.x) + M + 1 + dy, { s: k.s, squash, lookX: k.lx, lookY: k.ly, blink: k.blinkT > 0 ? 1 : 0, bow: k.bow });
     });
-    this.drawBlades(p, this.front, t, wind, 0.7);
+    this.drawBlades(p, this.front, t, wind, 0.7, Q.blades);
 
     // the fireflies (each at its own depth: the layer slides as the ground does, they slide as their depth does)
     const sg = this.slide(DEPTH.ground);
     const dim = (1 - 0.7 * this.dread) * smooth((t - 0.3) / 1.2);
-    for (const f of this.flies) {
+    for (let i = 0; i < this.flies.length; i++) {
+      const f = this.flies[i]!;
       // pushed off course: the wind leans on them, a mouse's light draws them in, and they drift back
       f.vx += wind * 10 * dt;
       if (cur) {
-        const { x, y } = this.flyPos(f, t);
-        const dd = Math.hypot(cur.x - x, cur.y - y);
+        const dd = Math.hypot(cur.x - f.x, cur.y - f.y);
         if (dd < 60 && dd > 6) {
-          f.vx += ((cur.x - x) / dd) * 26 * dt;
-          f.vy += ((cur.y - y) / dd) * 26 * dt;
+          f.vx += ((cur.x - f.x) / dd) * 26 * dt;
+          f.vy += ((cur.y - f.y) / dd) * 26 * dt;
         }
       }
       f.vx -= f.ox * 0.8 * dt;
@@ -907,19 +1061,20 @@ export class Landing {
       f.vy *= damp;
       f.ox += f.vx * dt;
       f.oy += f.vy * dt;
-      const { x, y } = this.flyPos(f, t);
+      this.flyPos(f, t);
+      f.glow = i < Q.flies ? (0.5 + 0.5 * Math.sin(t * 1.5 + f.ph * 3)) * dim * (bu >= 0 ? 1.4 : 1) : 0;
+      if (f.glow < 0.1) continue;
       const sf = this.slide(f.d);
-      const px = Math.round(x + M + sf.x - sg.x);
-      const py = Math.round(y + M + sf.y - sg.y);
-      const glow = (0.5 + 0.5 * Math.sin(t * 1.5 + f.ph * 3)) * dim * (bu >= 0 ? 1.4 : 1);
-      if (glow < 0.1) continue;
-      const rgb = f.warm ? '255,230,140' : '150,245,255';
-      g.fillStyle = `rgba(${rgb},${Math.min(1, 0.2 * glow)})`;
+      const px = Math.round(f.x + M + sf.x - sg.x);
+      const py = Math.round(f.y + M + sf.y - sg.y);
+      g.fillStyle = f.warm ? FLY_WARM : FLY_COOL;
+      g.globalAlpha = Math.min(1, 0.2 * f.glow);
       g.fillRect(px - 1, py, 3, 1);
       g.fillRect(px, py - 1, 1, 3);
-      g.fillStyle = `rgba(${rgb},${Math.min(1, 0.35 + 0.65 * glow)})`;
+      g.globalAlpha = Math.min(1, 0.35 + 0.65 * f.glow);
       g.fillRect(px, py, 1, 1);
     }
+    g.globalAlpha = 1;
 
     // the Mournmoth and its trail of moon dust
     this.sparkT -= dt;
@@ -971,26 +1126,68 @@ export class Landing {
         g.fillRect(Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr), 1, 1);
       }
       g.globalAlpha = fade;
-      p.ring(cx, cy, ring, ring, Math.max(2, 8 * (1 - bu2 / 0.75)), '#fff1a6');
-      p.ring(cx, cy, ring + 3, ring + 3, 1, C.white);
+      this.ringPx(g, cx, cy, ring, Math.max(2, 8 * (1 - bu2 / 0.75)), '#fff1a6');
+      this.ringPx(g, cx, cy, ring + 3, 1, C.white);
       g.globalAlpha = 1;
     }
     // a low wisp of fog along the lip of the clearing, over their feet
     this.drawFog(p, this.fog[2]!, 286 + M, t * 6 * (1 + 2 * this.windGust(t)), 0.1);
   }
 
-  /** grass: each blade bends with the wind from its root, more toward the tip */
-  private drawBlades(p: Pix, blades: Blade[], t: number, wind: number, k: number) {
+  /** a ring of whole pixels, `th` thick, only the rows that are on the layer */
+  private ringPx(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, th: number, col: string) {
+    g.fillStyle = col;
+    const ri = Math.max(0, r - th);
+    const y0 = Math.max(0, Math.floor(cy - r));
+    const y1 = Math.min(LH - 1, Math.ceil(cy + r));
+    for (let y = y0; y <= y1; y++) {
+      const dy = y + 0.5 - cy;
+      if (Math.abs(dy) > r) continue;
+      const ho = Math.sqrt(r * r - dy * dy);
+      const hi = Math.abs(dy) < ri ? Math.sqrt(ri * ri - dy * dy) : 0;
+      const xo0 = Math.round(cx - ho);
+      const xo1 = Math.round(cx + ho);
+      if (hi <= 0) {
+        g.fillRect(xo0, y, xo1 - xo0, 1);
+      } else {
+        const xi0 = Math.round(cx - hi);
+        const xi1 = Math.round(cx + hi);
+        g.fillRect(xo0, y, xi0 - xo0, 1);
+        g.fillRect(xi1, y, xo1 - xi1, 1);
+      }
+    }
+  }
+
+  /** grass: each blade bends with the wind from its root, more toward the tip (a run of rows that line up is one rectangle) */
+  private drawBlades(p: Pix, blades: Blade[], t: number, wind: number, k: number, every = 1) {
     const g = p.ctx;
-    for (const b of blades) {
+    for (let bi = 0; bi < blades.length; bi += every) {
+      const b = blades[bi]!;
       const sway = (Math.sin(t * 1.7 + b.x * 0.09 + b.ph) * (0.5 + wind) + wind * 2.4) * k;
       const rows = Math.max(2, Math.round(b.h));
-      for (let j = 0; j < rows; j++) {
-        const f = j / rows;
-        const x = b.x + M + (b.lean + sway * (b.h / 8)) * f * f;
-        const w = Math.max(1, Math.round(b.w * (1 - f)));
-        g.fillStyle = j >= rows - 1 ? b.tip : b.col;
-        g.fillRect(Math.round(x - w / 2), Math.round(b.y + M - j), w, 1);
+      const by = Math.round(b.y + M);
+      let start = 0;
+      let rx = 0;
+      let rw = 0;
+      let rc = '';
+      for (let j = 0; j <= rows; j++) {
+        let x = 0;
+        let w = 0;
+        let c = '';
+        if (j < rows) {
+          const f = j / rows;
+          w = Math.max(1, Math.round(b.w * (1 - f)));
+          x = Math.round(b.x + M + (b.lean + sway * (b.h / 8)) * f * f - w / 2);
+          c = j >= rows - 1 ? b.tip : b.col;
+        }
+        if (j > 0 && (j === rows || x !== rx || w !== rw || c !== rc)) {
+          g.fillStyle = rc;
+          g.fillRect(rx, by - (j - 1), rw, j - start);
+          start = j;
+        }
+        rx = x;
+        rw = w;
+        rc = c;
       }
     }
   }
@@ -1037,50 +1234,52 @@ export class Landing {
     }
   }
 
+  /** the light: sprites stamped on a canvas half the size of the pixel grid (it is laid over the picture with 'lighter') */
   private drawGlow(t: number, eye: { open: number; lx: number; ly: number }, moth: MothAt) {
     const g = this.gl;
+    const Q = QUALITY[this.q]!;
     g.globalCompositeOperation = 'source-over';
     g.globalAlpha = 1;
     g.clearRect(0, 0, GW, GH);
     g.globalCompositeOperation = 'lighter';
     const light = smooth((t - 0.2) / 1.5);
+    const dread = this.dread;
     const at = (x: number, y: number, d: number) => {
       const s = this.slide(d);
       return [(x + M + s.x) * GS, (y + M + s.y) * GS] as const;
     };
-    const dread = this.dread;
-    const mix = (a: number[], b: number[], u: number) => a.map((v, i) => Math.round(v + (b[i]! - v) * u)).join(',');
+    const stamp = (img: HTMLCanvasElement, cx: number, cy: number, w: number, h: number, a: number) => {
+      if (a <= 0.004) return;
+      g.globalAlpha = a > 1 ? 1 : a;
+      g.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+    };
 
+    // a red glow behind the title that beats with its heart
+    {
+      const s = this.slide(0.7);
+      const cx = (W / 2 + M + s.x) * GS;
+      const cy = (66 + M + s.y) * GS;
+      stamp(this.sp.title, cx, cy, 150, 78, (0.1 + 0.2 * this.beat * (0.6 + 0.4 * dread) + 0.12 * dread) * light);
+    }
     // the moon's halo, red while it stares
-    const [mx, my] = at(MOON.x, MOON.y, DEPTH.sky);
-    const halo = mix([150, 240, 235], [235, 50, 64], dread);
+    const [mx, my] = at(MOON.x, MOON.y, DEPTH.back);
     const hr = MOON.r * GS;
-    let gr = g.createRadialGradient(mx, my, hr * 0.85, mx, my, hr * 3.6);
-    gr.addColorStop(0, `rgba(${halo},${0.36 * light})`);
-    gr.addColorStop(0.3, `rgba(${halo},${0.13 * light})`);
-    gr.addColorStop(1, `rgba(${halo},0)`);
-    g.fillStyle = gr;
-    g.fillRect(mx - hr * 3.6, my - hr * 3.6, hr * 7.2, hr * 7.2);
-    if (eye.open > 0.05) g.drawImage(this.glows.red, mx - hr * 1.4, my - hr * 1.4, hr * 2.8, hr * 2.8);
+    const hs = hr * 3.6 * 2;
+    stamp(this.sp.haloCool, mx, my, hs, hs, light * (1 - dread));
+    stamp(this.sp.haloRed, mx, my, hs, hs, light * dread);
+    if (eye.open > 0.05) stamp(this.sp.red, mx, my, hr * 2.8, hr * 2.8, eye.open);
 
     // rays from the moon, down onto the clearing
-    const rays = light * (1 - 0.7 * dread);
-    for (let i = 0; i < 5; i++) {
-      const a = Math.PI / 2 + (i - 2) * 0.19 + Math.sin(t * 0.13 + i) * 0.03;
-      const half = 0.045 + 0.02 * Math.sin(t * 0.31 + i * 1.7);
-      const len = 170 * GS;
-      const k = (0.055 + 0.04 * Math.sin(t * 0.5 + i * 2.1)) * rays;
-      if (k <= 0.005) continue;
-      const lg = g.createLinearGradient(mx, my, mx + Math.cos(a) * len, my + Math.sin(a) * len);
-      lg.addColorStop(0, `rgba(170,250,245,${k})`);
-      lg.addColorStop(1, 'rgba(170,250,245,0)');
-      g.fillStyle = lg;
-      g.beginPath();
-      g.moveTo(mx, my);
-      g.lineTo(mx + Math.cos(a - half) * len, my + Math.sin(a - half) * len);
-      g.lineTo(mx + Math.cos(a + half) * len, my + Math.sin(a + half) * len);
-      g.closePath();
-      g.fill();
+    if (Q.rays) {
+      const k = light * (1 - 0.7 * dread) * (0.8 + 0.2 * Math.sin(t * 0.5));
+      if (k > 0.01) {
+        g.save();
+        g.translate(mx, my);
+        g.rotate(Math.sin(t * 0.13) * 0.03);
+        g.globalAlpha = k;
+        g.drawImage(this.sp.fan, -this.sp.fan.width / 2, 0);
+        g.restore();
+      }
     }
 
     // the family's own light (it shrinks while the moon stares, and goes out over everything with the pulse)
@@ -1088,125 +1287,92 @@ export class Landing {
     const bu = this.burstAt >= 0 ? t - this.burstAt : -1;
     const flick = 1 + 0.06 * Math.sin(t * 7.3) + 0.04 * Math.sin(t * 13.1);
     const R = 54 * GS * flick * (1 - 0.35 * dread);
-    gr = g.createRadialGradient(bx, by, 0, bx, by, R);
-    gr.addColorStop(0, `rgba(255,214,120,${0.44 * light})`);
-    gr.addColorStop(0.4, `rgba(255,170,80,${0.16 * light})`);
-    gr.addColorStop(1, 'rgba(255,170,80,0)');
-    g.fillStyle = gr;
-    g.fillRect(bx - R, by - R, R * 2, R * 2);
+    stamp(this.sp.home, bx, by, R * 2, R * 2, light);
 
     // mist lit by the moon, in long soft banks drifting between the tree lines
-    const wg = 1 + 2 * this.windGust(t);
-    for (const [fy, d, sp, k] of [
-      [226, DEPTH.far, 2.2, 0.075],
-      [270, DEPTH.mid, -3.4, 0.06],
-      [300, DEPTH.ground, 4.2, 0.045],
-    ] as const) {
-      for (let i = 0; i < 4; i++) {
-        const span = LW + 120;
-        const fx = ((((i * span) / 4 + t * sp * wg) % span) + span) % span - 60;
-        const [cx, cy] = at(fx, fy + Math.sin(t * 0.3 + i * 2) * 2, d);
-        const rx = 46 * GS;
-        g.save();
-        g.translate(cx, cy);
-        g.scale(2.6, 1);
-        const fg = g.createRadialGradient(0, 0, 0, 0, 0, rx);
-        const a = k * light * (1 - 0.5 * dread) * (0.7 + 0.3 * Math.sin(t * 0.4 + i * 1.7));
-        fg.addColorStop(0, `rgba(120,200,205,${a})`);
-        fg.addColorStop(1, 'rgba(120,200,205,0)');
-        g.fillStyle = fg;
-        g.fillRect(-rx, -rx, rx * 2, rx * 2);
-        g.restore();
+    if (Q.mist) {
+      const wg = 1 + 2 * this.windGust(t);
+      for (const [fy, d, sp, k] of [
+        [226, DEPTH.back, 2.2, 0.075],
+        [270, DEPTH.mid, -3.4, 0.06],
+        [300, DEPTH.ground, 4.2, 0.045],
+      ] as const) {
+        for (let i = 0; i < 4; i++) {
+          const span = LW + 120;
+          const fx = ((((i * span) / 4 + t * sp * wg) % span) + span) % span - 60;
+          const [cx, cy] = at(fx, fy + Math.sin(t * 0.3 + i * 2) * 2, d);
+          stamp(this.sp.mist, cx, cy, 120, 46, k * light * (1 - 0.5 * dread) * (0.7 + 0.3 * Math.sin(t * 0.4 + i * 1.7)));
+        }
       }
     }
     for (const [sx, sy] of SHROOMS) {
       const [cx, cy] = at(sx!, sy! - 3, DEPTH.mid);
-      g.globalAlpha = (0.45 + 0.15 * Math.sin(t * 2 + sx!)) * light;
-      g.drawImage(this.glows.cool, cx - 6, cy - 6, 12, 12);
+      stamp(this.sp.cool, cx, cy, 12, 12, (0.45 + 0.15 * Math.sin(t * 2 + sx!)) * light);
     }
-    g.globalAlpha = 1;
 
     // fireflies
-    const dim = (1 - 0.7 * dread) * light;
     for (const f of this.flies) {
-      const { x, y } = this.flyPos(f, t);
-      const glow = (0.5 + 0.5 * Math.sin(t * 1.5 + f.ph * 3)) * dim;
-      if (glow < 0.1) continue;
+      if (f.glow < 0.1) continue;
       const sf = this.slide(f.d);
-      const gx = (x + M + sf.x) * GS;
-      const gy = (y + M + sf.y) * GS;
       const rr = (f.d > 0.8 ? 7 : 4.5) * GS * 2;
-      g.globalAlpha = Math.min(1, 0.7 * glow);
-      g.drawImage(f.warm ? this.glows.warm : this.glows.cool, gx - rr, gy - rr, rr * 2, rr * 2);
+      stamp(f.warm ? this.sp.warm : this.sp.cool, (f.x + M + sf.x) * GS, (f.y + M + sf.y) * GS, rr * 2, rr * 2, 0.7 * f.glow * light);
     }
-    g.globalAlpha = 1;
 
     // the eyes in the dark glow red
     for (const e of this.eyes) {
       const o = this.eyeOpen(e);
       if (o <= 0.05) continue;
-      const [ex, ey] = at(e.x + (e.big ? 0 : 3), e.y, e.big ? DEPTH.mid : DEPTH.far);
+      const [ex, ey] = at(e.x + (e.big ? 0 : 3), e.y, e.big ? DEPTH.mid : DEPTH.back);
       const rr = (e.big ? 9 : 5) * GS * 2;
-      g.globalAlpha = o * (e.big ? 0.5 : 0.35);
-      g.drawImage(this.glows.red, ex - rr, ey - rr, rr * 2, rr * 2);
+      stamp(this.sp.red, ex, ey, rr * 2, rr * 2, o * (e.big ? 0.5 : 0.35));
     }
     // ... and so do the stars that are eyes
     if (dread > 0.4) {
       for (const se of this.starEyes) {
-        const [ex, ey] = at(se.x + 2, se.y, DEPTH.sky);
-        g.globalAlpha = 0.4 * dread;
-        g.drawImage(this.glows.red, ex - 4, ey - 4, 8, 8);
+        const [ex, ey] = at(se.x + 2, se.y, DEPTH.back);
+        stamp(this.sp.red, ex, ey, 8, 8, 0.4 * dread);
       }
     }
-    g.globalAlpha = 1;
 
     // the flowers that are open
     for (const f of this.flowers) {
       if (f.open < 0.1) continue;
       const [fx, fy] = at(f.x, groundY(f.x) - 9, DEPTH.ground);
-      g.globalAlpha = 0.5 * f.open * light;
-      g.drawImage(this.glows.blue, fx - 9, fy - 9, 18, 18);
+      stamp(this.sp.blue, fx, fy, 18, 18, 0.5 * f.open * light);
     }
-    g.globalAlpha = 1;
 
     if (moth) {
       const [ox, oy] = at(moth.x, moth.y, DEPTH.ground);
-      g.globalAlpha = 0.65;
-      g.drawImage(this.glows.moth, ox - 11, oy - 11, 22, 22);
-      g.globalAlpha = 1;
+      stamp(this.sp.moth, ox, oy, 22, 22, 0.65);
     }
     if (this.cursor && t - this.cursor.at < 3) {
       const a = 1 - smooth((t - this.cursor.at - 2) / 1);
-      g.globalAlpha = 0.45 * a;
-      const cx = (this.cursor.x + M) * GS;
-      const cy = (this.cursor.y + M) * GS;
-      g.drawImage(this.glows.moth, cx - 12, cy - 12, 24, 24);
-      g.globalAlpha = 1;
+      stamp(this.sp.moth, (this.cursor.x + M) * GS, (this.cursor.y + M) * GS, 24, 24, 0.45 * a);
     }
 
     // the pulse: a bloom behind the ring and the ring itself
     if (bu >= 0) {
       const rr = this.ringR(t) * GS;
       const fade = 1 - smooth((bu - 0.3) / 0.5);
-      gr = g.createRadialGradient(bx, by, 0, bx, by, Math.max(1, rr));
-      gr.addColorStop(0, `rgba(255,236,170,${0.55 * fade})`);
-      gr.addColorStop(1, 'rgba(255,236,170,0)');
-      g.fillStyle = gr;
-      g.fillRect(0, 0, GW, GH);
-      gr = g.createRadialGradient(bx, by, Math.max(0, rr - 10), bx, by, rr + 8);
-      gr.addColorStop(0, 'rgba(255,244,200,0)');
-      gr.addColorStop(0.55, `rgba(255,244,200,${0.9 * fade})`);
-      gr.addColorStop(1, 'rgba(255,244,200,0)');
-      g.fillStyle = gr;
-      g.fillRect(0, 0, GW, GH);
+      stamp(this.sp.bloom, bx, by, Math.max(2, rr * 2), Math.max(2, rr * 2), fade);
+      g.globalAlpha = 0.5 * fade;
+      g.strokeStyle = 'rgb(255,244,200)';
+      g.lineWidth = 12;
+      g.beginPath();
+      g.arc(bx, by, Math.max(1, rr), 0, TAU);
+      g.stroke();
+      g.globalAlpha = 0.9 * fade;
+      g.lineWidth = 3;
+      g.stroke();
     }
     g.globalCompositeOperation = 'source-over';
+    g.globalAlpha = 1;
   }
 
   /* ------------------------------------------------------------------------------------------------ the pictures, made once */
 
-  /** the sky: near black at the top, deep teal down to the haze over the far trees, and a faint band of dusk across it */
-  private makeSky(): HTMLCanvasElement {
+  /** the sky: near black at the top, deep teal down to the haze over the far trees, a faint band of dusk across it, and the stars that do not twinkle */
+  private makeSky(still: Star[]): HTMLCanvasElement {
     const p = new Pix(LW, LH);
     const img = p.ctx.createImageData(LW, LH);
     const d = img.data;
@@ -1244,6 +1410,22 @@ export class Landing {
       }
     }
     p.ctx.putImageData(img, 0, 0);
+    const g = p.ctx;
+    for (const s of still) {
+      const x = Math.round(s.x + M);
+      const y = Math.round(s.y + M);
+      g.fillStyle = s.col;
+      g.globalAlpha = s.b * 0.8;
+      g.fillRect(x, y, 1, 1);
+      if (s.kind > 0 && s.b > 0.5) {
+        g.globalAlpha = s.b * 0.3;
+        g.fillRect(x - 1, y, 1, 1);
+        g.fillRect(x + 1, y, 1, 1);
+        g.fillRect(x, y - 1, 1, 1);
+        g.fillRect(x, y + 1, 1, 1);
+      }
+    }
+    g.globalAlpha = 1;
     return p.canvas;
   }
 
@@ -1611,29 +1793,76 @@ function hex(c: string): number[] {
 
 /** a soft round light, drawn once and stamped wherever it is needed */
 function glowSprite(rgb: string, size = 32): HTMLCanvasElement {
+  return radialSprite(size, rgb, [[0, 1], [0.25, 0.45], [1, 0]]);
+}
+
+/** a round light with its own falloff: `stops` are [position 0..1 from the middle, alpha]; the colour is `rgb` (or `outer` toward the edge) */
+function radialSprite(size: number, rgb: string, stops: [number, number][], outer = rgb): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
   const gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gr.addColorStop(0, `rgba(${rgb},1)`);
-  gr.addColorStop(0.25, `rgba(${rgb},0.45)`);
-  gr.addColorStop(1, `rgba(${rgb},0)`);
+  stops.forEach(([p, a], i) => gr.addColorStop(p, `rgba(${i > 0 && i < stops.length - 1 ? outer : rgb},${a})`));
   g.fillStyle = gr;
   g.fillRect(0, 0, size, size);
   return c;
 }
 
-/** a tile of film grain, as a data URL for a CSS background */
-export function grainTile(size = 96): string {
+/** five rays from a point at the top middle, fanning down (the moon's light through the trees), 85 half-size pixels long */
+function fanSprite(): HTMLCanvasElement {
+  const L = 85;
   const c = document.createElement('canvas');
-  c.width = c.height = size;
+  c.width = L * 2;
+  c.height = L;
   const g = c.getContext('2d')!;
-  const img = g.createImageData(size, size);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const v = (Math.random() * 255) | 0;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 255;
+  for (let i = 0; i < 5; i++) {
+    const a = Math.PI / 2 + (i - 2) * 0.19;
+    const half = 0.05 + 0.012 * Math.sin(i * 1.7);
+    const k = 0.1 + 0.05 * Math.sin(i * 2.1);
+    const lg = g.createLinearGradient(L, 0, L + Math.cos(a) * L, Math.sin(a) * L);
+    lg.addColorStop(0, `rgba(170,250,245,${k})`);
+    lg.addColorStop(1, 'rgba(170,250,245,0)');
+    g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(L, 0);
+    g.lineTo(L + Math.cos(a - half) * L, Math.sin(a - half) * L);
+    g.lineTo(L + Math.cos(a + half) * L, Math.sin(a + half) * L);
+    g.closePath();
+    g.fill();
   }
-  g.putImageData(img, 0, 0);
-  return c.toDataURL('image/png');
+  return c;
+}
+
+/** a long soft bank of mist: an ellipse of pale teal, thickest in the middle */
+function mistSprite(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 32;
+  const g = c.getContext('2d')!;
+  g.translate(64, 16);
+  g.scale(1, 0.25);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, 64);
+  gr.addColorStop(0, 'rgba(120,200,205,1)');
+  gr.addColorStop(1, 'rgba(120,200,205,0)');
+  g.fillStyle = gr;
+  g.fillRect(-64, -64, 128, 128);
+  return c;
+}
+
+/** the dark at the edges of the picture (small, and stretched over the whole canvas) */
+function vignetteSprite(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = 54;
+  c.height = 96;
+  const g = c.getContext('2d')!;
+  g.translate(27, 48);
+  g.scale(0.78 * 54, 0.64 * 96);
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+  gr.addColorStop(0, 'rgba(0,0,0,0)');
+  gr.addColorStop(0.5, 'rgba(0,0,0,0)');
+  gr.addColorStop(0.8, 'rgba(1,2,6,0.45)');
+  gr.addColorStop(1, 'rgba(0,0,0,0.85)');
+  g.fillStyle = gr;
+  g.fillRect(-2, -2, 4, 4);
+  return c;
 }

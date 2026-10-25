@@ -2,7 +2,7 @@ import { Ambient } from './ambient';
 import { bestTime, PRESETS, type DiffId } from './core/difficulty';
 import { STORY } from './core/story';
 import { fmtTime } from './core/util';
-import { grainTile, INTRO, Landing } from './landing';
+import { INTRO, Landing } from './landing';
 import { Logo } from './logo';
 
 export interface HomeOptions {
@@ -137,8 +137,6 @@ export class UI {
   /** the animation loop of the splash and the home page (logo, fireflies, eyes), and what to do when the stage is resized */
   private fxRaf = 0;
   private onFit: (() => void) | null = null;
-  /** what the running animation needs undone when it stops (the landing page listens to the phone's tilt) */
-  private fxDone: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.stage = document.createElement('div');
@@ -413,13 +411,15 @@ export class UI {
     };
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     const land = new Landing(still);
+    // (tests: the landing page's state, as `__tt` is the game's)
+    if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __landing: Landing }).__landing = land;
     const logo = new Logo();
     logo.still = still;
-    const scene = mk('ls');
-    const L = land.layers;
-    scene.append(L.sky.canvas, L.far.canvas, L.mid.canvas, L.ground.canvas, land.glow, L.near.canvas);
-    const grain = mk('lgrain');
-    grain.style.backgroundImage = `url(${grainTile()})`;
+    // (the landing page keeps its title still unless something happens to it: no random tears, the glow behind it beats instead
+    // of the depth, and it is drawn at most twice the screen's pixels, so a phone has less to redraw)
+    logo.calm = true;
+    logo.beatDepth = false;
+    logo.maxDpr = 2;
     // the title, and the tagline under it, typed in a letter at a time
     const top = mk('ltop');
     const tag = mk('ltag');
@@ -441,7 +441,7 @@ export class UI {
     snd.innerHTML = `${SPEAKER}<span>best with sound on</span>`;
     bottom.append(cta, snd);
     const skip = mk('sk', 'skip intro ▸', 'button');
-    el.append(scene, mk('ldread'), mk('lvig'), grain, top, bottom, mk('lfoot', 'RUN October Jam · Monster Mash'), skip, mk('lflash'), mk('lblack'));
+    el.append(land.canvas, top, bottom, mk('lfoot', 'RUN October Jam · Monster Mash'), skip, mk('lfade'), mk('lflash'));
     el.classList.remove('hide', 'out', 'go', 'dread');
 
     const t0 = performance.now();
@@ -852,17 +852,15 @@ export class UI {
   }
 
   /**
-   * The landing page's animation. The layers slide every frame (that is only a transform); the pictures are redrawn thirty times a
-   * second, and sixty while the pulse goes out.
+   * The landing page's animation: one picture, made thirty times a second (sixty while the pulse goes out, fewer on a phone that
+   * cannot keep up: `Landing.frameGap`), and the title, which only repaints when something on it has moved.
    */
   private runSplash(el: HTMLElement, logo: Logo, land: Landing, t0: number) {
     this.stopFx();
-    let scale = 1;
     const top = el.querySelector<HTMLElement>('.ltop');
-    const dread = el.querySelector<HTMLElement>('.ldread');
     const size = () => {
       logo.resize(this.stage.clientWidth * 0.9);
-      scale = this.stage.clientWidth / 216;
+      land.resize(this.stage.clientWidth, window.devicePixelRatio || 1);
     };
     this.onFit = size;
     size();
@@ -871,31 +869,32 @@ export class UI {
       land.point((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, e.pointerType === 'mouse');
     };
     el.onpointerleave = () => land.unpoint();
-    land.listen();
-    this.fxDone = () => land.dispose();
     let drawn = 0;
+    let afraid = false;
     const tick = () => {
       if (!el.isConnected || el.classList.contains('hide')) {
         this.fxRaf = 0;
-        this.fxDone?.();
-        this.fxDone = null;
         return;
       }
       this.fxRaf = requestAnimationFrame(tick);
       // (the same clock the tap reads, so the pulse starts exactly where the picture is)
       const now = performance.now();
-      const t = (now - t0) / 1000;
-      const o = land.place(t, scale);
-      if (top) top.style.transform = `translate3d(${o.x.toFixed(2)}px,${o.y.toFixed(2)}px,0)`;
-      if (now - drawn < (land.busy ? 14 : 31)) return;
+      // a little under the gap, so a screen that runs at 60 or 120 a second lands on every second or fourth frame, not every third
+      if (now - drawn < land.frameGap * 1000 - 3) return;
       drawn = now;
+      const t = (now - t0) / 1000;
       land.draw(t);
+      if (top) top.style.transform = `translate3d(${land.titleAt.x.toFixed(1)}px,${land.titleAt.y.toFixed(1)}px,0)`;
       logo.tilt = land.view.x;
       logo.tiltY = land.view.y;
       logo.fear = land.dread;
       logo.draw(t);
-      if (dread) dread.style.opacity = (land.dread * 0.55).toFixed(3);
-      el.classList.toggle('dread', land.dread > 0.45);
+      land.beat = logo.beat;
+      // when the moon starts to stare the title tears once, as the forest does when X is near
+      const now2 = land.dread > 0.45;
+      if (now2 && !afraid) logo.tearNow();
+      if (now2 !== afraid) el.classList.toggle('dread', now2);
+      afraid = now2;
     };
     this.fxRaf = requestAnimationFrame(tick);
   }
@@ -904,8 +903,6 @@ export class UI {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
     this.fxRaf = 0;
     this.onFit = null;
-    this.fxDone?.();
-    this.fxDone = null;
   }
 
   /** Pick a boss to fight right now, skipping the story (these runs are never ranked). */

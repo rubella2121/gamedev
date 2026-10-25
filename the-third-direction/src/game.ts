@@ -130,7 +130,7 @@ export class Game {
   private showSplash() {
     this.state = 'splash';
     this.ui.showSplash(
-      () => this.playTrailer(),
+      () => this.playTrailer(260),
       () => this.skipIntro(),
     );
   }
@@ -143,16 +143,30 @@ export class Game {
     this.showHome();
   }
 
-  /** the cinematic intro (from the splash, or from the home page) */
-  private playTrailer() {
+  /**
+   * the cinematic intro (from the splash, or from the home page). `after` (ms) is how long to wait before it starts: from the
+   * landing page the tap sends out a pulse of light and a flash first, and the intro's own set-up (the score is built then) would
+   * stall that. The sound is unlocked at once, in the tap itself: browsers only allow it there.
+   */
+  private playTrailer(after = 0) {
     this.audio.start();
     this.trailerSound = this.audio.level > 0;
     // the intro plays by itself once: someone who leaves halfway does not get it forced on them again (the home page can replay it)
     storageSet(INTRO_KEY, '1');
     track('intro');
-    this.state = 'trailer';
-    this.act1.previewMode = false;
-    this.trailer.begin();
+    const go = () => {
+      // (if the page was sent to the background in that moment the intro does not start out of step with nothing: the home page it is)
+      if (this.paused) {
+        this.state = 'menu';
+        this.showHome();
+        return;
+      }
+      this.state = 'trailer';
+      this.act1.previewMode = false;
+      this.trailer.begin();
+    };
+    if (after > 0) window.setTimeout(go, after);
+    else go();
   }
 
   private finishTrailer() {
@@ -548,7 +562,7 @@ export class Game {
     // the 3D monsters are built a few milliseconds at a time while you are still in the forest
     if (this.state === 'act1' || this.state === 'menu' || this.state === 'trailer' || this.state === 'splash') {
       // spend spare time only: a slow frame means the phone is busy, so the monsters wait
-      const spare = this.state === 'menu' || this.state === 'splash' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
+      const spare = this.state === 'menu' ? 6 : dt < 0.02 ? 4 : dt < 0.028 ? 1.5 : 0;
       if (spare > 0) this.act2.pump(spare);
     }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
@@ -568,9 +582,10 @@ export class Game {
       } else {
         this.renderer.clear();
       }
-    } else if (this.state === 'act1' || this.state === 'menu' || this.state === 'splash') {
+    } else if (this.state === 'act1' || this.state === 'menu') {
       this.drawForest(dt);
     }
+    // (on the landing page the forest is not drawn at all: the page covers it, and a phone needs the time for the page's own picture)
   }
 
   summary() {

@@ -3,9 +3,12 @@
  * carries the idea of the game: a flat world that finds a third direction. It is drawn at the screen's own resolution, so the
  * cubes are crisp (whole pixels) whatever the phone, and a letter now and then tears sideways, like the forest does when X is near.
  *
- * The depth beats like a heart (faster when `fear` is up), a glint of light sweeps across the fronts now and then, and the depth
- * leans away from the pointer in both directions. On the landing page the title builds itself: the cubes pop in flat, one by one,
- * and then the depth comes out of them (`assemble`); a tap blows the depth out toward the back of the screen (`burst`).
+ * A glint of light sweeps across the fronts now and then, and the depth leans away from the pointer in both directions. On the
+ * landing page the title builds itself: the cubes pop in flat, one by one, and then the depth comes out of them (`assemble`); a
+ * tap blows the depth out toward the back of the screen (`burst`).
+ *
+ * It is only painted again when something on it has moved by a whole pixel (the sway, the bob, the glint, a tear, the build), so
+ * a phone does not redraw thousands of cubes thirty times a second to show the same picture.
  */
 
 const GLYPH: Record<string, string[]> = {
@@ -69,6 +72,7 @@ export class Logo {
   private words: Word[] = [];
   private dpr = 1;
   private colours: string[] = [];
+  private hotQ = -1;
   /** seconds left of a tear; the next one is `nextTear` seconds away */
   private tear = 0;
   private nextTear = 3.5;
@@ -81,14 +85,26 @@ export class Logo {
   private born = -1;
   /** when the tap blew it out (-1: not yet) */
   private burstAt = -1;
+  /** what the last picture was made from (a frame that would be the same picture is not painted) */
+  private sig = 0;
+  private painted = false;
+  private bobs: number[][] = [];
   /** -1..1, from the pointer: the depth leans away from it */
   tilt = 0;
   /** -1..1, up and down */
   tiltY = 0;
-  /** 0..1: how afraid the title is (its heart beats faster, and it tears more often) */
+  /** 0..1: how afraid the title is (its heart beats faster) */
   fear = 0;
+  /** the heart's beat right now, 0..1: the landing page lights its glow with it */
+  beat = 0;
   /** no tears, no building itself (prefers-reduced-motion) */
   still = false;
+  /** no tears of its own accord (the landing page tears it once, when the moon stares) */
+  calm = false;
+  /** the heartbeat also brightens the depth (the home page); off where something else shows it */
+  beatDepth = true;
+  /** the most device pixels per CSS pixel it is drawn at */
+  maxDpr = 3;
 
   constructor(private compact = false) {
     this.canvas.className = 'logo';
@@ -110,9 +126,14 @@ export class Logo {
     if (!this.still) this.tear = 0.3;
   }
 
+  /** One tear, now. */
+  tearNow() {
+    if (!this.still) this.tear = Math.max(this.tear, 0.18);
+  }
+
   /** Fit the logo to a width in CSS pixels. */
   resize(cssWidth: number) {
-    this.dpr = Math.min(3, window.devicePixelRatio || 1);
+    this.dpr = Math.min(this.maxDpr, window.devicePixelRatio || 1);
     const W = Math.floor(cssWidth * this.dpr);
     // 29 cubes across for THIRD, 53 for DIRECTION: both about four fifths of the width
     const cellT = Math.max(3, Math.floor((W * 0.8) / 29));
@@ -139,46 +160,46 @@ export class Logo {
       { text: 'THIRD', cell: cellT, depth: depthT, y: (y += hE + gap1), x: Math.round((W - wide('THIRD', cellT)) / 2), seed: 1.7, first: 3 },
       { text: 'DIRECTION', cell: cellD, depth: depthD, y: (y += hT + gap2), x: Math.round((W - wide('DIRECTION', cellD)) / 2), seed: 3.1, first: 8 },
     ];
-    const n = Math.max(depthT, depthD, depthE) + 1;
-    this.colours = Array.from({ length: n }, (_, k) => depthColour(k / n, 0));
+    this.bobs = this.words.map((w) => new Array<number>(w.text.length).fill(0));
+    this.colours = [];
+    this.hotQ = -1;
+    this.painted = false;
     this.draw(this.last);
   }
 
   /** Draw the logo at time `t` (seconds). */
   draw(t: number) {
-    const g = this.g;
     const dt = this.last ? Math.min(0.1, Math.max(0, t - this.last)) : 0;
     this.last = t;
-    if (this.still) this.tear = 0;
-    else if (this.tear > 0) this.tear -= dt;
+    if (this.still || this.calm) {
+      if (this.still) this.tear = 0;
+      else if (this.tear > 0) this.tear -= dt;
+    } else if (this.tear > 0) this.tear -= dt;
     else if ((this.nextTear -= dt * (1 + 3 * this.fear)) <= 0) {
       this.tear = 0.16;
       this.nextTear = 4 + ((Math.sin(t * 12.9898) * 43758.5453) % 1 + 1) * 3;
     }
-    // the heart: lub-dub, faster when afraid
-    const period = 1.65 - 0.85 * this.fear;
+    // the heart: lub-dub, faster when afraid (never faster than a beat a second, so nothing on the page flashes more than twice a second)
+    const period = 1.65 - 0.5 * this.fear;
     this.beatT += dt;
     if (this.beatT > period) this.beatT %= period;
-    const beat = Math.exp(-((this.beatT / 0.07) ** 2)) + 0.6 * Math.exp(-(((this.beatT - 0.25) / 0.07) ** 2));
+    this.beat = Math.exp(-((this.beatT / 0.07) ** 2)) + 0.6 * Math.exp(-(((this.beatT - 0.25) / 0.07) ** 2));
     const A = this.born >= 0 ? t - this.born : 99;
     const B = this.burstAt >= 0 ? t - this.burstAt : -1;
     // how much of the depth is out: none while the cubes pop in, then out with an overshoot; the tap blows it far back
     let ext = A < 99 ? easeOutBack((A - EXTRUDE_AT) / 0.5) : 1;
-    let hot = 0.5 * beat * (0.6 + 0.4 * this.fear);
+    let hot = this.beatDepth ? 0.5 * this.beat * (0.6 + 0.4 * this.fear) : 0;
     if (A < 99) hot += 0.9 * Math.exp(-(((A - EXTRUDE_AT - 0.25) / 0.18) ** 2));
     if (B >= 0) {
       ext *= 1 + 7 * Math.pow(Math.min(1, B / 0.7), 2.4);
       hot += Math.min(1, B / 0.25);
     }
-    const n = this.colours.length;
-    for (let k = 0; k < n; k++) this.colours[k] = depthColour(k / n, Math.min(1, hot));
+    const hotQ = Math.round(Math.min(1, hot) * 8);
     // the glint: a band of light sweeping across the fronts, from the top left
     if (!this.still && t > this.glintAt + 1.2) this.glintAt = t + 5.5 + ((Math.sin(t * 78.233) * 43758.5453) % 1 + 1) * 2.5;
     const gu = (t - this.glintAt) / 0.9;
     const span = this.canvas.width + this.canvas.height * 0.7;
     const glint = gu > 0 && gu < 1 ? -0.15 * span + gu * span * 1.3 : -1e9;
-
-    g.clearRect(0, 0, this.canvas.width, this.canvas.height);
     // the depth swings slowly around "down and to the right", and leans away from the pointer
     const a = 0.95 + 0.34 * Math.sin(t * 0.55);
     let dx = Math.cos(a) - this.tilt * 0.55;
@@ -186,21 +207,47 @@ export class Logo {
     const len = Math.hypot(dx, dy) || 1;
     dx /= len;
     dy /= len;
-    for (const w of this.words) this.word(w, t, dx, dy, ext, A, B, glint, span * 0.05);
+
+    // what the picture is made of, in whole pixels: if none of it changed, the canvas already shows it
+    // (the bob steps eight times a second, which on a move of a pixel or two is not seen)
+    const tb = Math.floor(t * 8) / 8;
+    let sig = (hotQ * 131 + Math.round(glint / 8)) | 0;
+    this.words.forEach((w, wi) => {
+      const bobs = this.bobs[wi]!;
+      for (let i = 0; i < bobs.length; i++) {
+        bobs[i] = Math.round(Math.sin(tb * 1.3 + i * 0.9 + w.seed) * w.cell * 0.09);
+        sig = (Math.imul(sig, 31) + bobs[i]!) | 0;
+      }
+      sig = (Math.imul(sig, 31) + Math.round(dx * w.depth * ext)) | 0;
+      sig = (Math.imul(sig, 31) + Math.round(dy * w.depth * ext)) | 0;
+    });
+    const building = A < EXTRUDE_AT + 0.6;
+    // (building, tearing and the burst change on every frame)
+    if (building || B >= 0 || this.tear > 0) sig = (Math.imul(sig, 31) + Math.floor(t * 60)) | 0;
+    if (this.painted && sig === this.sig) return;
+    this.sig = sig;
+    this.painted = true;
+
+    if (hotQ !== this.hotQ || this.colours.length === 0) {
+      this.hotQ = hotQ;
+      const n = Math.max(...this.words.map((w) => w.depth)) + 1;
+      this.colours = Array.from({ length: n }, (_, k) => depthColour(k / n, hotQ / 8));
+    }
+    this.g.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.words.forEach((w, wi) => this.word(w, this.bobs[wi]!, t, dx, dy, ext, A, B, glint, span * 0.05, building));
   }
 
-  private word(w: Word, t: number, dx: number, dy: number, ext: number, A: number, B: number, glint: number, glintW: number) {
+  private word(w: Word, bobs: number[], t: number, dx: number, dy: number, ext: number, A: number, B: number, glint: number, glintW: number, building: boolean) {
     const g = this.g;
     const { cell } = w;
     const inset = cell >= 6 ? Math.max(1, Math.round(cell / 10)) : 0;
     const bevel = Math.max(1, Math.round(cell / 9));
     const letters = [...w.text];
-    const building = A < EXTRUDE_AT + 0.6;
     // find every lit cube first, then paint the depth (far to near), then the fronts
     const cubes: { x: number; y: number; s: number; hot: boolean }[] = [];
     letters.forEach((ch, i) => {
       const rows = GLYPH[ch]!;
-      const bob = Math.round(Math.sin(t * 1.3 + i * 0.9 + w.seed) * cell * 0.09);
+      const bob = bobs[i]!;
       for (let gy = 0; gy < 7; gy++) {
         // a tear shoves whole rows sideways
         const shove = this.tear > 0 && Math.sin(gy * 78.233 + Math.floor(t * 30) * 12.9898 + w.seed) > 0.55 ? Math.round((gy % 2 ? 1 : -1) * cell * 0.8) : 0;
@@ -222,10 +269,10 @@ export class Logo {
         }
       }
     });
-    // the depth, far to near; when it is very deep (the tap), every few layers are skipped and the rest drawn thicker
+    // the depth, far to near; when it is deep (a big phone, or the tap) every other layer is skipped and the rest drawn thicker
     const depth = Math.round(w.depth * Math.max(0, ext));
     const n = this.colours.length;
-    const stride = Math.max(1, Math.ceil(depth / 60));
+    const stride = Math.max(1, Math.ceil(depth / 36));
     // after the tap the depth stops being a straight extrusion and runs to a vanishing point behind the middle of the title:
     // the whole name is pulled away into the screen
     const pull = B >= 0 ? Math.min(1, B / 0.3) : 0;
