@@ -46,7 +46,8 @@ for (const shot of SHOTS) {
   if (shot.until) await page.waitForFunction(shot.until, null, { timeout: shot.timeout ?? 600000, polling: 100 });
   // the clock is ours now
   await page.evaluate(`(() => { __tt.manualClock(true); ${shot.atStart ?? ''}; return 1 })()`);
-  const dt = 1 / 30;
+  // a shot can run the game slower than the film (dt 1/60 is half speed): real slow motion, every frame drawn
+  const dt = shot.dt ?? 1 / 30;
   for (let i = 0; i < (shot.warm ?? 0); i++) await page.evaluate(`__tt.tick(${dt})`);
   let saved = 0;
   for (let i = 0; i < shot.frames; i++) {

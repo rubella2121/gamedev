@@ -508,6 +508,9 @@ export class Game {
     this.step(dt);
   }
 
+  /** (tools: the trailer capture) runs after the world has moved and before it is drawn, e.g. to place a camera of its own */
+  beforeDraw: (() => void) | null = null;
+
   private frame(now: number) {
     requestAnimationFrame((t) => this.frame(t));
     this.ui.pauseButton(!this.paused && this.canPause());
@@ -549,6 +552,7 @@ export class Game {
       if (spare > 0) this.act2.pump(spare);
     }
     if (this.debugRenderEvery > 1 && this.frameN++ % this.debugRenderEvery !== 0) return;
+    this.beforeDraw?.();
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending' || this.state === 'end') {
       this.render3D();
     } else if (this.state === 'trailer') {
