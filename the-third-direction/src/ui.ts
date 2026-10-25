@@ -1,9 +1,8 @@
 import { Ambient } from './ambient';
-import { drawBlob } from './core/art';
 import { bestTime, PRESETS, type DiffId } from './core/difficulty';
-import { makeSprite, type Pix } from './core/pix';
 import { STORY } from './core/story';
 import { fmtTime } from './core/util';
+import { grainTile, INTRO, Landing } from './landing';
 import { Logo } from './logo';
 
 export interface HomeOptions {
@@ -40,6 +39,10 @@ const ICON = {
   share: ['...#...', '..###..', '.#.#.#.', '...#...', '#..#..#', '#.....#', '#######'],
   menu: ['#######', '.......', '#######', '.......', '#######'],
 };
+
+/** the speaker on the landing page: its three waves light up one after another (CSS) */
+const SPEAKER =
+  '<svg viewBox="0 0 12 9" shape-rendering="crispEdges" fill="currentColor"><path d="M0 3h2v3H0z M2 2h1v5H2z M3 1h1v7H3z M4 0h1v9H4z"/><path class="w" d="M6 3h1v3H6z"/><path class="w w2" d="M8 2h1v5H8z"/><path class="w w3" d="M10 1h1v7h-1z"/></svg>';
 
 const HEART_SVG = '<svg class="heart" viewBox="0 0 7 6"><path d="M1 0h2v1H1z M4 0h2v1H4z M0 1h7v2H0z M1 3h5v1H1z M2 4h3v1H2z M3 5h1v1H3z"/></svg>';
 
@@ -134,6 +137,8 @@ export class UI {
   /** the animation loop of the splash and the home page (logo, fireflies, eyes), and what to do when the stage is resized */
   private fxRaf = 0;
   private onFit: (() => void) | null = null;
+  /** what the running animation needs undone when it stops (the landing page listens to the phone's tilt) */
+  private fxDone: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     this.stage = document.createElement('div');
@@ -393,52 +398,88 @@ export class UI {
   }
 
   /**
-   * The "tap to begin" screen before the trailer (browsers need a tap before they play sound). "skip intro" (or Escape) goes straight to
-   * the home page instead; Enter or Space begins like a tap.
+   * The landing page: "tap to begin" before the trailer (browsers need a tap before they play sound). It is a living night in the
+   * forest (src/landing.ts) under the title, which builds itself. A tap (or Enter / Space) sends out the baby's pulse of light and
+   * the intro begins under it; "skip intro" (or Escape) goes straight to the home page instead.
    */
   showSplash(onTap: () => void, onSkip: () => void) {
     const el = this.splashEl;
     el.innerHTML = '';
-    const mk = (cls: string, text = '') => {
-      const e = document.createElement('div');
+    const mk = (cls: string, text = '', tag = 'div') => {
+      const e = document.createElement(tag);
       e.className = cls;
       if (text) e.textContent = text;
       return e;
     };
-    const amb = new Ambient();
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const land = new Landing(still);
     const logo = new Logo();
-    const fam = new Family();
-    const sp = mk('sp');
-    const hint = mk('sb', 'tap to begin');
+    logo.still = still;
+    const scene = mk('ls');
+    const L = land.layers;
+    scene.append(L.sky.canvas, L.far.canvas, L.mid.canvas, L.ground.canvas, land.glow, L.near.canvas);
+    const grain = mk('lgrain');
+    grain.style.backgroundImage = `url(${grainTile()})`;
+    // the title, and the tagline under it, typed in a letter at a time
+    const top = mk('ltop');
+    const tag = mk('ltag');
+    tag.setAttribute('aria-label', "don't look up");
+    [..."don't look up"].forEach((ch, i) => {
+      const s = document.createElement('span');
+      s.textContent = ch;
+      s.setAttribute('aria-hidden', 'true');
+      s.style.setProperty('--i', String(i));
+      tag.append(s);
+    });
+    top.append(logo.canvas, tag);
+    const bottom = mk('lbot');
+    // (the whole page is the tap target; this is the same thing as a real button, for the keyboard and screen readers)
+    const cta = mk('sb', '', 'button');
+    cta.setAttribute('aria-label', 'Begin the intro');
+    cta.innerHTML = `${icon(['#..', '##.', '###', '##.', '#..'])}<span class="tap">tap to begin</span><span class="click">click to begin</span>${icon(['..#', '.##', '###', '.##', '..#'])}`;
     const snd = mk('ss');
-    snd.innerHTML = `${icon(ICON.speaker)}best with sound on`;
-    const skip = document.createElement('button');
-    skip.className = 'sk';
-    skip.textContent = 'skip intro ▸';
-    sp.append(logo.canvas, fam.canvas, hint, snd, skip);
-    el.append(amb.canvas, sp);
-    el.classList.remove('hide');
-    const leave = () => {
+    snd.innerHTML = `${SPEAKER}<span>best with sound on</span>`;
+    bottom.append(cta, snd);
+    const skip = mk('sk', 'skip intro ▸', 'button');
+    el.append(scene, mk('ldread'), mk('lvig'), grain, top, bottom, mk('lfoot', 'RUN October Jam · Monster Mash'), skip, mk('lflash'), mk('lblack'));
+    el.classList.remove('hide', 'out', 'go', 'dread');
+
+    const t0 = performance.now();
+    const clock = () => (performance.now() - t0) / 1000;
+    let gone = false;
+    const leave = (tap: boolean) => {
+      if (gone) return;
+      gone = true;
       el.removeEventListener('pointerdown', go);
       window.removeEventListener('keydown', key);
-      el.classList.add('out');
+      if (tap) {
+        // the pulse goes out from the baby, the title blows back into the screen, a flash, and the intro is already under it
+        land.burst(clock());
+        logo.burst(clock());
+        el.classList.add('go');
+      } else el.classList.add('out');
       window.setTimeout(() => {
         el.classList.add('hide');
-        el.classList.remove('out');
-      }, 450);
+        el.classList.remove('out', 'go', 'dread');
+        // (the animation loop stops when it sees the page hidden; then the pictures can go)
+        window.setTimeout(() => {
+          if (el.classList.contains('hide')) el.innerHTML = '';
+        }, 100);
+      }, tap ? 820 : 420);
     };
     const go = (e: Event) => {
       e.stopPropagation();
-      leave();
+      leave(true);
       onTap();
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        leave();
+        leave(false);
         onSkip();
-      } else if (e.key === 'Enter' || e.key === ' ') {
+      } else if ((e.key === 'Enter' || e.key === ' ') && e.target !== skip) {
+        // (on the begin button itself too: this handles it, the button's own click does nothing)
         e.preventDefault();
-        leave();
+        leave(true);
         onTap();
       }
     };
@@ -448,10 +489,11 @@ export class UI {
     skip.addEventListener('pointerdown', (e) => e.stopPropagation());
     skip.addEventListener('click', (e) => {
       e.stopPropagation();
-      leave();
+      leave(false);
       onSkip();
     });
-    this.runFx(el, logo, amb, 0.9, fam);
+    logo.assemble(INTRO.logo);
+    this.runSplash(el, logo, land, t0);
   }
 
   /** A place name with one line under it, when you first step into somewhere new. */
@@ -780,8 +822,8 @@ export class UI {
     this.runFx(el, logo, amb, 0.92);
   }
 
-  /** The animation of the splash and the home page: the logo's depth sways, the fireflies drift, eyes open in the dark. */
-  private runFx(el: HTMLElement, logo: Logo, amb: Ambient, width: number, fam?: Family) {
+  /** The animation of the home page: the logo's depth sways, the fireflies drift, eyes open in the dark. */
+  private runFx(el: HTMLElement, logo: Logo, amb: Ambient, width: number) {
     this.stopFx();
     const size = () => logo.resize(this.stage.clientWidth * width);
     this.onFit = size;
@@ -805,7 +847,55 @@ export class UI {
       const t = (now - t0) / 1000;
       logo.draw(t);
       amb.draw(t);
-      fam?.draw(t);
+    };
+    this.fxRaf = requestAnimationFrame(tick);
+  }
+
+  /**
+   * The landing page's animation. The layers slide every frame (that is only a transform); the pictures are redrawn thirty times a
+   * second, and sixty while the pulse goes out.
+   */
+  private runSplash(el: HTMLElement, logo: Logo, land: Landing, t0: number) {
+    this.stopFx();
+    let scale = 1;
+    const top = el.querySelector<HTMLElement>('.ltop');
+    const dread = el.querySelector<HTMLElement>('.ldread');
+    const size = () => {
+      logo.resize(this.stage.clientWidth * 0.9);
+      scale = this.stage.clientWidth / 216;
+    };
+    this.onFit = size;
+    size();
+    el.onpointermove = (e) => {
+      const r = this.stage.getBoundingClientRect();
+      land.point((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, e.pointerType === 'mouse');
+    };
+    el.onpointerleave = () => land.unpoint();
+    land.listen();
+    this.fxDone = () => land.dispose();
+    let drawn = 0;
+    const tick = () => {
+      if (!el.isConnected || el.classList.contains('hide')) {
+        this.fxRaf = 0;
+        this.fxDone?.();
+        this.fxDone = null;
+        return;
+      }
+      this.fxRaf = requestAnimationFrame(tick);
+      // (the same clock the tap reads, so the pulse starts exactly where the picture is)
+      const now = performance.now();
+      const t = (now - t0) / 1000;
+      const o = land.place(t, scale);
+      if (top) top.style.transform = `translate3d(${o.x.toFixed(2)}px,${o.y.toFixed(2)}px,0)`;
+      if (now - drawn < (land.busy ? 14 : 31)) return;
+      drawn = now;
+      land.draw(t);
+      logo.tilt = land.view.x;
+      logo.tiltY = land.view.y;
+      logo.fear = land.dread;
+      logo.draw(t);
+      if (dread) dread.style.opacity = (land.dread * 0.55).toFixed(3);
+      el.classList.toggle('dread', land.dread > 0.45);
     };
     this.fxRaf = requestAnimationFrame(tick);
   }
@@ -814,6 +904,8 @@ export class UI {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
     this.fxRaf = 0;
     this.onFit = null;
+    this.fxDone?.();
+    this.fxDone = null;
   }
 
   /** Pick a boss to fight right now, skipping the story (these runs are never ranked). */
@@ -1011,25 +1103,5 @@ export class UI {
     e.className = 'nogl';
     e.textContent = 'This game needs WebGL. Please try another browser or device.';
     this.stage.appendChild(e);
-  }
-}
-
-/** Two big lights and a small one, curled up together: the opening's picture, as a small breathing sprite. */
-class Family {
-  private p: Pix = makeSprite(76, 36);
-  readonly canvas = this.p.canvas;
-
-  constructor() {
-    this.canvas.className = 'family';
-    this.draw(0);
-  }
-
-  draw(t: number) {
-    const p = this.p;
-    p.ctx.clearRect(0, 0, 76, 36);
-    const blink = (k: number) => (Math.sin(t * 0.9 + k * 2.4) > 0.97 ? 1 : 0);
-    drawBlob(p, 21, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9), blink: blink(0), bow: true });
-    drawBlob(p, 55, 33, { s: 1.55, squash: 1 + 0.03 * Math.sin(t * 1.9 + 1.3), blink: blink(1) });
-    drawBlob(p, 38, 34, { s: 0.95, squash: 1 + 0.05 * Math.sin(t * 2.6 + 0.6), blink: blink(2) });
   }
 }

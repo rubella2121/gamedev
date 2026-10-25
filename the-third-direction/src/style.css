@@ -293,18 +293,61 @@ body {
 .tend[data-step='2'] .tg, .tend[data-step='3'] .tg { opacity: 1; }
 .tend[data-step='3'] .tf { opacity: 1; }
 
-.splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: radial-gradient(ellipse at 50% 58%, #0d2a33 0%, #060d15 52%, #020307 100%); display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; transition: opacity 450ms; touch-action: none; }
+/* ------------------------------ the landing page (src/landing.ts) ------------------------------ */
+.splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #020307; cursor: pointer; touch-action: none; outline: none; transition: opacity 420ms; }
 .splash.hide { display: none; }
 .splash.out { opacity: 0; }
-.splash .sp { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 7); }
-.splash .family { width: calc(var(--u) * 48); height: auto; image-rendering: pixelated; filter: drop-shadow(0 0 calc(var(--u) * 5) rgba(255, 214, 110, 0.4)); animation: breathe 3.2s ease-in-out infinite; }
-.splash .sb { font-size: calc(var(--u) * 3.4); letter-spacing: 0.42em; text-transform: uppercase; color: #ffe9a0; animation: blinkslow 2.2s ease-in-out infinite; padding-left: 0.42em; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 214, 110, 0.5); }
-.splash .ss { display: flex; align-items: center; gap: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.2); letter-spacing: 0.3em; text-transform: uppercase; color: rgba(232, 255, 251, 0.45); }
-.splash .sk { margin-top: calc(var(--u) * -1); font: inherit; font-size: calc(var(--u) * 2.7); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(232, 255, 251, 0.85); background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(232, 255, 251, 0.35); border-radius: 3px; padding: calc(var(--u) * 2.2) calc(var(--u) * 4); cursor: pointer; }
-.splash .sk:hover, .splash .sk:focus-visible { color: #fff; border-color: rgba(255, 233, 160, 0.8); outline: none; }
-.splash .ss .pi { width: calc(var(--u) * 3.2); height: auto; }
-@keyframes breathe { 0%, 100% { transform: scale(0.98); } 50% { transform: scale(1.03); } }
-@keyframes blinkslow { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+/* the tap: the pulse goes out, a flash, and the page fades into the intro's black */
+.splash.go { animation: lgo 820ms ease-in forwards; pointer-events: none; }
+@keyframes lgo { 0%, 38% { opacity: 1; } 100% { opacity: 0; } }
+.splash .ls { position: absolute; inset: 0; }
+/* every layer is the 216 x 384 scene plus a 12-pixel margin all round (so it can slide), scaled up without smoothing */
+.splash .ll { position: absolute; left: calc(-100% * 12 / 216); top: calc(-100% * 12 / 384); width: calc(100% * 240 / 216); height: calc(100% * 408 / 384); image-rendering: pixelated; image-rendering: crisp-edges; will-change: transform; pointer-events: none; }
+.splash .ll-glow { image-rendering: auto; mix-blend-mode: screen; }
+/* while the moon stares: the whole picture darkens and goes red */
+.splash .ldread { position: absolute; inset: 0; background: #7a0a18; mix-blend-mode: multiply; opacity: 0; pointer-events: none; }
+.splash .lvig { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 50%, rgba(0, 0, 0, 0) 50%, rgba(1, 2, 6, 0.45) 80%, rgba(0, 0, 0, 0.85) 100%); }
+.splash .lgrain { position: absolute; top: -64px; left: -96px; right: 0; bottom: 0; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay; background-size: 96px 96px; animation: lgrain 0.6s steps(6) infinite; }
+@keyframes lgrain { 0% { transform: translate(0, 0); } 100% { transform: translate(96px, 64px); } }
+.splash .ltop { position: absolute; left: 0; right: 0; top: calc(var(--u) * 8 + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; align-items: center; pointer-events: none; will-change: transform; }
+.splash .logo { margin: 0; filter: drop-shadow(0 0 calc(var(--u) * 2.6) rgba(224, 43, 58, 0.5)) drop-shadow(0 calc(var(--u) * 0.8) calc(var(--u) * 1.2) rgba(0, 0, 0, 0.85)); }
+.splash .ltag { margin-top: calc(var(--u) * 2.2); font-size: calc(var(--u) * 3.9); font-style: italic; letter-spacing: 0.3em; padding-left: 0.3em; white-space: pre; color: #e8fffb; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(159, 244, 238, 0.65), 0 2px 0 #000; transition: color 300ms, text-shadow 300ms; }
+.splash .ltag span { display: inline-block; opacity: 0; animation: ltype 0.4s ease-out forwards; animation-delay: calc(2.05s + var(--i) * 0.055s); }
+@keyframes ltype { 0% { opacity: 0; transform: translateY(calc(var(--u) * -0.8)); filter: blur(2px); } 100% { opacity: 1; transform: none; filter: none; } }
+.splash.dread .ltag { color: #ffdada; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 50, 64, 0.95), 0 0 calc(var(--u) * 6) rgba(224, 43, 58, 0.6), 0 2px 0 #000; animation: lflick 0.42s steps(2) 3; }
+@keyframes lflick { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.splash .lbot { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 15 + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3.4); pointer-events: none; }
+.splash .sb { display: flex; align-items: center; gap: calc(var(--u) * 3); font: inherit; color: inherit; background: none; border: 0; padding: calc(var(--u) * 1.2) calc(var(--u) * 2); border-radius: calc(var(--u) * 0.8); opacity: 0; animation: lin 0.9s ease-out 2.6s forwards; }
+.splash .sb:focus-visible { outline: 2px solid rgba(255, 233, 160, 0.8); outline-offset: 2px; }
+.splash .sb span { font-size: calc(var(--u) * 3.8); font-weight: 700; letter-spacing: 0.42em; padding-left: 0.42em; text-transform: uppercase; color: #ffe9a0; text-shadow: 0 0 calc(var(--u) * 2.6) rgba(255, 214, 110, 0.75), 0 2px 0 #000; animation: lbreathe 2.4s ease-in-out 3.5s infinite; }
+.splash .sb .click { display: none; }
+@media (hover: hover) and (pointer: fine) { .splash .sb .tap { display: none; } .splash .sb .click { display: inline; } }
+.splash .sb .pi { width: calc(var(--u) * 1.6); height: auto; color: #f2d36b; filter: drop-shadow(0 0 calc(var(--u) * 1) rgba(242, 211, 107, 0.8)); animation: lnudge 1.2s ease-in-out infinite; }
+.splash .sb .pi:last-child { animation-name: lnudge2; }
+@keyframes lnudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(calc(var(--u) * 1)); } }
+@keyframes lnudge2 { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(calc(var(--u) * -1)); } }
+@keyframes lbreathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes lin { from { opacity: 0; transform: translateY(calc(var(--u) * 1.5)); } to { opacity: 1; transform: none; } }
+.splash .ss { display: flex; align-items: center; gap: calc(var(--u) * 1.8); font-size: calc(var(--u) * 2.3); letter-spacing: 0.3em; padding-left: 0.3em; text-transform: uppercase; color: rgba(232, 255, 251, 0.55); text-shadow: 0 1px 0 #000; opacity: 0; animation: lin 0.9s ease-out 3.1s forwards; }
+.splash .ss svg { width: calc(var(--u) * 4.4); height: auto; color: #9ff4ee; }
+.splash .ss .w { opacity: 0.2; animation: lwave 1.6s ease-in-out infinite; }
+.splash .ss .w2 { animation-delay: 0.2s; }
+.splash .ss .w3 { animation-delay: 0.4s; }
+@keyframes lwave { 0%, 100% { opacity: 0.15; } 40% { opacity: 1; } }
+.splash .sk { position: absolute; z-index: 2; top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); right: calc(var(--u) * 4); font: inherit; font-size: calc(var(--u) * 2.6); letter-spacing: 0.22em; text-transform: uppercase; color: rgba(232, 255, 251, 0.8); background: rgba(2, 4, 8, 0.5); border: 1px solid rgba(232, 255, 251, 0.3); border-radius: calc(var(--u) * 0.8); padding: calc(var(--u) * 1.8) calc(var(--u) * 3); cursor: pointer; opacity: 0; animation: lin 0.6s ease-out 0.6s forwards; }
+.splash .sk:hover, .splash .sk:focus-visible { color: #fff; border-color: rgba(255, 233, 160, 0.85); background: rgba(2, 4, 8, 0.7); outline: none; }
+.splash .lfoot { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 4.5 + env(safe-area-inset-bottom, 0px)); text-align: center; font-size: calc(var(--u) * 2); letter-spacing: 0.3em; padding-left: 0.3em; text-transform: uppercase; color: rgba(232, 255, 251, 0.34); pointer-events: none; opacity: 0; animation: lin 1s ease-out 3.4s forwards; }
+.splash .lflash { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; background: radial-gradient(circle at 50% 72%, #fffbe8 0%, #ffe9a8 40%, #f2d36b 100%); }
+.splash.go .lflash { animation: lflash 820ms ease-out forwards; }
+@keyframes lflash { 0% { opacity: 0; } 28% { opacity: 0.15; } 44% { opacity: 0.95; } 100% { opacity: 0; } }
+/* the page comes up out of black */
+.splash .lblack { position: absolute; inset: 0; background: #000; pointer-events: none; animation: lunblack 1.3s ease-out forwards; }
+@keyframes lunblack { 0% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .splash .ltag span, .splash .sb, .splash .ss, .splash .sk, .splash .lfoot { animation: none; opacity: 1; }
+  .splash .sb span, .splash .sb .pi, .splash .ss .w, .splash .lgrain, .splash.dread .ltag { animation: none; }
+  .splash .ss .w { opacity: 0.8; }
+}
 
 /* cutscene subtitles: a name in the speaker's colour, the line under it, low on the screen, above the letterbox */
 .sub { position: absolute; left: 7%; right: 7%; bottom: calc(12% + var(--u) * 4); z-index: 16; pointer-events: none; text-align: center; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.8); opacity: 0; transform: translateY(calc(var(--u) * 1)); transition: opacity 260ms, transform 260ms; }
