@@ -11,6 +11,7 @@ import { Lullaby } from "./shorts/Lullaby";
 import { Phonk } from "./shorts/Phonk";
 import { Secrets } from "./shorts/Secrets";
 import { TheFourth } from "./shorts/TheFourth";
+import { Villain } from "./shorts/Villain";
 import { Trailer } from "./Trailer";
 
 /** the shorts: each its own format, look and sound (src/shorts/) */
@@ -22,6 +23,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["lullaby", Lullaby],
   ["cartridge", Cartridge],
   ["live", Live],
+  ["villain", Villain],
 ];
 
 export const RemotionRoot: React.FC = () => {

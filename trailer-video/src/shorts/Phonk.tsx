@@ -20,7 +20,7 @@ const B = 0.4;
  */
 
 /** a shot that ramps: consecutive pieces of one clip, each at its own speed, the clip running on without a jump */
-const ramp = (clip: string, from: number, at: number, pieces: [number, number][], extra: Partial<Cut> = {}): Cut[] => {
+export const ramp = (clip: string, from: number, at: number, pieces: [number, number][], extra: Partial<Cut> = {}): Cut[] => {
   const out: Cut[] = [];
   let f = from;
   let t = at;
