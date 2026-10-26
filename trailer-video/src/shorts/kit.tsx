@@ -112,7 +112,7 @@ export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: s
   text,
   colour,
   y = 0.66,
-  size = 58,
+  size = 66,
   font = "Cormorant Garamond",
 }) => {
   const t = useCurrentFrame() / FPS;
@@ -120,6 +120,8 @@ export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: s
   const op = smooth((t - at) / 0.25) * (1 - smooth((t - end) / 0.3));
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * y, opacity: op }}>
+      {/* a soft dark band behind the words, so they read over anything */}
+      <div style={{ position: "absolute", left: 0, top: H * y - 40, width: W, height: (who ? 60 : 0) + size * 2.6, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,0,0,0.62), rgba(0,0,0,0) 100%)" }} />
       {who ? (
         <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 26, letterSpacing: "0.5em", paddingLeft: "0.5em", color: colour, textShadow: `0 0 14px ${colour}, 0 2px 6px rgba(0,0,0,0.9)`, marginBottom: 14 }}>
           {who}
