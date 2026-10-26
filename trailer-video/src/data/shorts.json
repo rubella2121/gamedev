@@ -82,6 +82,79 @@
         {"id": "w1", "at": 18.7, "gain": 1.3}
       ],
       "mix": {"orch": 1.0, "sfx": 0.6}
+    },
+    "cartridge": {
+      "title": "The cartridge",
+      "length": 20.0,
+      "insert": 0.55,
+      "power": 0.75,
+      "boot": 1.0,
+      "ding": 1.65,
+      "title2": 2.1,
+      "start": 2.7,
+      "play": [2.9, 3.9, 4.7, 5.5],
+      "eyes": 6.2,
+      "cracks": [7.0, 7.35, 7.6],
+      "burst": 7.8,
+      "its": 8.0,
+      "battle": [9.4, 10.2, 10.6, 11.0, 11.4, 11.8, 12.2, 12.6],
+      "fall": 13.0,
+      "back": 14.2,
+      "end": 15.0,
+      "fadeOut": 19.4,
+      "lines": [],
+      "mix": {"orch": 1.0, "sfx": 0.8}
+    },
+    "live": {
+      "title": "LIVE: world record attempt",
+      "length": 21.0,
+      "go": 1.0,
+      "splits": [2.2, 3.4, 4.6, 5.8, 7.0],
+      "edge": 7.0,
+      "crack": 7.6,
+      "boom": 8.0,
+      "bosses": [8.6, 10.6, 12.2],
+      "wr": 14.0,
+      "extra": 15.4,
+      "offline": 16.6,
+      "end": 17.4,
+      "fadeOut": 20.4,
+      "lines": [
+        {"id": "w1", "at": 16.75, "gain": 1.3}
+      ],
+      "mix": {"orch": 0.85, "sfx": 0.85}
+    },
+    "festival": {
+      "title": "The festival trailer",
+      "length": 22.4,
+      "cards": [0.0, 3.6, 6.4, 9.2],
+      "shots": [1.6, 4.6, 7.4],
+      "hush": 10.2,
+      "whisper": 10.55,
+      "boom": 11.6,
+      "montage": [11.6, 11.9, 12.2, 12.45, 12.7, 12.95, 13.2, 13.5, 13.85],
+      "laurels": 14.4,
+      "quotes": [14.7, 15.5, 16.3],
+      "title2": 17.6,
+      "fadeOut": 21.7,
+      "lines": [
+        {"id": "m3", "at": 10.55, "gain": 1.15}
+      ],
+      "mix": {"orch": 1.0, "sfx": 0.7}
+    },
+    "villain": {
+      "title": "Villain edit",
+      "length": 15.2,
+      "beat": 0.44,
+      "drop": 1.76,
+      "words": [0.15, 3.52, 5.28],
+      "scratch": 7.04,
+      "twist": 7.5,
+      "drop2": 8.8,
+      "end": 11.44,
+      "fadeOut": 14.5,
+      "lines": [],
+      "mix": {"orch": 0.0, "sfx": 1.0}
     }
   }
 }

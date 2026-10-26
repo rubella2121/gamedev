@@ -4,6 +4,7 @@ import shorts from "./data/shorts.json";
 import { H, W } from "./lib/time";
 import { Promo } from "./Promo";
 import { PROMOS } from "./promos";
+import { Cartridge } from "./shorts/Cartridge";
 import { Fighter } from "./shorts/Fighter";
 import { Lullaby } from "./shorts/Lullaby";
 import { Phonk } from "./shorts/Phonk";
@@ -18,6 +19,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["secrets", Secrets],
   ["phonk", Phonk],
   ["lullaby", Lullaby],
+  ["cartridge", Cartridge],
 ];
 
 export const RemotionRoot: React.FC = () => {
