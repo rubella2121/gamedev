@@ -17,7 +17,8 @@
       "black": 15.6,
       "end": 16.0,
       "fadeOut": 19.3,
-      "lines": []
+      "lines": [],
+      "mix": {"orch": 0.9, "sfx": 0.85}
     },
     "fighter": {
       "title": "Choose your fight",
@@ -35,7 +36,8 @@
       "glimpse": 14.1,
       "end": 14.8,
       "fadeOut": 17.7,
-      "lines": []
+      "lines": [],
+      "mix": {"orch": 0.0, "sfx": 1.0}
     },
     "secrets": {
       "title": "5 things you missed",
@@ -48,7 +50,8 @@
       "s1": 15.2,
       "end": 18.8,
       "fadeOut": 21.7,
-      "lines": []
+      "lines": [],
+      "mix": {"orch": 1.0, "sfx": 0.7}
     },
     "phonk": {
       "title": "Blob mode",
@@ -60,7 +63,8 @@
       "forThem": 9.85,
       "end": 11.2,
       "fadeOut": 13.7,
-      "lines": []
+      "lines": [],
+      "mix": {"orch": 0.0, "sfx": 1.0}
     },
     "lullaby": {
       "title": "The lullaby",
@@ -76,7 +80,8 @@
       "lines": [
         {"id": "m1", "at": 0.25, "gain": 1.0},
         {"id": "w1", "at": 18.7, "gain": 1.3}
-      ]
+      ],
+      "mix": {"orch": 1.0, "sfx": 0.6}
     }
   }
 }

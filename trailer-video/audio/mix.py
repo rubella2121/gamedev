@@ -1,7 +1,8 @@
 """The trailer's sound: the orchestra and the game's sound design under the voices, mastered.
-   python3 audio/mix.py <orchestra.wav> <sfx.wav> <voiceDir> <out.wav> [promo id]
+   python3 audio/mix.py <orchestra.wav> <sfx.wav> <voiceDir> <out.wav> [promo or short id]
 
-With a promo id it mixes that promo instead: its length and its lines come from src/data/promos.json.
+With an id it mixes that promo or short instead: its length and its lines come from src/data/promos.json or shorts.json, and
+a short can set its own balance ("mix": {"orch": ..., "sfx": ...}; for the synthesised ones the sfx layer is the music).
 
 Every line of src/data/lines.json goes in at its time; both music layers step back under speech (fast in, slow out) so the
 words sit on top without the music ever stopping. Then the bus is glued (gentle compression), limited, and brought to -14 LUFS
@@ -20,7 +21,8 @@ promo = sys.argv[5] if len(sys.argv) > 5 else None
 here = os.path.dirname(os.path.abspath(__file__))
 data = os.path.join(here, '..', 'src', 'data')
 if promo:
-    CUES = json.load(open(os.path.join(data, 'promos.json')))['clips'][promo]
+    found = {**json.load(open(os.path.join(data, 'promos.json')))['clips'], **json.load(open(os.path.join(data, 'shorts.json')))['shorts']}
+    CUES = found[promo]
     LINES = CUES['lines']
 else:
     CUES = json.load(open(os.path.join(data, 'cues.json')))
@@ -63,7 +65,8 @@ for s in range(0, N, step):
     e += (target - e) * (1 - (1 - (a_in if target > e else a_out)) ** step)
     env[s:s + step] = e
 duck = (1 - 0.6 * env)[:, None]
-mix = (orch * 1.0 + sfx * 0.55) * duck + voice * 1.7
+BAL = CUES.get('mix', {}) if promo else {}
+mix = (orch * BAL.get('orch', 1.0) + sfx * BAL.get('sfx', 0.55)) * duck + voice * 1.7
 tmp = out_path + '.raw.wav'
 with wave.open(tmp, 'wb') as w:
     w.setnchannels(2)
