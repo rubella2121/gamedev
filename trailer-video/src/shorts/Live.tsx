@@ -408,10 +408,11 @@ const Timer: React.FC<{ t: number }> = ({ t }) => {
       .map((ch, i) => (/\d/.test(ch) && rand(f * 13 + i) < 0.25 + 0.5 * clamp((t - S.extra) / 1.0) ? "4" : ch))
       .join("");
   }
-  const fill = extra ? `linear-gradient(180deg, #ffb0c0, ${RED})` : t >= S.wr ? `linear-gradient(180deg, #fff6d0, ${GOLD} 55%, #e0a030)` : behind ? `linear-gradient(180deg, #ffc0c8, ${RED})` : t >= S.go ? `linear-gradient(180deg, #d6ffe6, ${GREEN})` : "linear-gradient(180deg, #ffffff, #b8bccc)";
+  // solid colours: text clipped to a gradient does not survive the renderer reliably
+  const fill = extra || behind ? RED : t >= S.wr ? GOLD : t >= S.go ? GREEN : "#ffffff";
   return (
     <div style={{ position: "absolute", left: GAME.x, top: GAME.y + GAME.h - 190, width: GAME.w, height: 190, background: "linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,0.7))", borderRadius: "0 0 18px 18px", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: "0 34px 14px 0", boxSizing: "border-box" }}>
-      <div style={{ fontFamily: UI, fontWeight: 800, fontSize: 124, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", background: fill, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 4px 0 rgba(0,0,0,0.8))", transform: extra ? `translateX(${((rand(Math.floor(t * FPS)) - 0.5) * 12).toFixed(1)}px)` : undefined }}>{txt}</div>
+      <div style={{ fontFamily: UI, fontWeight: 800, fontSize: 124, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", color: fill, textShadow: `0 5px 0 rgba(0,0,0,0.85), 0 0 26px ${fill}88`, transform: extra ? `translateX(${((rand(Math.floor(t * FPS)) - 0.5) * 12).toFixed(1)}px)` : undefined }}>{txt}</div>
     </div>
   );
 };
@@ -466,25 +467,35 @@ const Record: React.FC<{ t: number }> = ({ t }) => {
       <div style={{ position: "absolute", left: GAME.x, top: GAME.y, width: GAME.w, height: GAME.h, opacity: k, borderRadius: 18, background: "radial-gradient(ellipse 60% 40% at 50% 42%, rgba(0,0,0,0.55), rgba(0,0,0,0) 100%)" }} />
       <div style={{ position: "absolute", left: 0, top: GAME.y + 170, width: W, display: "flex", flexDirection: "column", alignItems: "center", opacity: k, transform: `scale(${s.toFixed(3)})` }}>
         <div style={{ fontFamily: UI, fontWeight: 800, fontSize: 34, letterSpacing: "0.3em", color: "#fff", backgroundColor: "rgba(0,0,0,0.6)", padding: "6px 22px 6px 32px", borderRadius: 8 }}>🏆 NEW 🏆</div>
-        <div
-          style={{
-            fontFamily: POSTER,
-            fontSize: 190,
-            lineHeight: 0.95,
-            textAlign: "center",
-            marginTop: 10,
-            background: `linear-gradient(110deg, ${GOLD} ${shine - 12}%, #fffbe8 ${shine}%, ${GOLD} ${shine + 12}%), linear-gradient(180deg, #fff2c0, ${GOLD} 60%, #d9902a)`,
-            backgroundBlendMode: "screen",
-            WebkitBackgroundClip: "text",
-            backgroundClip: "text",
-            color: "transparent",
-            filter: "drop-shadow(0 8px 0 rgba(0,0,0,0.75)) drop-shadow(0 0 30px rgba(255,190,80,0.6))",
-          }}
-        >
-          WORLD
-          <br />
-          RECORD
-        </div>
+        {/* the words in gold, a shine running across them (an SVG gradient: text clipped to a CSS one does not survive the renderer) */}
+        <svg width={W} height={380} style={{ marginTop: 6, overflow: "visible" }}>
+          <defs>
+            <linearGradient id="wr-gold" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#fff2c0" />
+              <stop offset="60%" stopColor={GOLD} />
+              <stop offset="100%" stopColor="#d9902a" />
+            </linearGradient>
+            <linearGradient id="wr-shine" gradientUnits="userSpaceOnUse" x1={(W * (shine - 14)) / 100} y1="0" x2={(W * (shine + 14)) / 100} y2="120">
+              <stop offset="0%" stopColor="#fffbe8" stopOpacity={0} />
+              <stop offset="50%" stopColor="#fffbe8" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#fffbe8" stopOpacity={0} />
+            </linearGradient>
+            <filter id="wr-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="14" />
+            </filter>
+          </defs>
+          {[
+            ["WORLD", 175],
+            ["RECORD", 355],
+          ].map(([word, y]) => (
+            <g key={word as string} fontFamily={POSTER} fontSize={190} textAnchor="middle">
+              <text x={W / 2} y={y as number} fill="rgba(255,190,80,0.55)" filter="url(#wr-glow)">{word}</text>
+              <text x={W / 2} y={(y as number) + 8} fill="rgba(0,0,0,0.75)">{word}</text>
+              <text x={W / 2} y={y as number} fill="url(#wr-gold)">{word}</text>
+              <text x={W / 2} y={y as number} fill="url(#wr-shine)">{word}</text>
+            </g>
+          ))}
+        </svg>
       </div>
     </>
   );
