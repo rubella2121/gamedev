@@ -1,0 +1,82 @@
+{
+  "fps": 30,
+  "shorts": {
+    "the-fourth": {
+      "title": "It's not over",
+      "length": 20.0,
+      "end1": 0.0,
+      "freeze": 2.4,
+      "unfold": 3.6,
+      "eye": 6.4,
+      "meant": 6.6,
+      "flashes": [10.0, 10.2, 10.4, 10.6],
+      "found": 10.8,
+      "foundYou": 12.1,
+      "flee": 13.2,
+      "back": 13.45,
+      "black": 15.6,
+      "end": 16.0,
+      "fadeOut": 19.3,
+      "lines": []
+    },
+    "fighter": {
+      "title": "Choose your fight",
+      "length": 18.4,
+      "on": 0.0,
+      "roll": 1.2,
+      "pick": 6.8,
+      "vs": 7.2,
+      "vsSlam": 7.6,
+      "stats": 8.4,
+      "fight": 10.4,
+      "play": [11.2, 11.6, 12.0],
+      "ko": 12.4,
+      "locked": 12.8,
+      "glimpse": 14.1,
+      "end": 14.8,
+      "fadeOut": 17.7,
+      "lines": []
+    },
+    "secrets": {
+      "title": "5 things you missed",
+      "length": 22.4,
+      "hook": 0.0,
+      "s5": 1.6,
+      "s4": 5.0,
+      "s3": 8.4,
+      "s2": 11.8,
+      "s1": 15.2,
+      "end": 18.8,
+      "fadeOut": 21.7,
+      "lines": []
+    },
+    "phonk": {
+      "title": "Blob mode",
+      "length": 14.4,
+      "intro": 0.0,
+      "drop": 1.6,
+      "words": [0.1, 0.9, 3.2, 4.8, 8.0],
+      "breakdown": 9.6,
+      "forThem": 9.85,
+      "end": 11.2,
+      "fadeOut": 13.7,
+      "lines": []
+    },
+    "lullaby": {
+      "title": "The lullaby",
+      "length": 22.4,
+      "open": 0.0,
+      "verse": [3.2, 8.2, 13.2],
+      "gap": 0.9,
+      "silence": 18.2,
+      "blink": 18.45,
+      "whisper": 18.7,
+      "end": 19.4,
+      "fadeOut": 21.7,
+      "lines": [
+        {"id": "m1", "at": 0.25, "gain": 1.0},
+        {"id": "w1", "at": 18.7, "gain": 1.3}
+      ]
+    }
+  }
+}

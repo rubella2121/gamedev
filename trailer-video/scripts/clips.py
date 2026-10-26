@@ -21,7 +21,9 @@ CLIPS = ['h-x-slam', 'edge', 'opening', 'w-pulse', 'g-gloom', 'f-gloom', 'g-thic
          'f-bones', 'g-meadow', 'f-meadow', 'c-x-hero', 'h-x-gaze', 'c-chase', 'c-x-stomp', 'c-cage', 'c-collector', 'collector-2',
          'c-mash', 'mash-3', 'x-gaze', 'mash-2', 'x-jaws', 'h-x-death', 'reunion', 'moonlit',
          # the promos also use these
-         'x-foot', 'x-rake', 'mash-0', 'collector-0']
+         'x-foot', 'x-rake', 'mash-0', 'collector-0',
+         # and the shorts: what comes after the end (the Fourth)
+         't-family', 't-unfold', 't-eye', 't-lift', 't-descend', 't-dial', 'fourth-fight', 'flee']
 
 
 def frames(clip):

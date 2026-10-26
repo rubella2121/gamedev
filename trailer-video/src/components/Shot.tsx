@@ -74,7 +74,7 @@ const ShotBody: React.FC<{ cut: Cut; next?: Cut; t0: number; trim: number; rate:
   const iris = cut.in === "iris" && t < cut.at + IRIS ? easeInOut((t - cut.at) / IRIS) : 1;
   const r = iris * Math.hypot(W, H);
   const dark = cut.dark ? cut.dark * smooth((t - (cut.end - 1.15)) / 1.0) : 0;
-  const grade = cut.pixel ? "brightness(1.22) contrast(1.1) saturate(1.28)" : "brightness(1.13) contrast(1.1) saturate(1.16)";
+  const grade = cut.grade ?? (cut.pixel ? "brightness(1.22) contrast(1.1) saturate(1.28)" : "brightness(1.13) contrast(1.1) saturate(1.16)");
   const lift = rush > 0.01 ? ` brightness(${(1 + 0.5 * rush).toFixed(2)})` : "";
 
   return (
