@@ -26,7 +26,7 @@ export const ONSETS = GAPS.map((_, i) => GAPS.slice(0, i).reduce((a, b) => a + b
 const VERSES: [number, string[], number][] = [
   [v1, ["Hush", "now,", "light", "of", "mine,", "close", "your", "eyes."], 0.17],
   [v2, ["Small", "stars", "shine,", "but", "they", "watch", "you", "sleep."], 0.6],
-  [v3, ["Hold", "on", "tight,", "my", "love,", "don't", "look", "up."], 0.2],
+  [v3, ["Hold", "on", "tight,", "my", "love,", "don't", "look", "up."], 0.29],
 ];
 
 /** where the moon is in the reunion's first frames, and the shot that holds on it */
