@@ -3,7 +3,7 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import lines from "../data/lines.json";
 import voice from "../data/voice.json";
-import { CUTS } from "../edit";
+import { CUTS, type Cut } from "../edit";
 import { clamp, easeOut, FPS, H, rand, smooth, W } from "../lib/time";
 
 export const SERIF = "Cinzel";
@@ -13,9 +13,9 @@ export const SANS = "Inter";
 /* ------------------------------------------------------------------------------------------------ names */
 
 /** a monster's name, slammed in on its cut: big, then settling, with what it is typed above it */
-export const Names: React.FC = () => {
+export const Names: React.FC<{ cuts?: Cut[]; y?: number }> = ({ cuts = CUTS, y = 0.71 }) => {
   const t = useCurrentFrame() / FPS;
-  const c = CUTS.find((k) => k.name && t >= k.at + 0.03 && t < k.end - 0.03);
+  const c = cuts.find((k) => k.name && t >= k.at + 0.03 && t < k.end - 0.03);
   if (!c || !c.name) return null;
   const { text, sub, colour } = c.name;
   const u = t - c.at;
@@ -29,7 +29,7 @@ export const Names: React.FC = () => {
   const dx = (rand(Math.floor(t * 60)) - 0.5) * 2 * j;
   const dy = (rand(Math.floor(t * 60) + 9) - 0.5) * 2 * j;
   return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * 0.71, opacity: op }}>
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * y, opacity: op }}>
       <div style={{ fontFamily: SANS, fontWeight: 600, fontSize: 30, letterSpacing: "0.42em", color: colour, textShadow: "0 2px 8px rgba(0,0,0,0.9)", marginBottom: 14, minHeight: 36, paddingLeft: "0.42em" }}>
         {typed}
       </div>
@@ -97,19 +97,22 @@ export const Card: React.FC<{ at: number; end: number; lines: string[]; y?: numb
 type Line = { id: string; caption: string | null; style: string };
 const DUR: Record<string, { at: number; dur: number }> = Object.fromEntries((voice as { id: string; at: number; dur: number }[]).map((v) => [v.id, v]));
 
-/** her words, quietly, low on the screen (for everyone watching with the sound off) */
-export const Captions: React.FC = () => {
+/** a spoken line on screen: when it is said, for how long, and whether it is heard from far away */
+export type Sub = { at: number; dur: number; caption: string; far?: boolean };
+const SUBS: Sub[] = (lines as Line[]).flatMap((l) => {
+  const d = DUR[l.id];
+  return l.caption && d ? [{ at: d.at, dur: d.dur, caption: l.caption, far: l.style === "far" }] : [];
+});
+
+/** her words, quietly, low on the screen (for everyone watching with the sound off); the trailer's by default */
+export const Captions: React.FC<{ subs?: Sub[]; y?: number }> = ({ subs = SUBS, y = 0.865 }) => {
   const t = useCurrentFrame() / FPS;
-  const ln = (lines as Line[]).find((l) => {
-    const d = DUR[l.id];
-    return l.caption && d && t >= d.at - 0.05 && t < d.at + d.dur + 0.35;
-  });
-  if (!ln || !ln.caption) return null;
-  const d = DUR[ln.id]!;
+  const d = subs.find((l) => t >= l.at - 0.05 && t < l.at + l.dur + 0.35);
+  if (!d) return null;
   const op = smooth((t - (d.at - 0.05)) / 0.2) * (1 - smooth((t - (d.at + d.dur + 0.1)) / 0.25));
-  const far = ln.style === "far";
+  const far = !!d.far;
   return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * 0.865, opacity: op }}>
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * y, opacity: op }}>
       <div
         style={{
           fontFamily: ITALIC,
@@ -124,7 +127,7 @@ export const Captions: React.FC = () => {
           filter: far ? `blur(${(1.2 * (1 - smooth((t - d.at) / 0.6))).toFixed(2)}px)` : undefined,
         }}
       >
-        {ln.caption}
+        {d.caption}
       </div>
     </AbsoluteFill>
   );

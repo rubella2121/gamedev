@@ -1,0 +1,79 @@
+{
+  "fps": 30,
+  "bar": 1.6,
+  "clips": {
+    "2d-to-3d": {
+      "title": "It's a 2D game... until you look up",
+      "length": 17.0,
+      "stars": 1.6,
+      "starFrom": 7,
+      "starRate": 1.2,
+      "starPings": [1.822, 2.114, 2.447, 2.739, 3.031, 3.322, 3.572, 3.822],
+      "eyes": 3.6,
+      "crack": 4.4,
+      "boom": 5.0,
+      "reveal": 7.6,
+      "battle": [9.2, 10.0, 10.8, 11.6],
+      "rush": [12.4, 12.8],
+      "end": 13.2,
+      "lines": [
+        {"id": "m7", "at": 3.75, "gain": 1.15}
+      ]
+    },
+    "boss-rush": {
+      "title": "You're this big. They're this big.",
+      "length": 20.4,
+      "hookSlow": 0.8,
+      "hookHit": 1.2,
+      "guardians": [2.4, 4.0, 5.6, 7.2, 8.8],
+      "crack": 10.4,
+      "boom": 10.8,
+      "bosses": [12.0, 13.6, 15.2],
+      "end": 16.8,
+      "lines": []
+    },
+    "family": {
+      "title": "They took my parents",
+      "length": 22.8,
+      "home": 2.4,
+      "shadow": 4.0,
+      "slam": 4.8,
+      "journey": 5.6,
+      "guardians": [7.2, 7.6, 8.0, 8.4],
+      "crack": 8.8,
+      "boom": 9.6,
+      "reveal": 11.2,
+      "battle": [11.2, 12.0, 12.8],
+      "fall": 13.6,
+      "lock": 15.2,
+      "family": 16.0,
+      "end": 19.2,
+      "lines": [
+        {"id": "m5", "at": 1.2, "gain": 1.05},
+        {"id": "b1", "at": 16.75, "gain": 0.95}
+      ]
+    },
+    "dont-look-up": {
+      "title": "Don't look up",
+      "length": 11.6,
+      "stars": 1.8,
+      "starFrom": 8,
+      "starRate": 1.4,
+      "starPings": [1.967, 2.217, 2.502, 2.752, 3.002, 3.252, 3.467, 3.681],
+      "eyes": 3.4,
+      "foot": 4.6,
+      "footLands": 5.2,
+      "rush": [5.4, 5.8, 6.2, 6.6],
+      "black": 7.0,
+      "end": 7.4,
+      "fadeOut": 9.9,
+      "whisper": 10.35,
+      "sting": 11.0,
+      "lines": [
+        {"id": "m3", "at": 0.3, "gain": 1.1},
+        {"id": "m6", "at": 1.9, "gain": 1.05},
+        {"id": "w1", "at": 10.35, "gain": 1.6}
+      ]
+    }
+  }
+}

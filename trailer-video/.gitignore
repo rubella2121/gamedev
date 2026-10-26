@@ -11,3 +11,6 @@ public/clips
 public/stills
 public/grain
 public/audio
+
+# Python bytecode (audio/kit.py is imported)
+__pycache__

@@ -1,5 +1,7 @@
 """The trailer's sound: the orchestra and the game's sound design under the voices, mastered.
-   python3 audio/mix.py <orchestra.wav> <sfx.wav> <voiceDir> <out.wav>
+   python3 audio/mix.py <orchestra.wav> <sfx.wav> <voiceDir> <out.wav> [promo id]
+
+With a promo id it mixes that promo instead: its length and its lines come from src/data/promos.json.
 
 Every line of src/data/lines.json goes in at its time; both music layers step back under speech (fast in, slow out) so the
 words sit on top without the music ever stopping. Then the bus is glued (gentle compression), limited, and brought to -14 LUFS
@@ -14,9 +16,15 @@ import wave
 import numpy as np
 
 orch_path, sfx_path, vdir, out_path = sys.argv[1:5]
+promo = sys.argv[5] if len(sys.argv) > 5 else None
 here = os.path.dirname(os.path.abspath(__file__))
-LINES = json.load(open(os.path.join(here, '..', 'src', 'data', 'lines.json')))
-CUES = json.load(open(os.path.join(here, '..', 'src', 'data', 'cues.json')))
+data = os.path.join(here, '..', 'src', 'data')
+if promo:
+    CUES = json.load(open(os.path.join(data, 'promos.json')))['clips'][promo]
+    LINES = CUES['lines']
+else:
+    CUES = json.load(open(os.path.join(data, 'cues.json')))
+    LINES = json.load(open(os.path.join(data, 'lines.json')))
 SR = 48000
 N = int(CUES['length'] * SR)
 
@@ -64,8 +72,12 @@ with wave.open(tmp, 'wb') as w:
     peak = np.abs(mix).max()
     w.writeframes((np.clip(mix / max(1.0, peak), -1, 1) * 32767).astype(np.int16).tobytes())
 
-# master: glue, limit, and loudness (measure first, then a linear pass)
+# master: glue, limit, and loudness (measure first, then a linear pass). A promo plays in a feed, on a phone, against
+# everything else in it: its quiet moments are brought up first (a gain riding over about two seconds, at most +22 dB), so
+# they still carry.
 chain = 'acompressor=threshold=-18dB:ratio=2:attack=20:release=250:makeup=1.5,alimiter=limit=0.9:attack=3:release=60:level=disabled'
+if promo:
+    chain = 'dynaudnorm=f=250:g=7:p=0.9:m=12,' + chain
 r = subprocess.run(['ffmpeg', '-hide_banner', '-i', tmp, '-af', chain + ',loudnorm=I=-14:TP=-1.0:LRA=11:print_format=json', '-f', 'null', '-'],
                    capture_output=True, text=True)
 j = json.loads(r.stderr[r.stderr.rindex('{'):r.stderr.rindex('}') + 1])

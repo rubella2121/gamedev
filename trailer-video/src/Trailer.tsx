@@ -1,37 +1,14 @@
-import "@fontsource/cinzel/400.css";
-import "@fontsource/cinzel/700.css";
-import "@fontsource/cinzel/900.css";
-import "@fontsource/cormorant-garamond/600-italic.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/800.css";
-import React, { useEffect, useState } from "react";
-import { AbsoluteFill, Audio, continueRender, delayRender, staticFile, useCurrentFrame } from "remotion";
+import React from "react";
+import { AbsoluteFill, Audio, staticFile, useCurrentFrame } from "remotion";
 import cues from "./data/cues.json";
 import { CUTS } from "./edit";
 import { Flash, GlitchDefs, Leaks, Look, useGlitch, useShake } from "./components/Effects";
 import { Shatter } from "./components/Shatter";
 import { Shot } from "./components/Shot";
 import { Title } from "./components/Title";
-import { Captions, Card, ITALIC, Names, SANS, SERIF } from "./components/Words";
+import { Captions, Card, Names } from "./components/Words";
+import { useFonts } from "./lib/fonts";
 import { FPS } from "./lib/time";
-
-/**
- * Wait for the type before the first frame is taken (a frame drawn in a fallback font would flicker), and only then draw the
- * words: their sizes are measured in the real fonts.
- */
-const useFonts = () => {
-  const [handle] = useState(() => delayRender("fonts"));
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const faces = [`400 40px ${SERIF}`, `700 40px ${SERIF}`, `900 40px ${SERIF}`, `italic 600 40px "${ITALIC}"`, `600 40px ${SANS}`, `800 40px ${SANS}`];
-    const done = () => {
-      setReady(true);
-      continueRender(handle);
-    };
-    Promise.all(faces.map((f) => document.fonts.load(f))).then(done, done);
-  }, [handle]);
-  return ready;
-};
 
 /**
  * THE THIRD DIRECTION - the trailer.

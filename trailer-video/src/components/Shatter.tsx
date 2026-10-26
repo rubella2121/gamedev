@@ -16,8 +16,8 @@ const OX = 0.5 * W;
 const OY = 0.32 * H;
 const LIFE = 1.15;
 
-export const Shatter: React.FC = () => {
-  const t = useCurrentFrame() / FPS - cues.boom;
+export const Shatter: React.FC<{ at?: number }> = ({ at = cues.boom }) => {
+  const t = useCurrentFrame() / FPS - at;
   if (t < -0.01 || t > LIFE + 0.5) return null;
   const tiles: React.ReactNode[] = [];
   for (let r = 0; r < ROWS; r++) {
