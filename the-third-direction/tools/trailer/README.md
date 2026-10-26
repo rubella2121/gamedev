@@ -10,8 +10,9 @@ The current trailer is made with Remotion in `../../../trailer-video/` (its own 
 (`capture.mjs`, `shots.mjs`) and its sound design layer, `sfx.ts` (the game's own sounds on that trailer's cue sheet, rendered
 by `score-render.mjs <cues.json> <out.wav> tools/trailer/sfx.ts __renderSfx`). The promos made there have theirs in
 `promo-sfx.ts` (`__renderPromoSfx`, given `{"id", "length"}`), which places the same sounds on each promo's cuts and words;
-the shorts' is `shorts-sfx.ts` (`__renderShortSfx`), which also synthesises the music of the two that have no orchestra (a
-chiptune, and a phonk on an 808 cowbell) and lets the Fourth speak in its own voice.
+the shorts' is `shorts-sfx.ts` (`__renderShortSfx`), which also synthesises the music of the three that have no orchestra (a
+chiptune, a phonk on an 808 cowbell, and a Brazilian phonk for the villain edit), the little game's own chip tune for the
+cartridge and the stream, and lets the Fourth speak in its own voice.
 The Python compositor here (`edit.py` and the rest) made the earlier cuts.
 
 | File | What it does |

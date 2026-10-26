@@ -4,14 +4,18 @@
   the-fourth  a happy ending on the music box that winds down like a tape stopping; then the dark, and something in it
   secrets     a pizzicato mystery that walks under the countdown, her lullaby on the music box for the song, a stamp for no. 1
   lullaby     the lullaby itself, sung by the music box one word to a note, with a harp, strings and soft voices under it
-  fighter and phonk are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is silent.
+  cartridge   silent while the little game plays (that is the chip's); the sky looking back, her lullaby bursting out, the battle
+  live        the orchestra wakes at the edge of the 2D run: the 3D boss groove, a brass fanfare for the record, then the dark
+  festival    her lullaby on a slow piano with room around it, silence, everything at once, a note for each review, the title
+  fighter, phonk and villain are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
+  silent.
 """
 import json
 import os
 import sys
 
 from kit import *  # noqa: F403 (the orchestra, and how to write for it)
-from promo import STARS, braam, title  # noqa: F401
+from promo import STARS, boom, braam, climb, crack, dread, hit, title  # noqa: F401
 
 here = os.path.dirname(os.path.abspath(__file__))
 SHORTS = json.load(open(os.path.join(here, '..', 'src', 'data', 'shorts.json')))['shorts']
@@ -257,6 +261,188 @@ def lullaby_song(P):
     cut(fade + 0.65)
 
 
+# ---------------------------------------------------------------- the cartridge
+
+def cartridge(P):
+    ey, cracks, bu, bt, fa, bk, e, fade = P['eyes'], P['cracks'], P['burst'], P['battle'], P['fall'], P['back'], P['end'], P['fadeOut']
+    # the little game is the chip's: the orchestra waits in the dark until the stars are eyes, then the sky looks back
+    dread(ey, bu)
+    chord(CHOIR, ey + 0.3, bu - ey - 0.3, [57, 58], 72)
+    swell(CHOIR, ey + 0.3, bu, 40, 122)
+    note(BASS, ey, bu - ey, 33, 70)
+    # the glass: a blow on each crack, each higher
+    for i, k in enumerate(cracks):
+        chord(HIT, k, 0.3, [81 + i, 82 + i, 88 + i], 100 + 8 * i)
+        note(TAIKO, k, 0.4, 48, 104 + 8 * i)
+        drum(k, 49 if i == 2 else 57, 96)
+    cut(bu - 0.02)
+    # it breaks out: the whole orchestra, and her lullaby sung by everyone
+    boom(bu, bt[0], notes=4)
+    # the fight, in 3D: the battle groove, a hit on every cut, the strings climbing into the fall
+    groove(bt[0], bt[0] + BAR, 33, AM, heavy=True)
+    groove(bt[0] + BAR, bt[0] + 2 * BAR, 29, F, heavy=True)
+    groove(bt[0] + 2 * BAR, fa, 31, G, k=1.1, heavy=True)
+    for i, b in enumerate(bt):
+        hit(b, i, 104 + 2 * i)
+    climb(fa - 0.8, fa)
+    cut(fa - 0.01)
+    # the fall: the blow, and the voices falling with him
+    mega(fa, dur=1.4)
+    drum(fa, 52, 124)
+    chord(CHOIR, fa + 0.3, bk - fa - 0.3, [57, 60, 64], 100)
+    swell(CHOIR, fa + 0.3, bk, 110, 50)
+    for i, m in enumerate((76, 74, 72, 69)):
+        note(HORN, fa + 0.35 + 0.22 * i, 0.5, m - 12, 104 - 6 * i)
+    note(BASS, fa + 0.3, bk - fa - 0.3, 33, 80)
+    cut(bk)
+    # back in its console: the music box, small again
+    for i, m in enumerate((69, 72, 76)):
+        note(BOX, bk + 0.1 + 0.26 * i, 1.0, m, 92)
+        note(CELESTA, bk + 0.1 + 0.26 * i, 0.6, m + 12, 46)
+    chord(PAD, bk, e - bk, [57, 60, 64], 60)
+    swell(PAD, bk, e, 40, 90)
+    cut(e - 0.02)
+    title(e, fade)
+
+
+# ---------------------------------------------------------------- live: world record attempt
+
+def fanfare(t, until):
+    """the record: a brass fanfare in A major (da-da-da DAAA), the choir and the cymbals under the last chord"""
+    for dt, m in ((0.0, 76), (0.15, 76), (0.3, 76)):
+        chord(BRASS, t + dt, 0.13, [m - 12, m - 8, m - 5], 124)
+        note(HORN, t + dt, 0.13, m - 12, 118)
+        note(TAIKO, t + dt, 0.2, 48, 104)
+    t1 = t + 0.45
+    chord(BRASS, t1, until - t1, [57, 61, 64, 69], 127)
+    swell(BRASS, t1 + 0.4, until, 127, 70)
+    chord(TROM, t1, until - t1, [45, 52], 118)
+    note(HORN, t1, until - t1, 69, 120)
+    note(TUBA, t1, until - t1, 33, 120)
+    note(BASS, t1, until - t1, 33, 110)
+    chord(CHOIR, t1, until - t1, [57, 61, 64, 69, 73], 110)
+    chord(STR, t1, until - t1, [69, 73, 76, 81], 104)
+    chord(HIT, t1, 0.5, [69, 73, 76], 120)
+    note(TIMP, t1, 0.6, 45, 127)
+    roll(TIMP, t1 + 0.4, until - 0.1, 45, 110, 60)
+    drum(t1, 49, 124)
+    drum(t1, 57, 116)
+    drum(t1, 36, 124)
+
+
+def live(P):
+    ed, ck, bm, (k1, k2, k3), wr, ex, off, e, fade = P['edge'], P['crack'], P['boom'], P['bosses'], P['wr'], P['extra'], P['offline'], P['end'], P['fadeOut']
+    # the 2D run is the game's own chip music on the stream; at the edge the orchestra wakes, the screen cracks
+    dread(ed, ck)
+    crack(ck)
+    # it goes 3D
+    mega(bm, dur=1.2)
+    drum(bm, 52, 124)
+    roll(TIMP, bm + 0.1, k1 - 0.05, 45, 124, 80)
+    # three bosses: the battle groove, a key for each, a hit on each cut, the strings climbing into the record
+    groove(k1, k2, 33, AM, heavy=True)
+    groove(k2, k3, 29, F, heavy=True)
+    groove(k3, wr, 31, G, k=1.1, heavy=True)
+    for i, b in enumerate((k1, k1 + 1.0, k2, k2 + 0.8, k3, k3 + 0.6, k3 + 1.2)):
+        hit(b, i, 100 + 3 * i)
+    climb(wr - 0.8, wr)
+    cut(wr - 0.01)
+    # NEW WORLD RECORD
+    fanfare(wr, ex - 0.45)
+    for ch in (BRASS, TROM, HORN, TUBA, BASS, CHOIR, STR):
+        swell(ch, ex - 0.45, ex - 0.05, 110, 40, 8)
+    cut(ex - 0.02)
+    # a split nobody put there: the strings shaking, voices a semitone apart, a drone, the timpani rolling into the dark
+    chord(TREM, ex, off - ex, [45, 46, 52, 53], 92)
+    swell(TREM, ex, off, 60, 125)
+    chord(CHOIR, ex + 0.1, off - ex - 0.1, [57, 58, 64], 88)
+    swell(CHOIR, ex + 0.1, off, 50, 122)
+    note(BASS, ex, off - ex, 33, 96)
+    note(TUBA, ex + 0.3, off - ex - 0.3, 21, 90)
+    chord(HIT, ex, 0.4, [69, 70, 76], 110)
+    roll(TIMP, ex + 0.3, off - 0.03, 45, 50, 126)
+    cut(off)
+    # offline; then next runner: you
+    title(e, fade)
+
+
+# ---------------------------------------------------------------- the festival trailer
+
+def festival(P):
+    cards, shots, hu, bm, mon, la, qs, t2, fade = P['cards'], P['shots'], P['hush'], P['boom'], P['montage'], P['laurels'], P['quotes'], P['title2'], P['fadeOut']
+    PIANO = BOX
+    # her lullaby on a piano, slow and very quiet, with room around it; a low drone under the words
+    note(CELLO, 0.2, hu - 0.4, 33, 56)
+    swell(CELLO, 0.2, 2.5, 20, 76)
+    chord(STR, shots[0], hu - shots[0] - 0.2, [45, 52], 44)
+    swell(STR, shots[0], hu - 0.3, 30, 92)
+    gaps = [g * 1.35 for g in GAPS]
+    t = 0.6
+    left = {0: (AM, 45), 3: (F, 41), 5: (G, 43), 7: (E, 40)}
+    for i, m in enumerate(LULL):
+        note(PIANO, t, 2.2, m, 92 + (i % 3) * 4)
+        if i in left:
+            ps, r = left[i]
+            note(PIANO, t, 2.6, r, 76)
+            chord(PIANO, t + 0.12, 2.2, [p - 12 for p in ps], 62)
+        t += gaps[i]
+    # once more, and it stops where the rule is, on a note that does not resolve
+    for i, m in enumerate(LULL[:3]):
+        note(PIANO, t, 2.0 if i < 2 else 3.0, m, 96 + 4 * i)
+        if i == 0:
+            note(PIANO, t, 2.6, 45, 76)
+        t += gaps[i]
+    chord(PAD, cards[3], hu - cards[3], [57, 58], 50)
+    swell(PAD, cards[3], hu, 30, 90)
+    cut(hu)
+    # (silence; a whisper)
+    # and then everything, very fast: the blow, the strings racing, a hit on every cut
+    mega(bm, dur=1.2)
+    drum(bm, 52, 124)
+    n = int(round((la - bm) / 0.1))
+    for s in range(n):
+        note(STR, bm + s * 0.1, 0.09, [57, 60, 64, 69][s % 4] + (12 if s > n // 2 else 0), 90)
+        note(CELLO, bm + s * 0.1, 0.09, 45 if s % 2 == 0 else 57, 96)
+    chord(CHOIR, bm, la - bm, [57, 60, 64], 96)
+    swell(CHOIR, bm, la, 90, 127)
+    chord(TREM, bm, la - bm, [69, 72, 76], 70)
+    swell(TREM, bm, la, 60, 127)
+    for i, m in enumerate(mon[1:]):
+        chord(HIT, m, 0.3, [57 + i, 64 + i, 69 + i], 108 + 2 * i)
+        note(TAIKO, m, 0.4, 48, 112 + 2 * i)
+        drum(m, 36, 120)
+        drum(m, 49 if i % 2 else 57, 100)
+        chord(BRASS, m, 0.22, [45 + i, 52 + i], 112)
+    roll(TIMP, la - 0.5, la - 0.02, 45, 80, 127)
+    roll(DRUMS, la - 0.5, la - 0.02, 38, 80, 124, 0.04)
+    cut(la - 0.01)
+    # the laurels: a high string, held; one piano note for each review, and the last one wrong
+    chord(STR, la + 0.3, t2 - la - 0.5, [76, 81], 40)
+    swell(STR, la + 0.3, la + 1.5, 20, 76)
+    for i, (q, m) in enumerate(zip(qs, (69, 72, 76))):
+        if i == 2:
+            bend(PIANO, q - 0.01, -70)
+            note(PIANO, q, 2.0, 70, 80)
+        note(PIANO, q, 2.4, m, 96)
+        note(PIANO, q, 2.4, m - 24, 72)
+    cut(t2 - 0.02)
+    bend(PIANO, t2 - 0.01, 0)
+    # the title: one low blow, and the piano's last chord; her tune falling asleep
+    note(TAIKO, t2, 1.0, 48, 122)
+    note(TIMP, t2, 1.4, 45, 116)
+    chord(BRASS, t2, 2.6, [33, 40, 45], 100)
+    swell(BRASS, t2 + 0.4, t2 + 2.6, 100, 0)
+    note(BASS, t2, fade - t2, 33, 84)
+    chord(PIANO, t2 + 0.5, 3.0, [45, 57, 60, 64, 69], 88)
+    chord(PAD, t2 + 0.3, fade - t2 - 0.3, [57, 60, 64, 69], 66)
+    chord(CHOIR, t2 + 1.2, fade - t2 - 1.2, [57, 64, 69], 56)
+    for i, m in enumerate((76, 74, 72, 69)):
+        note(PIANO, t2 + 1.4 + 0.7 * i + (0.25 if i == 3 else 0), 2.0, m, 90 - 4 * i)
+    for ch in (PIANO, PAD, CHOIR, BASS):
+        swell(ch, fade, fade + 0.6, 110, 0, 12)
+    cut(fade + 0.65)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -267,6 +453,10 @@ SCORES = {
     'lullaby': (lullaby_song, {HIT: 46, CHOIR: 53}),
     'fighter': (silent, None),
     'phonk': (silent, None),
+    'cartridge': (cartridge, None),
+    'live': (live, None),
+    'festival': (festival, {BOX: 0}),
+    'villain': (silent, None),
 }
 
 if __name__ == '__main__':

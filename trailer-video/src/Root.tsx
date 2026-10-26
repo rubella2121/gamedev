@@ -4,11 +4,15 @@ import shorts from "./data/shorts.json";
 import { H, W } from "./lib/time";
 import { Promo } from "./Promo";
 import { PROMOS } from "./promos";
+import { Cartridge } from "./shorts/Cartridge";
+import { Festival } from "./shorts/Festival";
 import { Fighter } from "./shorts/Fighter";
+import { Live } from "./shorts/Live";
 import { Lullaby } from "./shorts/Lullaby";
 import { Phonk } from "./shorts/Phonk";
 import { Secrets } from "./shorts/Secrets";
 import { TheFourth } from "./shorts/TheFourth";
+import { Villain } from "./shorts/Villain";
 import { Trailer } from "./Trailer";
 
 /** the shorts: each its own format, look and sound (src/shorts/) */
@@ -18,6 +22,10 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["secrets", Secrets],
   ["phonk", Phonk],
   ["lullaby", Lullaby],
+  ["cartridge", Cartridge],
+  ["live", Live],
+  ["villain", Villain],
+  ["festival", Festival],
 ];
 
 export const RemotionRoot: React.FC = () => {

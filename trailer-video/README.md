@@ -31,7 +31,7 @@ quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` ma
 
 ## The shorts
 
-Five more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
+Nine more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
 the end (the Fourth):
 
 | | |
@@ -41,10 +41,15 @@ the end (the Fourth):
 | `short-secrets` | 5 THINGS YOU MISSED: counted down and marked up with a red pen - the stars are eyes, the Mash is every guardian, the moth is your shield, the soundtrack is one lullaby (on a staff, as the music box plays it); number one is classified. |
 | `short-phonk` | BLOB MODE: a black-and-white phonk edit - the lullaby on an 808 cowbell, speed ramps, frames in negative on every blow, SMALL. ALONE. OUTNUMBERED. OUTSIZED. UNSTOPPABLE. - and the colour back for FOR THEM. |
 | `short-lullaby` | THE LULLABY: her song with words, one to a note, karaoke-lit as the music box sings it; on "don't look up" it stops, and the moon blinks. |
+| `short-cartridge` | THE CARTRIDGE: a handheld on a desk in the dark; the cartridge goes in, it boots, and the little 2D game plays on its little screen to its own chip tune. The stars are eyes, the glass cracks three times, and the game breaks out of its screen into 3D - IT'S NOT. At the end it is back in its console: YOUR TURN. |
+| `short-live` | LIVE: WORLD RECORD ATTEMPT: a speedrun stream - timer, splits, the runner's camera, chat, alerts. Five 2D guardians in a blur; the stream's picture cracks and the game goes 3D and fills the frame; three bosses; a new world record. Then a split nobody put there, the timer turns red, ??? joins the chat, and the stream goes offline (last seen: looking up). Next runner: you. |
+| `short-villain` | VILLAIN EDIT: X in red and black to a Brazilian phonk (his riff in A Phrygian on the cowbell): HE TOOK THEM. HE'S THE FINAL BOSS. NOTHING IS ABOVE HIM. His boss bar, tagged FINAL BOSS. A record scratch; above him something unfolds, in violet, its own bar slides in above his, four deep, and takes the tag. EVEN VILLAINS HAVE VILLAINS. |
+| `short-festival` | THE FESTIVAL TRAILER: cut like an art-house film's - letterboxed, graded, grained, the gate weaving, a projector running. White words on black between slow shots (every night she sang him the same song, and gave him one rule), her lullaby on a piano; silence; "Don't look up."; everything at once; laurels and reviews (the moth's, X's, and one from something else); the title. |
 
-`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the three
-orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest of their sound. `scripts/make.sh shorts
-short-render` makes them.
+`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the six
+orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest of their sound (and all the music of the
+three synthesised ones). A short's `mix` can set its balance and how far its quiet moments are brought up (`ride`; the festival
+trailer keeps its silence). `scripts/make.sh shorts short-render` makes them.
 
 ## Where things are
 
