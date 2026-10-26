@@ -2,7 +2,8 @@
    python3 audio/mix.py <orchestra.wav> <sfx.wav> <voiceDir> <out.wav> [promo or short id]
 
 With an id it mixes that promo or short instead: its length and its lines come from src/data/promos.json or shorts.json, and
-a short can set its own balance ("mix": {"orch": ..., "sfx": ...}; for the synthesised ones the sfx layer is the music).
+a short can set its own balance ("mix": {"orch": ..., "sfx": ...}; for the synthesised ones the sfx layer is the music) and how
+far its quiet moments may be brought up ("ride": the most gain, as a factor; 12 by default, less to keep a silence a silence).
 
 Every line of src/data/lines.json goes in at its time; both music layers step back under speech (fast in, slow out) so the
 words sit on top without the music ever stopping. Then the bus is glued (gentle compression), limited, and brought to -14 LUFS
@@ -80,7 +81,7 @@ with wave.open(tmp, 'wb') as w:
 # they still carry.
 chain = 'acompressor=threshold=-18dB:ratio=2:attack=20:release=250:makeup=1.5,alimiter=limit=0.9:attack=3:release=60:level=disabled'
 if promo:
-    chain = 'dynaudnorm=f=250:g=7:p=0.9:m=12,' + chain
+    chain = f"dynaudnorm=f=250:g=7:p=0.9:m={BAL.get('ride', 12)}," + chain
 r = subprocess.run(['ffmpeg', '-hide_banner', '-i', tmp, '-af', chain + ',loudnorm=I=-14:TP=-1.0:LRA=11:print_format=json', '-f', 'null', '-'],
                    capture_output=True, text=True)
 j = json.loads(r.stderr[r.stderr.rindex('{'):r.stderr.rindex('}') + 1])

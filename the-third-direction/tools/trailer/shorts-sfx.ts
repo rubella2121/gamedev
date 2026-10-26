@@ -3,6 +3,9 @@
  * monster voices for the sound design of all five, and, for the two that have no orchestra, the music itself, synthesised:
  *   fighter  a chiptune of her lullaby (pulse lead, a triangle bass, noise drums), an arcade's blips, and its speech chip
  *   phonk    the lullaby on an 808 cowbell, an 808 that slides, half-time trap drums, all of it driven into a little distortion
+ *   villain  a Brazilian phonk: X's riff in A Phrygian on the cowbell, a carioca funk kick under a distorted 808, a record scratch,
+ *            and the drop again a fourth higher once something is above him
+ * and for the cartridge and the stream, the little game's own chip music (her lullaby in A major) under the orchestra's entrance.
  *
  *   node tools/trailer/score-render.mjs <{"id": ..., "length": ...}.json> <out.wav> tools/trailer/shorts-sfx.ts __renderShortSfx
  */
@@ -223,6 +226,10 @@ class ShortSfx extends Base {
     if (this.id === 'secrets') this.secrets();
     if (this.id === 'phonk') this.phonk();
     if (this.id === 'lullaby') this.lullaby();
+    if (this.id === 'cartridge') this.cartridge();
+    if (this.id === 'live') this.stream();
+    if (this.id === 'festival') this.festival();
+    if (this.id === 'villain') this.villain();
   }
 
   theFourth() {
@@ -534,6 +541,321 @@ class ShortSfx extends Base {
       this.e808(a, 33, 1.8, 0.45, 21);
       this.kick(a, 0.6);
     });
+  }
+
+  /* ------------------------------------------------------------------------------------------ the second four */
+
+  /** a chip tune of her lullaby in A major, as the little game's own music: (from, to, how loud) */
+  chipTheme(t0: number, t1: number, k = 1) {
+    const Q = 0.1;
+    const ROOT = [45, 42, 38, 40];
+    const TRIAD = [
+      [57, 61, 64],
+      [54, 57, 61],
+      [50, 54, 57],
+      [52, 56, 59],
+    ];
+    const MAJOR = [69, 73, 76, 74, 73, 69, 68, 64];
+    for (let s = 0; t0 + s * Q < t1 - 1e-6; s++) {
+      const t = t0 + s * Q;
+      const bar = Math.floor(s / 16) % 4;
+      const tri = TRIAD[bar]!;
+      if (s % 2 === 0) this.on(t, (a) => this.syn(a, hz(ROOT[bar]! + (s % 4 === 0 ? 0 : 12)), 0.17, 0.18 * k, { type: 'triangle', r: 0.02 }));
+      this.on(t, (a) => this.syn(a, hz([tri[0]! + 12, tri[1]! + 12, tri[2]! + 12, tri[1]! + 12][s % 4]!), 0.07, 0.03 * k, { type: 'pulse', r: 0.01, wet: 0.08 }));
+      if (s % 8 === 0) this.on(t, (a) => this.chipKick(a, 0.45 * k));
+      if (s % 8 === 4) this.on(t, (a) => this.chipSnare(a, 0.18 * k));
+      if (s % 2 === 1) this.on(t, (a) => this.chipHat(a, 0.05 * k));
+      if (s % 4 === 0) {
+        const m = MAJOR[(s / 4) % 8]! + 12;
+        this.on(t, (a) => this.syn(a, hz(m), 0.32, 0.07 * k, { type: 'square', lp: 5000, r: 0.04, wet: 0.12 }));
+      }
+    }
+  }
+
+  /** glass cracking: a snap, a splinter of little ticks, a ringing */
+  glassCrack(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.noise(a, 0.09, 'highpass', 6000, 2500, 0.3 * g, { a: 0.001 });
+      this.thud(a, 120, 50, 0.12, 0.35 * g);
+      for (let k = 0; k < 9; k++) this.noise(a + 0.01 + k * 0.018 + 0.01 * this.rnd(), 0.01, 'bandpass', 3000 + this.rnd() * 6000, 3000, 0.08 * g, { q: 5, a: 0.0005, pan: this.rnd() * 2 - 1 });
+      this.ring(a + 0.02, 4100 + 300 * this.rnd(), 0.5, 0.018 * g);
+    });
+  }
+
+  /** everything flying apart: the blow, a rain of glass and plastic, the air rushing in */
+  shatter(t: number) {
+    this.on(t, (a) => {
+      this.impact(a, 1.45);
+      this.noise(a, 0.9, 'bandpass', 5000, 900, 0.28, { q: 0.7, a: 0.002, wet: 0.4 });
+      for (let k = 0; k < 40; k++) this.noise(a + 0.02 + k * 0.02 + 0.03 * this.rnd(), 0.015, 'bandpass', 2500 + this.rnd() * 7000, 2500, 0.07, { q: 4, a: 0.0005, pan: this.rnd() * 2 - 1, wet: 0.4 });
+    });
+    this.whoosh(t, 0.16, 0.3);
+  }
+
+  cartridge() {
+    const C = this.C;
+    // a room at night
+    this.on(0.02, (a) => this.air(a, C.burst, 0.016, 600, 400, 0.6));
+    // the cartridge sliding down into the slot, and seating with a click
+    this.on(0.04, (a) => this.noise(a, C.insert - 0.06, 'bandpass', 700, 1900, 0.05, { q: 2, a: 0.03, rise: true }));
+    this.on(C.insert, (a) => {
+      this.noise(a, 0.025, 'bandpass', 2600, 2200, 0.28, { q: 3, a: 0.001 });
+      this.thud(a, 170, 70, 0.09, 0.32);
+      this.noise(a + 0.06, 0.02, 'bandpass', 3600, 3200, 0.14, { q: 4, a: 0.001 });
+    });
+    // the power switch; the screen's hiss; the boot: the logo falling, the two-note chime
+    this.on(C.power, (a) => {
+      this.noise(a, 0.02, 'bandpass', 1900, 1600, 0.22, { q: 3, a: 0.001 });
+      this.thud(a, 110, 60, 0.06, 0.16);
+      this.noise(a + 0.03, C.boot - C.power, 'highpass', 4000, 6000, 0.03, { a: 0.01 });
+    });
+    this.on(C.boot, (a) => this.syn(a, hz(91), C.ding - C.boot - 0.04, 0.025, { type: 'pulse', to: hz(67), glide: C.ding - C.boot - 0.04, r: 0.02 }));
+    this.on(C.ding, (a) => {
+      this.syn(a, hz(83), 0.07, 0.09, { type: 'pulse', r: 0.02, wet: 0.2 });
+      this.syn(a + 0.08, hz(88), 0.5, 0.09, { type: 'pulse', r: 0.25, wet: 0.3, decay: 0.18 });
+    });
+    this.on(C.title2, (a) => [69, 73, 76, 81].forEach((m, k) => this.syn(a + k * 0.045, hz(m + 12), 0.05, 0.05, { type: 'pulse', r: 0.02 })));
+    // START
+    this.on(C.start, (a) => {
+      this.noise(a, 0.02, 'bandpass', 2200, 1800, 0.2, { q: 3, a: 0.001 });
+      this.syn(a + 0.02, hz(81), 0.05, 0.06, { type: 'pulse', r: 0.01 });
+      this.syn(a + 0.08, hz(93), 0.08, 0.06, { type: 'pulse', r: 0.02 });
+    });
+    // the little game's music, cheerful; until the stars are eyes, and it goes wrong
+    this.chipTheme(C.play[0], C.eyes);
+    this.on(C.eyes, (a) => {
+      this.glitch(a - 0.02, 6, 0.14);
+      this.syn(a, hz(81), 0.9, 0.06, { type: 'square', to: hz(57), glide: 0.9, lp: 3000, r: 0.1 });
+      this.syn(a, hz(45), 1.4, 0.16, { type: 'triangle', to: hz(33), glide: 1.4, r: 0.1 });
+    });
+    // the cartridge's music stuck on one note, stuttering
+    for (let k = 0; k < 10; k++) this.on(C.eyes + 0.6 + k * 0.08, (a) => this.blip(a, k % 3 === 0 ? 1244 : 1175, 0.035, 0.03));
+    for (const c of C.cracks as number[]) this.glassCrack(c);
+    // it breaks out
+    this.shatter(C.burst);
+    this.on(C.its, (a) => this.impact(a, 0.9));
+    // the fight: a blow on each cut
+    (C.battle as number[]).forEach((b, i) => {
+      this.whoosh(b, 0.1, 0.16);
+      this.on(b, (a) => this.impact(a, i === 0 ? 0.9 : 0.5));
+    });
+    this.on(C.fall, (a) => {
+      this.impact(a, 1.2);
+      this.thud(a + 0.05, 60, 28, 1.0, 0.5);
+    });
+    // back into the console: everything rushing in backwards, and a click
+    this.on(C.back - 0.05, (a) => this.riser(a, 0.5, 0.12, 300, 5000));
+    this.on(C.back + 0.5, (a) => {
+      this.noise(a, 0.02, 'bandpass', 2400, 2000, 0.2, { q: 3, a: 0.001 });
+      this.thud(a, 140, 70, 0.08, 0.2);
+    });
+    // your turn: a level-clear jingle; the little screen's tune, softly, on the call
+    this.on(C.end + 0.4, (a) => {
+      [69, 73, 76, 81].forEach((m, k) => this.syn(a + k * 0.07, hz(m + 12), 0.07, 0.07, { type: 'pulse', r: 0.02 }));
+      for (const m of [69, 73, 76]) this.syn(a + 0.32, hz(m + 12), 0.5, 0.045, { type: 'square', lp: 5000, r: 0.3 });
+    });
+    this.chipTheme(C.end + 1.6, C.fadeOut, 0.35);
+    this.endCard(C.end);
+  }
+
+  stream() {
+    const C = this.C;
+    // the count: three low beeps and a high one
+    for (const t of [0.1, 0.4, 0.7]) this.on(t, (a) => this.syn(a, 880, 0.12, 0.09, { type: 'square', lp: 4000, r: 0.03 }));
+    this.on(C.go, (a) => {
+      this.syn(a, 1760, 0.32, 0.09, { type: 'square', lp: 6000, r: 0.08 });
+      this.thud(a, 120, 50, 0.15, 0.3);
+    });
+    // the run, sped up: the game's chip music, a little faster and brighter than at home
+    this.chipTheme(C.go, C.edge, 1.0);
+    // a ding on every split
+    for (const t of C.splits as number[]) this.on(t, (a) => {
+      this.syn(a, hz(88), 0.05, 0.06, { type: 'pulse', r: 0.02, wet: 0.2 });
+      this.syn(a + 0.06, hz(93), 0.22, 0.06, { type: 'pulse', r: 0.12, wet: 0.3, decay: 0.1 });
+    });
+    // the chat: a soft tick on each message, a rush of them when it goes 3D and when the record falls
+    let t = 0.15;
+    while (t < C.offline - 0.1) {
+      const spam = (t > C.boom + 0.6 && t < C.boom + 1.4) || (t > C.wr + 0.1 && t < C.wr + 1.0) || (t > C.extra + 0.2 && t < C.extra + 1.4);
+      const tt = t;
+      this.on(tt, (a) => this.noise(a, 0.008, 'bandpass', 2600 + this.rnd() * 1200, 2600, spam ? 0.03 : 0.022, { q: 4, a: 0.0005, pan: 0.2 }));
+      t += spam ? 0.09 : 0.33 + 0.12 * Math.sin(t * 7);
+    }
+    // the alerts: a follower; a subscriber; a tip; and something that has joined
+    this.on(2.95, (a) => [76, 81].forEach((m, k) => this.syn(a + k * 0.09, hz(m + 12), 0.12, 0.04, { type: 'sine', r: 0.2, wet: 0.4 })));
+    this.on(C.bosses[0] + 0.1, (a) => [69, 73, 76, 81].forEach((m, k) => this.syn(a + k * 0.08, hz(m + 12), 0.16, 0.05, { type: 'triangle', r: 0.25, wet: 0.45 })));
+    this.on(C.bosses[1] + 0.4, (a) => {
+      this.syn(a, hz(88), 0.06, 0.05, { type: 'square', lp: 6000, r: 0.02 });
+      this.syn(a + 0.07, hz(95), 0.3, 0.05, { type: 'square', lp: 6000, r: 0.2, decay: 0.1 });
+    });
+    this.on(C.extra + 0.3, (a) => [81, 80, 76, 75].forEach((m, k) => this.syn(a + k * 0.12, hz(m + 12) * (1 - 0.01 * k), 0.3, 0.04, { type: 'triangle', r: 0.4, wet: 0.8 })));
+    // the edge: the stars blink; the stream's picture cracks; it goes 3D
+    this.on(C.edge, (a) => this.syn(a, hz(81), 0.6, 0.05, { type: 'square', to: hz(69), glide: 0.6, lp: 3000, r: 0.05 }));
+    this.glassCrack(C.crack, 1.1);
+    this.shatter(C.boom);
+    // the bosses: a blow on each cut
+    for (const b of [C.bosses[0], C.bosses[0] + 1.0, C.bosses[1], C.bosses[1] + 0.8, C.bosses[2], C.bosses[2] + 0.6, C.bosses[2] + 1.2]) {
+      this.whoosh(b, 0.1, 0.16);
+      this.on(b, (a) => this.impact(a, 0.5));
+    }
+    // the record: the blow, a bright chip fanfare, confetti popping
+    this.on(C.wr, (a) => {
+      this.impact(a, 1.1);
+      [69, 73, 76, 81, 85, 88].forEach((m, k) => this.syn(a + 0.05 + k * 0.05, hz(m + 12), 0.06, 0.05, { type: 'pulse', r: 0.02 }));
+      for (let k = 0; k < 24; k++) this.noise(a + 0.05 + k * 0.035 + 0.02 * this.rnd(), 0.012, 'bandpass', 1500 + this.rnd() * 3000, 1500, 0.05, { q: 3, a: 0.0005, pan: this.rnd() * 2 - 1 });
+    });
+    // the split nobody put there: it tears; the clock under it; something growls
+    this.on(C.extra, (a) => {
+      this.glitch(a - 0.02, 7, 0.16, 0.2);
+      this.impact(a, 0.8);
+      this.say(a + 0.6, (v: V) => v.fourthGrowl(), 0.9);
+    });
+    for (const dt of [0.5, 0.9]) this.on(C.extra + dt, (a) => this.glitch(a - 0.02, 5, 0.1, 0.16));
+    for (let k = 0; k < 4; k++) this.on(C.extra + 0.2 + k * 0.3, (a) => this.noise(a, 0.04, 'bandpass', 1100, 900, 0.07, { q: 9, a: 0.001, wet: 0.7 }));
+    // offline: the static, cut; then nothing but a ringing (and a whisper)
+    this.on(C.offline, (a) => {
+      this.noise(a, 0.35, 'highpass', 2000, 4000, 0.22, { a: 0.002 });
+      this.syn(a + 0.35, 660, 0.25, 0.04, { type: 'square', to: 110, glide: 0.25, lp: 2000 });
+      this.ring(a + 0.4, 3900, 1.0, 0.025);
+    });
+    // next runner: you
+    this.endCard(C.end);
+  }
+
+  festival() {
+    const C = this.C;
+    // the projector: its motor, its gate clattering twenty-four times a second; stopping for the silence
+    const projector = (t0: number, t1: number) => {
+      this.on(t0, (a) => this.syn(a, 48, t1 - t0, 0.008, { type: 'sawtooth', lp: 200, a: 0.3, r: 0.4 }));
+      for (let t = t0; t < t1 - 1e-6; t += 1 / 24) {
+        const tt = t;
+        this.on(tt, (a) => this.noise(a, 0.006, 'bandpass', 1800, 1800, 0.004 + 0.0015 * Math.sin(tt * 40), { q: 3, a: 0.0005 }));
+      }
+    };
+    projector(0.0, C.hush);
+    projector(C.laurels, C.fadeOut + 0.6);
+    // a heart under the words, slowly quickening
+    let h = C.cards[1] + 0.2;
+    let gap = 1.0;
+    while (h < C.hush - 0.2) {
+      const g = 0.1 + 0.1 * ((h - C.cards[1]) / (C.hush - C.cards[1]));
+      this.on(h, (a) => this.heart(a, g));
+      h += gap;
+      gap = Math.max(0.7, gap * 0.95);
+    }
+    // the hush: the projector slowing to a stop
+    this.on(C.hush, (a) => this.syn(a, 48, 0.4, 0.008, { type: 'sawtooth', to: 20, glide: 0.4, lp: 200, r: 0.05 }));
+    // a breath in, and the blow
+    this.on(C.boom - 0.5, (a) => this.noise(a, 0.5, 'bandpass', 400, 7000, 0.12, { rise: true, q: 1 }));
+    this.on(C.boom, (a) => {
+      this.impact(a, 1.45);
+      this.thud(a, 70, 28, 1.0, 0.5);
+    });
+    // everything, very fast
+    for (const m of (C.montage as number[]).slice(1)) {
+      this.whoosh(m, 0.1, 0.14);
+      this.on(m, (a) => this.impact(a, 0.6));
+    }
+    // cut: a ringing in the black
+    this.on(C.laurels, (a) => this.ring(a, 3900, 1.6, 0.03));
+    // the reviews; the last one is wrong
+    for (const q of (C.quotes as number[]).slice(0, 2)) this.on(q, (a) => this.ping(a, 1760, 0.025));
+    this.on(C.quotes[2], (a) => {
+      this.glitch(a, 4, 0.1, 0.12);
+      this.say(a + 0.2, (v: V) => v.fourthGrowl(), 0.3);
+    });
+    // the title
+    this.on(C.title2, (a) => {
+      this.thud(a, 60, 26, 1.6, 0.6);
+      this.bell(a + 0.1, 220, 3.5, 0.05, 0.9);
+    });
+  }
+
+  villain() {
+    const C = this.C;
+    const B = C.beat;
+    const Q = B / 4;
+    const D = C.drop;
+    const BAR = 4 * B;
+    // his riff: A Phrygian, on the cowbell (sixteenth-note positions, MIDI notes); the twist takes it up a fourth
+    const RIFF: [number, number][][] = [
+      [[0, 69], [2, 70], [3, 69], [6, 67], [8, 69], [10, 72], [11, 70], [14, 69]],
+      [[0, 69], [2, 70], [3, 69], [6, 67], [8, 64], [10, 65], [11, 64], [14, 62]],
+    ];
+    const riff = (b0: number, bar: number, g: number, lp: number, up = 0) => {
+      for (const [p, m] of RIFF[bar % 2]!) this.on(b0 + p * Q, (a) => this.cowbell(a, m + up, g, lp));
+    };
+    // the funk under it: the kick on the off-beats a carioca's drum would play, the 808 under every kick, claps on two and four
+    const KICKS: [number, number, number?][] = [
+      [0, 33],
+      [3, 33],
+      [6, 33],
+      [10, 34, 33],
+      [12, 33],
+    ];
+    const bar = (b0: number, b: number, up = 0, heavy = false) => {
+      riff(b0, b, heavy ? 0.24 : 0.2, 9000, up);
+      KICKS.forEach(([p, m, to], i) => {
+        const next = KICKS[i + 1]?.[0] ?? 16;
+        this.on(b0 + p * Q, (a) => {
+          this.e808(a, m + up, (next - p) * Q - 0.02, heavy ? 0.58 : 0.5, to !== undefined ? to + up : undefined);
+          this.kick(a, 0.72);
+        });
+      });
+      for (const p of [4, 12]) this.on(b0 + p * Q, (a) => this.clap(a, 0.34));
+      // the tamborzão's toms, between
+      for (const p of [7, 9, 15]) this.on(b0 + p * Q, (a) => this.syn(a, 190, 0.09, 0.22, { type: 'sine', to: 90, glide: 0.08, drive: true }));
+      for (let s = 0; s < 16; s += heavy ? 1 : 2) this.on(b0 + s * Q, (a) => this.hat(a, s % 4 === 0 ? 0.07 : 0.04));
+      if (b % 2 === 1) for (let k = 0; k < 6; k++) this.on(b0 + 13 * Q + k * Q / 2, (a) => this.hat(a, 0.03 + 0.008 * k));
+    };
+    // the intro: vinyl crackle, a drone, the riff muffled and opening up, a breath in before the drop
+    this.on(0.01, (a) => this.noise(a, C.scratch + 0.5, 'highpass', 3000, 2500, 0.022, { a: 0.05 }));
+    for (let k = 0; k < 40; k++) this.on(0.03 + ((k * 0.19 + 0.07 * Math.sin(k * 3.1)) % (C.end - 0.1)), (a) => this.noise(a, 0.006, 'highpass', 5000, 5000, 0.07, { a: 0.0005 }));
+    this.on(0.02, (a) => this.syn(a, hz(33), D, 0.12, { type: 'sawtooth', lp: 300, a: 0.4, r: 0.1, drive: true }));
+    riff(0, 0, 0.12, 700);
+    riff(0 + BAR / 2, 1, 0.0, 0);
+    this.on(D - 0.9, (a) => this.noise(a, 0.9, 'bandpass', 300, 6000, 0.12, { rise: true, q: 1.2 }));
+    this.on(0.15, (a) => this.thud(a, 65, 30, 0.6, 0.45));
+    // the drop: three bars of it
+    for (let b = 0; b < 3; b++) bar(D + b * BAR, b, 0, b === 2);
+    for (const t of [D, C.words[1], C.words[2]]) this.on(t, (a) => this.impact(a, t === D ? 1.2 : 0.7));
+    for (const t of [D + 2 * B + 0.1, C.words[1] + 2 * B + 0.1]) this.on(t, (a) => this.impact(a, 0.55));
+    // the record scratch: back, forth, and the tape stops; nothing but the crackle
+    this.on(C.scratch, (a) => {
+      this.noise(a, 0.12, 'bandpass', 600, 3000, 0.3, { q: 3, a: 0.002 });
+      this.noise(a + 0.12, 0.1, 'bandpass', 3200, 500, 0.28, { q: 3, a: 0.002 });
+      this.syn(a, 300, 0.35, 0.12, { type: 'sawtooth', to: 30, glide: 0.35, lp: 1500 });
+    });
+    // above him: something unfolds - a cold chord, its growl, a riser into the second drop
+    this.on(C.twist, (a) => {
+      this.impact(a, 0.9);
+      this.glitch(a - 0.02, 6, 0.12);
+      for (const m of [62, 63, 69, 74]) this.osc(a, hz(m), C.drop2 - C.twist + 0.2, 0.035, 'sine', { swell: true, a: 0.4, wet: 0.8 });
+      this.say(a + 0.25, (v: V) => v.fourthGrowl(), 1.0);
+      this.syn(a, hz(26), C.drop2 - C.twist, 0.3, { type: 'sine', a: 0.3, r: 0.05, drive: true });
+    });
+    riff(C.twist + 0.2, 0, 0.08, 2000, 5);
+    this.on(C.drop2 - 0.7, (a) => this.riser(a, 0.7, 0.16, 200, 8000));
+    // HAVE VILLAINS: the drop again, up a fourth, heavier
+    const n2 = Math.round((C.end - C.drop2) / BAR + 0.49);
+    for (let b = 0; b < n2; b++) {
+      const b0 = C.drop2 + b * BAR;
+      if (b0 >= C.end - 1e-6) break;
+      bar(b0, b, 5, true);
+    }
+    for (let k = 0; k < 6; k++) this.on(C.drop2 + k * 2 * B, (a) => this.impact(a, k === 0 ? 1.3 : 0.55));
+    // the end: one more blow, the 808 sliding down into the floor, the cowbell's last notes ringing out
+    this.on(C.end, (a) => {
+      this.impact(a, 1.1);
+      this.kick(a, 0.8);
+      this.e808(a, 38, 1.8, 0.6, 21);
+      this.clap(a, 0.3);
+    });
+    for (const [k, m] of [[0, 74], [3, 75], [6, 74], [10, 72]] as const) this.on(C.end + 0.3 + k * Q * 1.6, (a) => this.cowbell(a, m, 0.12 - 0.02 * (k / 3), 4000));
+    this.on(C.end + 0.6, (a) => {
+      for (const m of [57, 58, 64]) this.osc(a, hz(m), C.fadeOut - C.end, 0.03, 'sine', { swell: true, a: 0.8, wet: 0.8 });
+    });
+    this.on(C.end + 1.55, (a) => this.ping(a, 1760, 0.04));
   }
 
   lullaby() {

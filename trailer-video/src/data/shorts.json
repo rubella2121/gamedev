@@ -140,7 +140,7 @@
       "lines": [
         {"id": "m3", "at": 10.55, "gain": 1.15}
       ],
-      "mix": {"orch": 1.0, "sfx": 0.7}
+      "mix": {"orch": 1.0, "sfx": 0.7, "ride": 4}
     },
     "villain": {
       "title": "Villain edit",
