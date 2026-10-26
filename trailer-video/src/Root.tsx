@@ -6,6 +6,7 @@ import { Promo } from "./Promo";
 import { PROMOS } from "./promos";
 import { Cartridge } from "./shorts/Cartridge";
 import { Fighter } from "./shorts/Fighter";
+import { Live } from "./shorts/Live";
 import { Lullaby } from "./shorts/Lullaby";
 import { Phonk } from "./shorts/Phonk";
 import { Secrets } from "./shorts/Secrets";
@@ -20,6 +21,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["phonk", Phonk],
   ["lullaby", Lullaby],
   ["cartridge", Cartridge],
+  ["live", Live],
 ];
 
 export const RemotionRoot: React.FC = () => {
