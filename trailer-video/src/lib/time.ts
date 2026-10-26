@@ -18,6 +18,11 @@ export const easeInOut = (x: number) => {
   return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
 };
 export const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
+/** an ease that runs a little past 1 and comes back: a bounce on arrival */
+export const backOut = (x: number) => {
+  const u = clamp(x) - 1;
+  return 1 + 2.70158 * u * u * u + 1.70158 * u * u;
+};
 
 /** a number from 0 to 1 that is always the same for the same seed */
 export const rand = (seed: number) => {

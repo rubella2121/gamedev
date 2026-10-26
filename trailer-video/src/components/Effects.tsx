@@ -16,10 +16,11 @@ const FLASHES: [number, number][] = [
   [C.title, 0.85],
 ];
 
-export const Flash: React.FC = () => {
+/** the white flashes: (time, how bright); the trailer's by default */
+export const Flash: React.FC<{ hits?: [number, number][] }> = ({ hits = FLASHES }) => {
   const t = useCurrentFrame() / FPS;
   let o = 0;
-  for (const [at, k] of FLASHES) {
+  for (const [at, k] of hits) {
     const d = t - at;
     if (d > -0.07 && d < 0.5) o = Math.max(o, k * (d < 0 ? 0.35 * smooth((d + 0.07) / 0.07) : Math.exp(-d / 0.085)));
   }
@@ -45,11 +46,11 @@ const SHAKES: [number, number][] = [
   [C.stingOut, 0.8],
 ];
 
-export const useShake = () => {
+export const useShake = (shakes: [number, number][] = SHAKES) => {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   let a = 0;
-  for (const [at, k] of SHAKES) {
+  for (const [at, k] of shakes) {
     const d = t - at;
     if (d >= 0 && d < 0.6) a = Math.max(a, k * Math.exp(-d / 0.12));
   }
@@ -63,10 +64,10 @@ export const useShake = () => {
 const GLITCHES = [...CUTS.filter((c) => c.in === "glitch").map((c) => c.at), C.jump, C.hookOut - 0.03, C.stingOut];
 
 /** how torn the picture is now (0 = clean) */
-export const useGlitch = () => {
+export const useGlitch = (tears: number[] = GLITCHES) => {
   const t = useCurrentFrame() / FPS;
   let s = 0;
-  for (const at of GLITCHES) {
+  for (const at of tears) {
     const d = t - at;
     if (d > -0.1 && d < 0.2) s = Math.max(s, 1 - Math.abs(d) / (d < 0 ? 0.1 : 0.2));
   }
@@ -102,11 +103,12 @@ const LEAKS: [number, number][] = [
   [C.playNow - 0.4, 2.4],
 ];
 
-export const Leaks: React.FC = () => {
+/** (start, how long) of each spill of light; the trailer's by default */
+export const Leaks: React.FC<{ leaks?: [number, number][] }> = ({ leaks = LEAKS }) => {
   const t = useCurrentFrame() / FPS;
   return (
     <>
-      {LEAKS.map(([t0, d], i) => {
+      {leaks.map(([t0, d], i) => {
         const u = (t - t0) / d;
         if (u < 0 || u > 1) return null;
         const k = Math.sin(Math.PI * u) ** 2;
@@ -145,3 +147,44 @@ export const Look: React.FC = () => {
 /** the clamp the effects use to fade a layer in and out by time */
 export const fadeAt = (t: number, t0: number, t1: number, fin = 0.3, fout = 0.3) =>
   t < t0 || t > t1 ? 0 : clamp(Math.min((t - t0) / fin, (t1 - t) / fout));
+
+/* ------------------------------------------------------------------------------------------------ the blocks */
+
+const BW = W / 9;
+const BH = H / 16;
+
+/**
+ * A cut hidden behind the game's own cubes: dark blocks with glowing edges sweep up over the picture from the bottom left,
+ * cover it completely on the cut, then sweep away the same way, showing the next shot.
+ */
+export const Blocks: React.FC<{ at: number[] }> = ({ at }) => {
+  const t = useCurrentFrame() / FPS;
+  const a = at.find((x) => Math.abs(t - x) < 0.25);
+  if (a === undefined) return null;
+  const tiles: React.ReactNode[] = [];
+  for (let r = 0; r < 16; r++) {
+    for (let c = 0; c < 9; c++) {
+      const i = r * 9 + c;
+      const p = clamp((c / 8 + (1 - r / 15)) / 2 * 0.88 + 0.12 * rand(i + 40));
+      const k = smooth((t - (a - 0.22 + 0.12 * p)) / 0.1) * (1 - smooth((t - (a + 0.02 + 0.12 * p)) / 0.1));
+      if (k < 0.01) continue;
+      const w = (BW + 1) * k;
+      const h = (BH + 1) * k;
+      tiles.push(
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: c * BW + (BW - w) / 2,
+            top: r * BH + (BH - h) / 2,
+            width: w,
+            height: h,
+            backgroundColor: "#04090c",
+            boxShadow: `inset 0 0 0 2px rgba(127,244,234,${(0.6 * k).toFixed(2)}), 0 0 18px rgba(127,244,234,${(0.3 * k).toFixed(2)})`,
+          }}
+        />,
+      );
+    }
+  }
+  return <AbsoluteFill>{tiles}</AbsoluteFill>;
+};

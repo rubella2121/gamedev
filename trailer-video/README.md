@@ -10,6 +10,25 @@ The game's trailer, made with [Remotion](https://www.remotion.dev): 1080×1920, 
 - **Sound design:** the game's own sound kit and monster voices, rendered from the game's code on the same cue sheet.
 - **Voice:** the Mother tells it (Kokoro, `af_heart`), with no pitch shifting, in real-sounding rooms.
 
+## The promos
+
+Four short cuts (11 to 23 s, 1080×1920 like the trailer) for Reels, TikTok and Shorts, each with a hook in its first second,
+words on screen for everyone scrolling with the sound off, its own score and sound design, and the same end card: play free on
+RUN, vote in the October Jam. None of them shows the Fourth.
+
+| | |
+|---|---|
+| `promo-2d-to-3d` | "This is a 2D game… until the stars go out, and you look up": the world bursts into 3D, X, the fight. |
+| `promo-boss-rush` | "You're this big. / They're this big.": every guardian and boss with its name, a tally, and one "?" left. |
+| `promo-family` | "They took my parents": home, the shadow, the journey, X falls, "I found you." |
+| `promo-dont-look-up` | The creepy one, made to loop: the stars go out, they were never stars, his foot, "RUN." |
+
+`src/promos.ts` is their cut and words (on the cue sheet `src/data/promos.json`), `src/Promo.tsx` the composition. Over the
+trailer's transitions they add a zoom (into the lens and out of it), an iris (a ring of light opening from a point) and the
+blocks (the game's cubes sweeping over the cut). The music is `audio/promo.py` on the trailer's orchestra (`audio/kit.py`),
+the sound design `../the-third-direction/tools/trailer/promo-sfx.ts`; `audio/mix.py <...> <id>` mixes one and levels its
+quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` makes them (after the trailer's `voices`).
+
 ## Where things are
 
 | | |
@@ -18,7 +37,7 @@ The game's trailer, made with [Remotion](https://www.remotion.dev): 1080×1920, 
 | `src/data/lines.json` | The script: every spoken line, who says it, when, and in what space. |
 | `src/edit.ts` | The cut: every shot, which clip, from which frame, how it is framed and how it comes in. |
 | `src/Trailer.tsx` | The composition; `src/components/` holds the shot, the effects, the boom, the words and the title. |
-| `audio/` | `lines.py` (Kokoro takes), `voices.py` (treatment, and `src/data/voice.json` for the captions), `orchestra.py` (the score), `mix.py` (mix and master to -14 LUFS). |
+| `audio/` | `lines.py` (Kokoro takes), `voices.py` (treatment, and `src/data/voice.json` for the captions), `kit.py` (the orchestra and how to write for it), `orchestra.py` (the score), `promo.py` (the promos' scores), `mix.py` (mix and master to -14 LUFS). |
 | `scripts/clips.py` | Turns the captured footage into the clips in `public/clips/` (plus the boom still and the grain). |
 | `scripts/make.sh` | All of it, in order. |
 

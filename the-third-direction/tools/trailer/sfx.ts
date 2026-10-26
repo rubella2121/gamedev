@@ -14,7 +14,7 @@ const SR = 48000;
 const hz = (m: number) => 440 * 2 ** ((m - 69) / 12);
 
 // The intro score keeps its sounds in private methods; this layer plays them in its own order.
-const Base = TrailerScore as unknown as new (h: { ctx: BaseAudioContext; out: AudioNode; noise: AudioBuffer }) => any;
+export const Base = TrailerScore as unknown as new (h: { ctx: BaseAudioContext; out: AudioNode; noise: AudioBuffer }) => any;
 
 class Sfx extends Base {
   C!: C;
@@ -163,6 +163,7 @@ class Sfx extends Base {
   }
 }
 
+/** a stereo AudioBuffer as a 16-bit WAV, base64 */
 function wav(buf: AudioBuffer): string {
   const L = buf.getChannelData(0);
   const R = buf.getChannelData(1);
@@ -192,8 +193,8 @@ function wav(buf: AudioBuffer): string {
   return btoa(bin);
 }
 
-async function renderSfx(cues: C): Promise<string> {
-  const secs = cues.length as number;
+/** a score made with the intro score's kit (`make` builds it on the host it is given), rendered offline: `secs` long, as a WAV */
+export async function renderScore(secs: number, make: (h: { ctx: BaseAudioContext; out: AudioNode; noise: AudioBuffer }) => any): Promise<string> {
   const ctx = new OfflineAudioContext(2, Math.ceil(SR * secs), SR);
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -14;
@@ -209,8 +210,7 @@ async function renderSfx(cues: C): Promise<string> {
     seed = (seed * 1103515245 + 12345) >>> 0;
     nd[i] = (seed / 4294967296) * 2 - 1;
   }
-  const s = new Sfx({ ctx, out, noise });
-  s.C = cues;
+  const s = make({ ctx, out, noise });
   s.begin(0);
   const AHEAD = 1.4;
   const STEP = 0.25;
@@ -223,5 +223,12 @@ async function renderSfx(cues: C): Promise<string> {
   }
   return wav(await ctx.startRendering());
 }
+
+const renderSfx = (cues: C) =>
+  renderScore(cues.length as number, (h) => {
+    const s = new Sfx(h);
+    s.C = cues;
+    return s;
+  });
 
 (window as unknown as { __renderSfx: typeof renderSfx }).__renderSfx = renderSfx;

@@ -8,8 +8,9 @@ What comes after the family is left out on purpose: the trailer keeps it a secre
 
 The current trailer is made with Remotion in `../../../trailer-video/` (its own README). It uses this folder's capture
 (`capture.mjs`, `shots.mjs`) and its sound design layer, `sfx.ts` (the game's own sounds on that trailer's cue sheet, rendered
-by `score-render.mjs <cues.json> <out.wav> tools/trailer/sfx.ts __renderSfx`). The Python compositor here (`edit.py` and the rest)
-made the earlier cuts.
+by `score-render.mjs <cues.json> <out.wav> tools/trailer/sfx.ts __renderSfx`). The promos made there have theirs in
+`promo-sfx.ts` (`__renderPromoSfx`, given `{"id", "length"}`), which places the same sounds on each promo's cuts and words.
+The Python compositor here (`edit.py` and the rest) made the earlier cuts.
 
 | File | What it does |
 |---|---|

@@ -1,4 +1,4 @@
-"""The footage, ready for Remotion: every clip the cut uses, as a 1080x1920 MP4 in public/clips/, plus the stills and the grain.
+"""The footage, ready for Remotion: every clip the cuts use (the trailer's and the promos'), as a 1080x1920 MP4 in public/clips/, plus the stills and the grain.
    python3 scripts/clips.py <footDir>
 
 footDir holds one folder of numbered JPEGs per shot (the-third-direction/tools/trailer/capture.mjs). The forest (216x384 pixel
@@ -19,7 +19,9 @@ pub = os.path.join(root, 'public')
 W, H = 1080, 1920
 CLIPS = ['h-x-slam', 'edge', 'opening', 'w-pulse', 'g-gloom', 'f-gloom', 'g-thicket', 'f-thicket', 'g-marsh', 'f-marsh', 'g-bones',
          'f-bones', 'g-meadow', 'f-meadow', 'c-x-hero', 'h-x-gaze', 'c-chase', 'c-x-stomp', 'c-cage', 'c-collector', 'collector-2',
-         'c-mash', 'mash-3', 'x-gaze', 'mash-2', 'x-jaws', 'h-x-death', 'reunion', 'moonlit']
+         'c-mash', 'mash-3', 'x-gaze', 'mash-2', 'x-jaws', 'h-x-death', 'reunion', 'moonlit',
+         # the promos also use these
+         'x-foot', 'x-rake', 'mash-0', 'collector-0']
 
 
 def frames(clip):
