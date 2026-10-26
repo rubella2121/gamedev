@@ -38,9 +38,9 @@ export type Cut = {
 const C = cues;
 const [g1, g2, g3, g4, g5] = C.guardians;
 const [r1, r2, r3, r4, r5, r6] = C.rushCuts;
-/** how a guardian is framed as it comes up, and in the fight */
+/** how a guardian is framed as it comes up, and in the fight (the promos frame their fights closer) */
 export const NEAR: Pick<Cut, "z" | "c"> = { z: [1.18, 1.08], c: [0.5, 0.42] };
-export const FIGHT: Pick<Cut, "z" | "c"> = { z: [1.28, 1.16], c: [0.5, 0.5] };
+const FIGHT: Pick<Cut, "z" | "c"> = { z: [1.28, 1.16], c: [0.5, 0.5] };
 
 /** every monster's name card */
 export const NAMES = {

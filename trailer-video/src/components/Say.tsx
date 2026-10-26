@@ -43,7 +43,7 @@ const Line: React.FC<{ w: Words; t: number }> = ({ w, t }) => {
   const spacing = hush ? "0.22em" : "0.01em";
   const lines = w.text.split("|");
   const size = Math.min(
-    w.size ?? (hush ? 76 : 104),
+    w.size ?? (hush ? 96 : 104),
     ...lines.map((ln) => fitText({ text: ln, withinWidth: W * 0.88, fontFamily: font, fontWeight: weight, letterSpacing: spacing }).fontSize),
   );
   const hue = w.hue ?? GOLD;
@@ -72,7 +72,7 @@ const Line: React.FC<{ w: Words; t: number }> = ({ w, t }) => {
         }}
       >
         {lines.map((ln, li) => (
-          <div key={li} style={{ display: "flex", gap: hush ? "0.5em" : "0.26em", whiteSpace: "pre", lineHeight: 1.08 }}>
+          <div key={li} style={{ display: "flex", gap: hush ? "0.5em" : "0.26em", fontSize: size, whiteSpace: "pre", lineHeight: 1.08 }}>
             {ln.split(" ").map((word, wi) => {
               const isHot = hot.has(word);
               const colour = isHot ? hue : hush ? "#e2f6f4" : "#ffffff";

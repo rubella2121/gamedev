@@ -42,6 +42,8 @@ export const Promo: React.FC<{ id: string }> = ({ id }) => {
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       <GlitchDefs s={tear} />
       <AbsoluteFill style={{ transform: shake, filter: tear > 0.02 ? "url(#tear)" : undefined }}>
+        {/* black under everything, so the grade and the light blend with black where there is no footage */}
+        <AbsoluteFill style={{ backgroundColor: "#000" }} />
         {p.cuts.map((c, i) => (
           <Shot key={i} cut={c} next={p.cuts[i + 1]} />
         ))}
@@ -55,7 +57,7 @@ export const Promo: React.FC<{ id: string }> = ({ id }) => {
       {ready ? (
         <>
           <Names cuts={p.cuts} y={0.6} />
-          {p.card ? <Card at={p.card[0]} end={p.card[1]} lines={["THERE IS A", "THIRD DIRECTION"]} y={0.56} /> : null}
+          {p.card ? <Card at={p.card[0]} end={p.card[1]} lines={["THERE IS A", "THIRD DIRECTION"]} y={p.card[2]} /> : null}
           <Say words={p.words} />
           <Captions subs={p.subs} y={0.66} />
           {p.rush ? <Rush {...p.rush} /> : null}

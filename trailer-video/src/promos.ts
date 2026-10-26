@@ -11,7 +11,7 @@ import type { Sub } from "./components/Words";
 import lines from "./data/lines.json";
 import promos from "./data/promos.json";
 import voice from "./data/voice.json";
-import { FIGHT, NAMES, NEAR, type Cut } from "./edit";
+import { NAMES, NEAR, type Cut } from "./edit";
 import { CYAN, RED } from "./lib/colours";
 
 export type Promo = {
@@ -24,8 +24,8 @@ export type Promo = {
   subs: Sub[];
   /** the flat world bursting into blocks */
   boom?: number;
-  /** "THERE IS A / THIRD DIRECTION" */
-  card?: [number, number];
+  /** "THERE IS A / THIRD DIRECTION": from, to, and how far down the frame */
+  card?: [number, number, number];
   /** the boss rush's tally */
   rush?: { at: number[]; end: number; mystery: number };
   /** more hits than the cuts make: flashes, shakes and tears (time, how hard) */
@@ -86,7 +86,7 @@ const twoD: Promo = {
   ],
   subs: [],
   boom: A.boom,
-  card: [A.boom + 0.85, A.reveal - 0.25],
+  card: [A.boom + 0.85, A.reveal - 0.25, 0.14],
   leaks: [[A.boom + 0.2, 2.6]],
   end: A.end,
   fade: A.length - 0.75,
@@ -100,11 +100,11 @@ const [bx, bc, bm] = B.bosses;
 const HALF = promos.bar / 2;
 const Q = promos.bar / 4;
 
-/** a guardian: it comes up (with its name), then two blows of the fight */
-const guardian = (at: number, rise: string, from: number, fight: string, blows: [number, number], name: Cut["name"]): Cut[] => [
+/** a guardian: it comes up (with its name), then two blows of the fight, framed close on where they land */
+const guardian = (at: number, rise: string, from: number, fight: string, blows: [number, number], frame: Pick<Cut, "z" | "c">, name: Cut["name"]): Cut[] => [
   { at, end: at + HALF, clip: rise, from, ...NEAR, pixel: true, in: "flash", name },
-  { at: at + HALF, end: at + HALF + Q, clip: fight, from: blows[0], ...FIGHT, pixel: true, in: "whip" },
-  { at: at + HALF + Q, end: at + promos.bar, clip: fight, from: blows[1], ...FIGHT, pixel: true, in: "cut" },
+  { at: at + HALF, end: at + HALF + Q, clip: fight, from: blows[0], ...frame, pixel: true, in: "whip" },
+  { at: at + HALF + Q, end: at + promos.bar, clip: fight, from: blows[1], ...frame, pixel: true, in: "cut" },
 ];
 const [g1, g2, g3, g4, g5] = B.guardians as [number, number, number, number, number];
 
@@ -115,11 +115,11 @@ const bossRush: Promo = {
     // you, tiny, in slow motion; then his foot comes down beside you
     { at: 0, end: B.hookSlow, clip: "h-x-slam", from: 0, rate: 0.25, z: [1.0, 1.04], c: [0.5, 0.56] },
     { at: B.hookSlow, end: g1, clip: "h-x-slam", from: 6, z: [1.04, 1.12], c: [0.5, 0.56] },
-    ...guardian(g1, "g-gloom", 62, "f-gloom", [226, 330], NAMES.gloom),
-    ...guardian(g2, "g-thicket", 150, "f-thicket", [196, 330], NAMES.thicket),
-    ...guardian(g3, "g-marsh", 78, "f-marsh", [84, 250], NAMES.marsh),
-    ...guardian(g4, "g-bones", 70, "f-bones", [108, 260], NAMES.bones),
-    ...guardian(g5, "g-meadow", 44, "f-meadow", [270, 400], NAMES.meadow),
+    ...guardian(g1, "g-gloom", 62, "f-gloom", [236, 378], { z: [1.5, 1.4], c: [0.5, 0.26] }, NAMES.gloom),
+    ...guardian(g2, "g-thicket", 150, "f-thicket", [168, 360], { z: [1.4, 1.3], c: [0.5, 0.4] }, NAMES.thicket),
+    ...guardian(g3, "g-marsh", 78, "f-marsh", [236, 420], { z: [1.35, 1.25], c: [0.5, 0.36] }, NAMES.marsh),
+    ...guardian(g4, "g-bones", 70, "f-bones", [285, 444], { z: [1.45, 1.35], c: [0.62, 0.6] }, NAMES.bones),
+    ...guardian(g5, "g-meadow", 44, "f-meadow", [252, 296], { z: [1.35, 1.25], c: [0.5, 0.42] }, NAMES.meadow),
     // and then it goes 3D
     { at: B.crack, end: B.boom, clip: "edge", from: 852, z: [1.0, 1.06], c: [0.5, 0.45], pixel: true, in: "glitch" },
     { at: B.boom, end: bx, clip: "edge", from: 1092, rate: 1.3, z: [1.0, 1.06], c: [0.5, 0.5] },
@@ -131,7 +131,7 @@ const bossRush: Promo = {
     { at: bm + HALF, end: B.end, clip: "mash-0", from: 80, z: [1.1, 1.0], c: [0.5, 0.45], in: "zoom" },
   ],
   words: [
-    { at: 0.06, end: B.hookHit - 0.02, text: "YOU'RE|THIS BIG.", y: 0.2, arrow: true },
+    { at: 0.06, end: B.hookHit - 0.02, text: "YOU'RE|THIS BIG.", y: 0.46, arrow: true },
     { at: B.hookHit, end: g1 - 0.06, text: "THEY'RE|THIS BIG.", hot: ["THIS", "BIG."], hue: RED, y: 0.2, style: "slam" },
     { at: B.boom + 0.1, end: bx - 0.05, text: "THEN IT|GOES 3D.", hot: ["3D."], hue: CYAN, y: 0.24, style: "slam" },
   ],
@@ -176,7 +176,7 @@ const family: Promo = {
     { at: cb3, end: C.fall, clip: "c-x-stomp", from: 168, in: "zoom" },
     { at: C.fall, end: C.lock, clip: "h-x-death", from: 60, rate: 1.1, z: [1.0, 1.08], c: [0.5, 0.45], in: "flash" },
     { at: C.lock, end: C.family, clip: "reunion", from: 66, z: [1.0, 1.1], c: [0.5, 0.45], in: "flash" },
-    { at: C.family, end: C.end, clip: "reunion", from: 250, z: [1.0, 1.08], c: [0.5, 0.5], in: "fade" },
+    { at: C.family, end: C.end, clip: "reunion", from: 285, z: [1.0, 1.08], c: [0.5, 0.5], in: "fade" },
   ],
   words: [
     { at: 0.15, end: C.home - 0.05, text: "THEY TOOK|MY PARENTS.", hot: ["PARENTS."], y: 0.2 },
