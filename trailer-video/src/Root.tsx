@@ -5,6 +5,7 @@ import { H, W } from "./lib/time";
 import { Promo } from "./Promo";
 import { PROMOS } from "./promos";
 import { Cartridge } from "./shorts/Cartridge";
+import { Festival } from "./shorts/Festival";
 import { Fighter } from "./shorts/Fighter";
 import { Live } from "./shorts/Live";
 import { Lullaby } from "./shorts/Lullaby";
@@ -24,6 +25,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["cartridge", Cartridge],
   ["live", Live],
   ["villain", Villain],
+  ["festival", Festival],
 ];
 
 export const RemotionRoot: React.FC = () => {
