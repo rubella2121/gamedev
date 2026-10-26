@@ -25,7 +25,7 @@ const ROSTER: Fighter[] = [
   { name: "TOLL QUEEN", quote: "EVERY BELL IS LISTENING.", colour: "#d9b8ff", clip: "g-marsh", from: 78, z: 1.9, c: [0.5, 0.27], pixel: true },
   { name: "BONE WYRM", quote: "IT HAS TOO MANY LEGS.", colour: "#f4efe0", clip: "g-bones", from: 70, z: 2.0, c: [0.58, 0.22], pixel: true },
   { name: "MIMIC QUEEN", quote: "QUIET IS HOW IT STARTS.", colour: "#ff8aa8", clip: "g-meadow", from: 44, z: 2.0, c: [0.45, 0.25], pixel: true },
-  { name: "X, THE HOLLOW", quote: "IT TOOK THEM.", colour: "#ff4a5a", clip: "c-x-hero", from: 10, z: 1.7, c: [0.5, 0.44] },
+  { name: "X, THE HOLLOW", quote: "IT TOOK THEM.", colour: "#ff4a5a", clip: "h-x-gaze", from: 0, z: 1.7, c: [0.5, 0.5] },
   { name: "THE COLLECTOR", quote: "IT KEEPS THEM.", colour: "#ffcf5a", clip: "c-collector", from: 10, z: 1.6, c: [0.5, 0.5] },
   { name: "THE MASH", quote: "IT IS ALL OF THEM.", colour: "#ff8aa8", clip: "c-mash", from: 10, z: 1.4, c: [0.55, 0.45] },
 ];
@@ -209,7 +209,7 @@ const Select: React.FC<{ t: number; ready: boolean }> = ({ t, ready }) => {
 };
 
 const CardClip: React.FC<{ f: Fighter; w: number; h: number; second: boolean }> = ({ f, w, h, second }) => {
-  const rate = f.pixel ? 0.6 : 0.45;
+  const rate = f.pixel ? 0.6 : f.clip === "h-x-gaze" ? 0.3 : 0.45;
   return <Clip clip={f.clip} at={0} from={f.from + (second ? 20 : 0)} dur={8} rate={rate} box={[0, 0, w, h]} z={f.z} c={f.c} pixel={f.pixel} />;
 };
 
