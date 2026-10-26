@@ -31,13 +31,16 @@ PAN = {BOX: 64, CELESTA: 76, PAD: 64, STR: 46, BASS: 70, CHOIR: 64, HORN: 52, BR
        TREM: 84, CELLO: 58, HIT: 64, TUBA: 72, TROM: 80}
 
 
-def start():
-    """a clean score: every channel on its instrument, at its level and place"""
+def start(programs=None, levels=None):
+    """a clean score: every channel on its instrument, at its level and place (a score can put other instruments, at other
+    levels, on some channels: {channel: GM program} and {channel: level})"""
     ev.clear()
+    prog = {**PROGRAM, **(programs or {})}
+    lev = {**LEVEL, **(levels or {})}
     for ch in range(16):
-        if ch in PROGRAM:
-            msg(0, mido.Message('program_change', channel=ch, program=PROGRAM[ch]), 0)
-        msg(0, mido.Message('control_change', channel=ch, control=7, value=LEVEL[ch]), 0)
+        if ch in prog:
+            msg(0, mido.Message('program_change', channel=ch, program=prog[ch]), 0)
+        msg(0, mido.Message('control_change', channel=ch, control=7, value=lev[ch]), 0)
         msg(0, mido.Message('control_change', channel=ch, control=10, value=PAN[ch]), 0)
         msg(0, mido.Message('control_change', channel=ch, control=11, value=110), 0)
         msg(0, mido.Message('control_change', channel=ch, control=91, value=70), 0)

@@ -33,6 +33,8 @@ export type Cut = {
   name?: { text: string; sub: string; colour: string };
   /** how far it goes dark at its end (the light going out) */
   dark?: number;
+  /** its own grade (a CSS filter) in place of the usual one */
+  grade?: string;
 };
 
 const C = cues;

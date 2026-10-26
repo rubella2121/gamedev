@@ -29,6 +29,23 @@ blocks (the game's cubes sweeping over the cut). The music is `audio/promo.py` o
 the sound design `../the-third-direction/tools/trailer/promo-sfx.ts`; `audio/mix.py <...> <id>` mixes one and levels its
 quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` makes them (after the trailer's `voices`).
 
+## The shorts
+
+Five more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
+the end (the Fourth):
+
+| | |
+|---|---|
+| `short-the-fourth` | IT'S NOT OVER: a happy ending, THE END - then nothing moves, the moon goes out, something unfolds where it was, its eye opens and it speaks (in its own voice from the game). Glimpses of where it takes them; "YOU FOUND THE THIRD DIRECTION. / SOMETHING FOUND YOU." |
+| `short-fighter` | CHOOSE YOUR FIGHT: an arcade select screen, every boss alive in its card; a roulette onto X, VERSUS with stats, FIGHT!, K.O. (its speech chip), and a card that stays locked until after the end. A chiptune of the lullaby. |
+| `short-secrets` | 5 THINGS YOU MISSED: counted down and marked up with a red pen - the stars are eyes, the Mash is every guardian, the moth is your shield, the soundtrack is one lullaby (on a staff, as the music box plays it); number one is classified. |
+| `short-phonk` | BLOB MODE: a black-and-white phonk edit - the lullaby on an 808 cowbell, speed ramps, frames in negative on every blow, SMALL. ALONE. OUTNUMBERED. OUTSIZED. UNSTOPPABLE. - and the colour back for FOR THEM. |
+| `short-lullaby` | THE LULLABY: her song with words, one to a note, karaoke-lit as the music box sings it; on "don't look up" it stops, and the moon blinks. |
+
+`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the three
+orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest of their sound. `scripts/make.sh shorts
+short-render` makes them.
+
 ## Where things are
 
 | | |
@@ -37,7 +54,7 @@ quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` ma
 | `src/data/lines.json` | The script: every spoken line, who says it, when, and in what space. |
 | `src/edit.ts` | The cut: every shot, which clip, from which frame, how it is framed and how it comes in. |
 | `src/Trailer.tsx` | The composition; `src/components/` holds the shot, the effects, the boom, the words and the title. |
-| `audio/` | `lines.py` (Kokoro takes), `voices.py` (treatment, and `src/data/voice.json` for the captions), `kit.py` (the orchestra and how to write for it), `orchestra.py` (the score), `promo.py` (the promos' scores), `mix.py` (mix and master to -14 LUFS). |
+| `audio/` | `lines.py` (Kokoro takes), `voices.py` (treatment, and `src/data/voice.json` for the captions), `kit.py` (the orchestra and how to write for it), `orchestra.py` (the score), `promo.py` (the promos' scores), `shorts.py` (the shorts' orchestral scores), `mix.py` (mix and master to -14 LUFS). |
 | `scripts/clips.py` | Turns the captured footage into the clips in `public/clips/` (plus the boom still and the grain). |
 | `scripts/make.sh` | All of it, in order. |
 
