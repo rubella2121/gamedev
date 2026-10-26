@@ -73,10 +73,10 @@ export const TheFourth: React.FC = () => {
         <>
           <Opening t={t} />
           <Typed at={S.freeze + 0.15} end={S.unfold - 0.05} text="and then nothing moves." y={0.62} size={84} colour="#cfeee8" cps={24} />
-          <Subtitle at={S.meant} end={f1 - 0.05} who="THE FOURTH" text="You were never meant to leave." colour={VIOLET} />
+          <Subtitle at={S.meant} end={f1 - 0.05} who="THE FOURTH" text="You were never meant to leave." colour={VIOLET} size={74} y={0.68} panel />
           <Typed at={S.found + 0.15} end={S.foundYou - 0.05} text={"YOU FOUND THE\nTHIRD DIRECTION."} y={0.6} size={104} colour="#7ff4ea" cps={30} />
           <Say words={[{ at: S.foundYou, end: S.flee - 0.04, text: "SOMETHING|FOUND YOU.", hot: ["FOUND", "YOU."], hue: RED, y: 0.58, style: "slam" }]} />
-          <Subtitle at={S.back} end={S.black - 0.1} who="THE FOURTH" text="I will come back." colour={VIOLET} />
+          <Subtitle at={S.back} end={S.black - 0.1} who="THE FOURTH" text="I will come back." colour={VIOLET} size={80} y={0.68} panel />
         </>
       ) : null}
       {t > S.length - 0.04 ? <AbsoluteFill style={{ backgroundColor: "#000" }} /> : null}

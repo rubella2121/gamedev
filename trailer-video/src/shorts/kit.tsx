@@ -104,8 +104,11 @@ export const Typed: React.FC<{
   );
 };
 
-/** a line said in a cutscene, subtitled the way the game does it: who says it, small, over what is said */
-export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: string; colour: string; y?: number; size?: number; font?: string }> = ({
+/**
+ * a line said in a cutscene, subtitled the way the game does it: who says it, small, over what is said; on a soft dark band,
+ * or (`panel`) a solid one, for lines said over something bright
+ */
+export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: string; colour: string; y?: number; size?: number; font?: string; panel?: boolean }> = ({
   at,
   end,
   who,
@@ -114,6 +117,7 @@ export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: s
   y = 0.66,
   size = 66,
   font = "Cormorant Garamond",
+  panel = false,
 }) => {
   const t = useCurrentFrame() / FPS;
   if (t < at - 0.1 || t > end + 0.3) return null;
@@ -121,7 +125,8 @@ export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: s
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * y, opacity: op }}>
       {/* a soft dark band behind the words, so they read over anything */}
-      <div style={{ position: "absolute", left: 0, top: H * y - 40, width: W, height: (who ? 60 : 0) + size * 2.6, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,0,0,0.62), rgba(0,0,0,0) 100%)" }} />
+      {panel ? null : <div style={{ position: "absolute", left: 0, top: H * y - 40, width: W, height: (who ? 60 : 0) + size * 2.6, background: "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(0,0,0,0.62), rgba(0,0,0,0) 100%)" }} />}
+      <div style={panel ? { display: "flex", flexDirection: "column", alignItems: "center", backgroundColor: "rgba(10,4,24,0.78)", border: `2px solid ${colour}`, borderRadius: 20, padding: "18px 40px 22px", boxShadow: `0 0 30px rgba(0,0,0,0.8), 0 0 18px ${colour}` } : { display: "flex", flexDirection: "column", alignItems: "center" }}>
       {who ? (
         <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 26, letterSpacing: "0.5em", paddingLeft: "0.5em", color: colour, textShadow: `0 0 14px ${colour}, 0 2px 6px rgba(0,0,0,0.9)`, marginBottom: 14 }}>
           {who}
@@ -140,6 +145,7 @@ export const Subtitle: React.FC<{ at: number; end: number; who?: string; text: s
         }}
       >
         {text}
+      </div>
       </div>
     </AbsoluteFill>
   );
