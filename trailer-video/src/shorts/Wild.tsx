@@ -34,7 +34,8 @@ export const CUTS: Cut[] = [
   { at: cage, end: stomp, clip: "wild-cage", from: 2, rate: 0.9, z: [1.0, 1.04], in: "dissolve" },
   // and his arm, sweeping in
   { at: stomp, end: fight, clip: "wild-stomp", from: 110, z: [1.0, 1.05], in: "cut" },
-  { at: fight, end: S.end, clip: "wild-fight", from: 30, z: [1.0, 1.06], in: "cut" },
+  // it stands its ground (before a standing stone drifts into the long lens)
+  { at: fight, end: S.end, clip: "wild-fight", from: 0, rate: 0.75, z: [1.0, 1.08], c: [0.42, 0.62], in: "cut" },
 ];
 
 /** the field guide's cards: (from, to, name, its Latin, what is known of it, accent) */
