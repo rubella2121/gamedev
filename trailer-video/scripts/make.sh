@@ -15,7 +15,7 @@ PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
 STEPS=${*:-voices music clips render promos promo-render shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 

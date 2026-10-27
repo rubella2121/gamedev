@@ -9,6 +9,8 @@
   festival    her lullaby on a slow piano with room around it, silence, everything at once, a note for each review, the title
   wild        a nature film's orchestra: harp and flute for the night, plucked strings for the blob, an oboe for the moth, the bottom of
               the orchestra for X, her lullaby in minor for the family, and in A major on the horns when the blob does not run
+  tarot       a dark waltz of her lullaby (a solo violin, plucked strings, a harpsichord), a blow as each card turns, the Tower's
+              crash; for the Fool, A major and the lullaby gently; the waltz's last turn on the end card
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
@@ -642,6 +644,97 @@ def oner(P):
     title(e, fade)
 
 
+# ---------------------------------------------------------------- your october fortune
+
+def tarot(P):
+    b, fan, pick, cards, fool, e, fade = P['beat'], P['fan'], P['pick'], P['cards'], P['fool'], P['end'], P['fadeOut']
+    BAR = 3 * b
+    HARPSI, VIOLIN, PIZZ = BOX, HORN, CELLO
+    # the reading begins: a drone, a choir breathing in, the celesta and the harpsichord running up as the cards fan out
+    note(BASS, 0.0, cards[0] - 0.1, 33, 64)
+    swell(BASS, 0.0, 1.0, 30, 80)
+    chord(CHOIR, 0.2, cards[0] - 0.3, [57, 60, 64], 60)
+    swell(CHOIR, 0.2, pick, 30, 96)
+    for k, m in enumerate((81, 84, 88, 91, 93, 96, 100)):
+        note(CELESTA, 0.3 + 0.09 * k, 1.4, m, 60)
+    for k in range(9):
+        note(HARPSI, fan + 0.1 * k, 0.5, [57, 60, 64, 67, 69, 72, 76, 79, 81][k], 74)
+    chord(TREM, pick - 0.3, cards[0] - pick + 0.2, [69, 71, 76], 54)
+    swell(TREM, pick - 0.3, cards[0], 40, 100)
+    roll(TIMP, pick, cards[0] - 0.05, 45, 40, 100)
+    cut(cards[0] - 0.02)
+    # the waltz: her lullaby, danced; a bar of three beats, two bars to a card (Am F Dm E, round and round)
+    prog = [(45, [57, 60, 64]), (41, [57, 60, 65]), (38, [57, 62, 65]), (40, [56, 59, 64])]
+    tune = [[(0, 69), (1, 72), (2, 76)], [(0, 74), (2, 72)], [(0, 69), (1, 67), (2, 64)], [(0, 64)]]
+    lens = [[1, 1, 1], [2, 1], [1, 1, 1], [3]]
+    nb = int(round((fool - cards[0]) / BAR))
+    for k in range(nb):
+        t0 = cards[0] + k * BAR
+        root, ch = prog[k % 4]
+        lvl = min(1.0, 0.7 + 0.05 * k)
+        note(PIZZ, t0, 0.3, root, 96 * lvl)
+        note(BASS, t0, BAR * 0.9, root - 12 if root > 40 else root, 70 * lvl)
+        for bt in (1, 2):
+            chord(PIZZ, t0 + bt * b, 0.2, ch, 74 * lvl)
+            chord(HARPSI, t0 + bt * b, 0.25, [p + 12 for p in ch], 56 * lvl)
+        for (bt, m), ln in zip(tune[k % 4], lens[k % 4]):
+            up = 12 if k >= 8 else 0
+            note(VIOLIN, t0 + bt * b, ln * b * 0.95, m + up, 92 * lvl)
+            if k >= 4:
+                note(HARPSI, t0 + bt * b, ln * b * 0.9, m + 12, 60)
+        if k >= 6:
+            chord(CHOIR, t0, BAR, ch, 50 + 4 * k)
+        if k >= 10:
+            chord(STR, t0, BAR, [p + 12 for p in ch], 60 + 3 * k)
+    # each card as it turns: a blow, a cymbal, the timpani
+    for i, c in enumerate(cards):
+        f = c + 0.55
+        tower = i == len(cards) - 1
+        chord(HIT, f, 0.4, [57 + (i % 3), 64 + (i % 3), 69 + (i % 3)], 104 + 3 * i)
+        drum(f, 49, 96 + 3 * i)
+        note(TIMP, f, 0.6, 45, 100 + 3 * i)
+        if tower:
+            mega(f, dur=1.6)
+            chord(BRASS, f + 0.6, fool - f - 0.6, [45, 52, 57], 110)
+            swell(BRASS, f + 0.6, fool, 110, 40)
+            for k in range(6):
+                note(TAIKO, f + 0.4 + 0.4 * k, 0.3, 48, 120 - 6 * k)
+    cut(fool - 0.02)
+    # the Fool: everything stops; a few high notes; then, as it turns, A major and her lullaby, gently
+    for k, m in enumerate((88, 93, 96)):
+        note(CELESTA, fool + 0.1 + 0.35 * k, 1.2, m, 56)
+    turn = fool + 0.95
+    chord(STR, turn, e - turn, [57, 61, 64, 69], 70)
+    swell(STR, turn, turn + 1.0, 40, 86)
+    chord(CHOIR, turn + 0.2, e - turn, [61, 64, 69], 66)
+    note(BASS, turn, e - turn, 33, 66)
+    for k, m in enumerate((57, 61, 64, 69, 73, 76, 81)):
+        note(HARPSI, turn + 0.06 * k, 1.6, m, 64)
+    t = turn + 0.3
+    for i, m in enumerate(MAJ[:6]):
+        note(VIOLIN, t, 0.7, m, 84)
+        t += 0.42 if i not in (2,) else 0.6
+    # the end: the waltz's last turn, in A major, the whole orchestra, then the reading closes
+    cut(e - 0.02)
+    chord(BRASS, e, 1.6, [57, 61, 64], 120)
+    chord(STR, e, fade - e, [69, 73, 76, 81], 96)
+    chord(CHOIR, e, fade - e, [57, 61, 64, 69], 96)
+    note(BASS, e, fade - e, 33, 100)
+    note(TIMP, e, 0.8, 45, 124)
+    note(TAIKO, e, 0.6, 48, 124)
+    drum(e, 49, 118)
+    for k in range(int((fade - e - 0.4) / BAR)):
+        t0 = e + 1.2 + k * BAR
+        note(PIZZ, t0, 0.3, 45, 80 - 6 * k)
+        for bt in (1, 2):
+            chord(PIZZ, t0 + bt * b, 0.2, [61, 64, 69], 64 - 5 * k)
+    for i, m in enumerate((76, 74, 73, 69)):
+        note(CELESTA, e + 1.4 + 0.5 * i, 1.4, m + 12, 70)
+    for ch in (STR, CHOIR, BASS, PIZZ, CELESTA):
+        swell(ch, fade, fade + 0.6, 110, 0, 12)
+    cut(fade + 0.65)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -659,6 +752,7 @@ SCORES = {
     'wild': (wild, {HIT: 46, TROM: 73, TUBA: 68, BOX: 45}),
     'oner': (oner, {HIT: 46}),
     'lofi': (silent, None),
+    'tarot': (tarot, {BOX: 6, HORN: 40, CELLO: 45}),
 }
 
 if __name__ == '__main__':

@@ -68,11 +68,11 @@ const path = (keys) =>
      const v = (j, e) => cr(k0[j][e], k1[j][e], k2[j][e], k3[j][e], u);
      const c = __tt.act2.arena.camera; c.position.set(v(1, 0), v(1, 1), v(1, 2)); c.lookAt(v(2, 0), v(2, 1), v(2, 2));
      c.fov = k1[3] + (k2[3] - k1[3]) * u; c.updateProjectionMatrix(); }`;
-// the Crater with X in it, but the Blob never hurt (a hit would make it blink); `calm` holds X in his entrance, so nothing attacks,
-// and `hide` takes him out of the picture; `at` puts the Blob somewhere
+// the Crater with X in it (or, with `boss`, another of the three), but the Blob never hurt (a hit would make it blink); `calm` holds
+// the boss in its entrance, so nothing attacks, and `hide` takes it out of the picture; `at` puts the Blob somewhere
 const crater = (name, frames, camera, o = {}) => ({
   name,
-  setup: '__tt.debugFight(0, 0)',
+  setup: `__tt.debugFight(0, ${o.boss ?? 0})`,
   until: "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control",
   atStart: `__tt.act2.hurt = () => {}; ${camera}`,
   each: [
@@ -117,6 +117,9 @@ export const SHOTS = [
   },
   // lofi: the Blob asleep by the Moonwell, the moth on its head, the camera barely moving (it loops)
   crater('lofi', 240, lerpPath(240, [-11.0, 2.4, 1.8], [-11.1, 2.38, 1.7], [-17.0, 1.1, -4.8], [-17.0, 1.1, -4.8], 40, 39.6), { calm: true, hide: true, at: [-15.2, -2.6], warm: 120 }),
+  // the tarot reading: the Collector's eye in its jar, pushing in from the drawers; the Mash's eye and its maw
+  crater('tarot-collector', 150, lerpPath(150, [5, 7, -6], [2.5, 11.5, -12], [0, 11, -27], [0, 13, -27], 36, 26), { boss: 1 }),
+  crater('tarot-mash', 150, lerpPath(150, [0, 5, 8], [1, 6.5, -4], [0, 8, -24], [0, 9, -24], 32, 24), { boss: 2 }),
   // ONE TAKE: out of the ferns, round in front of the Blob and the moth, over the floor, up to the Moonwell and round it, up, and
   // into X's eyes
   crater(
