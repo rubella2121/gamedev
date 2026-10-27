@@ -31,9 +31,10 @@ quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` ma
 
 ## The shorts
 
-Twelve more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
-the end (the Fourth). The last three are cut from footage of their own: places and angles the game had never been filmed from
-(the `wild-*`, `oner` and `lofi` shots in `../the-third-direction/tools/trailer/shots.mjs`, on camera paths of their own):
+Thirteen more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
+the end (the Fourth). The last four are cut from footage of their own: places and angles the game had never been filmed from
+(the `wild-*`, `oner`, `lofi` and `tarot-*` shots in `../the-third-direction/tools/trailer/shots.mjs`, on camera paths of their
+own):
 
 | | |
 |---|---|
@@ -49,8 +50,9 @@ the end (the Fourth). The last three are cut from footage of their own: places a
 | `short-wild` | WILDLIFE OF THE THIRD DIRECTION: a nature film of the Crater with a narrator (`src/data/lines-wild.json`) - night falling, the Moonwell, the blob ("small, soft, utterly defenceless") and its only friend the moth, each with a field guide's card; then on a long lens, X, the Hollow ("an apex predator"), the cage, his arm sweeping in, in slow motion. "Most creatures would run. The blob... does not." Remarkable. |
 | `short-oner` | ONE TAKE: a slate and a clap, then 21 seconds without a cut - out of the ferns, round the Blob and its moth, over the floor, up to the Moonwell and round it, up, and into X's eyes - with the camera's timecode running the whole way. One crescendo under it. |
 | `short-lofi` | lofi blob, beats to escape a crater to: the Blob by the Moonwell in the rain, her lullaby as a lofi beat, a now-playing card; for a moment the tape catches, the clock says 4:44 and something in the sky opens its eye. Did you see it? |
+| `short-tarot` | YOUR OCTOBER FORTUNE: a tarot reading by candlelight, and no X in the deck. Shuffled, fanned, a card picked; seven turned, each boss in a gilded frame under its arcana - the Moon (Gloommother), the Emperor (Thornback King), Judgement (Toll Queen), Death (Bone Wyrm), the Magician (Mimic Queen), the Hermit (the Collector's eye in its jar), the Tower (the Mash, cracking) - each with its own voice and fortune; the last card, 0, the Fool, is the Blob. A dark waltz of the lullaby under it. |
 
-`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the eight
+`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the nine
 orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest of their sound (and all the music of the
 three synthesised ones). A short's `mix` can set its balance and how far its quiet moments are brought up (`ride`; the festival
 trailer keeps its silence). `scripts/make.sh shorts short-render` makes them.

@@ -192,6 +192,19 @@
       "fadeOut": 19.4,
       "lines": [],
       "mix": {"orch": 0.0, "sfx": 1.0}
+    },
+    "tarot": {
+      "title": "Your October fortune",
+      "length": 28.2,
+      "beat": 0.4,
+      "fan": 1.4,
+      "pick": 2.6,
+      "cards": [3.0, 5.4, 7.8, 10.2, 12.6, 15.0, 17.4],
+      "fool": 19.8,
+      "end": 23.6,
+      "fadeOut": 27.6,
+      "lines": [],
+      "mix": {"orch": 1.6, "sfx": 0.55}
     }
   }
 }

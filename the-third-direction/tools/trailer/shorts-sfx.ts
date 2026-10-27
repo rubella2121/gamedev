@@ -235,6 +235,7 @@ class ShortSfx extends Base {
     if (this.id === 'wild') this.wild();
     if (this.id === 'oner') this.oner();
     if (this.id === 'lofi') this.lofi();
+    if (this.id === 'tarot') this.tarot();
   }
 
   theFourth() {
@@ -1061,6 +1062,61 @@ class ShortSfx extends Base {
       for (const [k, m] of [45, 60, 64, 67, 71, 76].entries()) this.rhodes(a + 0.03 * k, m, 3.6, 0.045);
       this.bell(a + 0.6, 1760, 2.4, 0.02, 0.9);
     });
+  }
+
+  /** a card: slid off the deck, a swish */
+  cardSlide(t: number, g = 0.07) {
+    this.on(t, (a) => this.noise(a, 0.18, 'bandpass', 2500, 5000, g, { q: 1.2, a: 0.01, rise: true }));
+  }
+  /** a card turned over: a snap, and the gilt ringing */
+  cardFlip(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.noise(a, 0.03, 'bandpass', 3000, 2400, 0.16 * g, { q: 2, a: 0.001 });
+      this.thud(a, 140, 80, 0.06, 0.12 * g);
+      [2637, 3136, 3951, 4699].forEach((f, k) => this.bell(a + 0.05 + k * 0.05, f, 1.6, 0.012 * g, 0.85));
+    });
+  }
+
+  tarot() {
+    const C = this.C;
+    const cards = C.cards as number[];
+    // candlelight: the air, a wick's crackle
+    this.on(0.02, (a) => this.air(a, C.fadeOut, 0.014, 600, 450, 0.6));
+    for (let k = 0; k < 30; k++) this.on(0.2 + k * 0.9 + 0.3 * Math.sin(k * 2.7), (a) => this.noise(a, 0.008, 'highpass', 3000, 3000, 0.03, { a: 0.0005 }));
+    // the shuffle: two riffles; then the fan, card by card; one card lifted
+    for (const r0 of [0.3, 0.85]) for (let k = 0; k < 16; k++) this.on(r0 + k * 0.028, (a) => this.noise(a, 0.012, 'bandpass', 3500 + 600 * Math.sin(k), 2500, 0.05, { q: 2, a: 0.0005, pan: k % 2 ? 0.3 : -0.3 }));
+    for (const r0 of [0.72, 1.27]) this.on(r0, (a) => this.thud(a, 160, 90, 0.05, 0.12));
+    for (let k = 0; k < 9; k++) this.cardSlide(C.fan + 0.08 * k, 0.04);
+    this.on(C.pick, (a) => {
+      for (let k = 0; k < 8; k++) this.bell(a + k * 0.045, 1760 * 2 ** (k / 7), 1.4, 0.012, 0.9);
+    });
+    // each card: off the deck, turned, and its boss speaks
+    const VOICES: [(v: V) => void, number][][] = [
+      [[(v) => v.motherWhispers(5), 3]],
+      [[(v) => v.kingBellow(), 0.55]],
+      [[(v) => v.queenToll(1, 1), 0.5]],
+      [[(v) => v.wyrmScreech(0.9), 0.45]],
+      [[(v) => v.mimicLaugh(), 0.9]],
+      [[(v) => v.glassPing(), 2.2], [(v) => v.collectorChuckle(), 1.6]],
+      [[(v) => v.mashRoar(), 1.2]],
+    ];
+    cards.forEach((c, i) => {
+      if (i > 0) this.cardSlide(c + 0.02);
+      this.cardFlip(c + 0.55);
+      VOICES[i]!.forEach(([fn, g], k) => this.on(c + 0.75 + 0.35 * k, (a) => this.say(a, fn, g)));
+    });
+    // the Tower: it cracks, and everything shakes
+    const tw = cards[cards.length - 1]! + 0.6;
+    this.on(tw, (a) => {
+      this.impact(a, 1.3);
+      this.noise(a, 0.35, 'bandpass', 1800, 700, 0.18, { q: 0.8, a: 0.002 });
+      for (let k = 0; k < 10; k++) this.noise(a + 0.02 + k * 0.025, 0.01, 'bandpass', 1500 + this.rnd() * 3000, 1500, 0.08, { q: 3, a: 0.0005 });
+    });
+    // the Fool: a held breath; it turns in a warm light; the Blob wobbles
+    this.cardSlide(C.fool + 0.05, 0.05);
+    this.cardFlip(C.fool + 0.95, 0.8);
+    this.boing(C.fool + 1.25, 0.08);
+    this.endCard(C.end, false);
   }
 
   lullaby() {
