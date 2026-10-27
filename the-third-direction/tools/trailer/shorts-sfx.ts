@@ -913,7 +913,7 @@ class ShortSfx extends Base {
       this.noise(a, 1.2, 'bandpass', 900, 600, 0.02, { q: 6, a: 0.3, wet: 0.7 });
       this.bell(a + 0.6, 660, 2.0, 0.015, 0.9);
     });
-    // his foot, in slow motion: the air pushed down ahead of it, and the ground
+    // his arm, sweeping in, in slow motion: the air pushed ahead of it, and the blow
     const land = stomp + C.slam;
     this.on(land - 0.6, (a) => this.noise(a, 0.6, 'lowpass', 200, 900, 0.12, { rise: true }));
     this.on(land, (a) => {

@@ -105,13 +105,15 @@ export const SHOTS = [
   crater('wild-xface', 90, lerpPath(90, [-3, 6, 6], [-2.6, 6.3, 7], [0, 13.5, -29], [0, 13.5, -29], 14, 12.5)),
   // what he took: the cage, on a long lens
   crater('wild-cage', 90, lerpPath(90, [4, 6, 10], [4, 6, 10], [13, 23, -44], [13, 23, -44], 14, 11)),
-  // his foot, a long way off past the Moonwell's flowers, in slow motion
+  // his attack, a long way off past the Moonwell's flowers, in slow motion (the arm sweeps in near the end)
   crater('wild-stomp', 300, lerpPath(300, [-16, 1.0, 20], [-15.2, 1.1, 19.2], [0, 2.0, 12], [0, 2.3, 12], 24, 22), { dt: 1 / 60 }),
-  // and the Blob fights back (the bot plays), on a long lens that follows it
+  // and the Blob fights back (the bot plays), on a long lens behind it and above the ferns, X filling the frame beyond it (the
+  // camera kept on the Crater's floor, off the forest wall)
   {
-    ...boss3(0, 0, 'wild-fight', 150),
+    ...boss3(0, 0, 'wild-fight', 180),
     ...HI,
-    atStart: "__tt.act2.hurt = () => {}; __tt.beforeDraw = () => { const a = __tt.act2.arena, c = a.camera, p = a.player.position; c.position.set(p.x + 9, p.y + 1.6, p.z + 6); c.lookAt(p.x, p.y + 1.2, p.z - 3); c.fov = 26; c.updateProjectionMatrix(); }",
+    atStart:
+      "__tt.act2.hurt = () => {}; __tt.beforeDraw = () => { const a = __tt.act2.arena, c = a.camera, p = a.player.position; let x = p.x * 0.7 + 1.5, z = p.z + 8; const r = Math.hypot(x, z); if (r > 19) { x *= 19 / r; z *= 19 / r; } c.position.set(x, p.y + 2.8, z); c.lookAt(p.x * 0.5, p.y + 4.5, -26); c.fov = 34; c.updateProjectionMatrix(); }",
   },
   // lofi: the Blob asleep by the Moonwell, the moth on its head, the camera barely moving (it loops)
   crater('lofi', 240, lerpPath(240, [-11.0, 2.4, 1.8], [-11.1, 2.38, 1.7], [-17.0, 1.1, -4.8], [-17.0, 1.1, -4.8], 40, 39.6), { calm: true, hide: true, at: [-15.2, -2.6], warm: 120 }),

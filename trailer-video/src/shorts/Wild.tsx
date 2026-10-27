@@ -32,7 +32,8 @@ export const CUTS: Cut[] = [
   { at: tele, end: xface, clip: "wild-tele", from: 20, z: [1.0, 1.04], in: "cut" },
   { at: xface, end: cage, clip: "wild-xface", from: 2, rate: 0.75, z: [1.0, 1.06], in: "cut" },
   { at: cage, end: stomp, clip: "wild-cage", from: 2, rate: 0.9, z: [1.0, 1.04], in: "dissolve" },
-  { at: stomp, end: fight, clip: "wild-stomp", from: 60, z: [1.0, 1.05], in: "cut" },
+  // and his arm, sweeping in
+  { at: stomp, end: fight, clip: "wild-stomp", from: 110, z: [1.0, 1.05], in: "cut" },
   { at: fight, end: S.end, clip: "wild-fight", from: 30, z: [1.0, 1.06], in: "cut" },
 ];
 
@@ -113,7 +114,7 @@ const Species: React.FC<{ t: number; at: number; end: number; name: string; lati
   const u = t - at;
   const line = easeOut(u / 0.5);
   return (
-    <div style={{ position: "absolute", left: 0, top: H * 0.5, opacity: k }}>
+    <div style={{ position: "absolute", left: 0, top: H * 0.15, opacity: k }}>
       <div style={{ position: "absolute", left: 0, top: -30, width: W * 0.9, height: 300, background: "linear-gradient(90deg, rgba(0,0,0,0.62), rgba(0,0,0,0.35) 60%, rgba(0,0,0,0))" }} />
       <div style={{ position: "relative", marginLeft: 64 }}>
       <div style={{ width: (420 * line) | 0, height: 3, backgroundColor: accent, boxShadow: `0 0 12px ${accent}` }} />
