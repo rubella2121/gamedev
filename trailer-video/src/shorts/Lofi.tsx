@@ -57,7 +57,7 @@ const Pass: React.FC<{ t: number; at: number; first: boolean }> = ({ t, at, firs
   const o = first ? 1 : smooth((t - at) / XF);
   return (
     <AbsoluteFill style={{ opacity: o }}>
-      <Clip clip="lofi" at={at} from={0} dur={S.loop} filter="brightness(1.12) contrast(0.92) saturate(0.9) sepia(0.12)" />
+      <Clip clip="lofi" at={at} from={0} dur={S.loop} z={1.14} c={[0.48, 0.62]} filter="brightness(1.12) contrast(0.92) saturate(0.9) sepia(0.12)" />
     </AbsoluteFill>
   );
 };
