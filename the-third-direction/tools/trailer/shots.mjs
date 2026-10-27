@@ -105,8 +105,8 @@ export const SHOTS = [
   crater('wild-xface', 90, lerpPath(90, [-3, 6, 6], [-2.6, 6.3, 7], [0, 13.5, -29], [0, 13.5, -29], 14, 12.5)),
   // what he took: the cage, on a long lens
   crater('wild-cage', 90, lerpPath(90, [4, 6, 10], [4, 6, 10], [13, 23, -44], [13, 23, -44], 14, 11)),
-  // his foot, from the side, a long way off, in slow motion
-  crater('wild-stomp', 240, lerpPath(240, [22, 1.2, 14], [21, 1.3, 13.4], [0, 2.2, 12], [0, 2.4, 12], 22, 20), { dt: 1 / 60 }),
+  // his foot, a long way off past the Moonwell's flowers, in slow motion
+  crater('wild-stomp', 300, lerpPath(300, [-16, 1.0, 20], [-15.2, 1.1, 19.2], [0, 2.0, 12], [0, 2.3, 12], 24, 22), { dt: 1 / 60 }),
   // and the Blob fights back (the bot plays), on a long lens that follows it
   {
     ...boss3(0, 0, 'wild-fight', 150),
