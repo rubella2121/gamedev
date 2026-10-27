@@ -939,31 +939,44 @@ class ShortSfx extends Base {
   oner() {
     const C = this.C;
     const tk = C.take;
-    const area = (n: string) => tk + (C.areas as [number, string][]).find(([, name]) => name === n)![0];
+    const well = tk + (C.areas as [number, string][]).find(([, name]) => name === 'THE MOONWELL')![0];
     // the slate's clap: wood on wood, in a small room
     this.on(C.clap, (a) => {
       this.noise(a, 0.03, 'highpass', 1800, 1800, 0.55, { a: 0.0005 });
       this.noise(a, 0.12, 'bandpass', 1200, 900, 0.3, { q: 1.4, a: 0.0005, wet: 0.45 });
       this.thud(a, 180, 90, 0.06, 0.25);
     });
-    // the night all the way, the crickets until the camera climbs
-    this.night(tk, area('ABOVE') + 0.5);
+    // the night, until he is there
+    this.night(tk, C.reveal);
     // out of the ferns
-    for (let k = 0; k < 10; k++) this.on(tk + 0.1 + k * 0.17 + 0.05 * Math.sin(k), (a) => this.noise(a, 0.12, 'bandpass', 1500 + 900 * Math.sin(k * 2), 1200, 0.05, { q: 0.9, a: 0.01, pan: Math.sin(k * 1.3) * 0.6 }));
+    for (let k = 0; k < 12; k++) this.on(tk + 0.1 + k * 0.17 + 0.05 * Math.sin(k), (a) => this.noise(a, 0.12, 'bandpass', 1500 + 900 * Math.sin(k * 2), 1200, 0.05, { q: 0.9, a: 0.01, pan: Math.sin(k * 1.3) * 0.6 }));
     // past the Blob (a wobble), past a standing stone
     this.boing(tk + 4.4, 0.05);
     this.whoosh(tk + 5.0, 0.1, 0.4);
     this.whoosh(tk + 7.0, 0.12, 0.5);
     // the Moonwell sings
-    for (let k = 0; k < 7; k++) this.on(area('THE MOONWELL') + 0.2 + 0.4 * k, (a) => this.bell(a, [2093, 2637, 3136, 2349, 2794, 3520, 2637][k]!, 2.4, 0.016, 0.9));
-    // up: the wind, and something rising under everything
-    this.on(area('ABOVE') - 1.0, (a) => this.air(a, C.reveal - area('ABOVE') + 1.0, 0.04, 400, 2400, 0.8));
-    this.on(area('ABOVE'), (a) => this.riser(a, C.reveal - area('ABOVE') - 0.05, 0.12, 120, 5000));
-    for (const [dt, g] of [[1.3, 0.3], [2.1, 0.36], [2.8, 0.42], [3.4, 0.48]] as const) this.on(area('ABOVE') + dt, (a) => this.heart(a, g));
-    // his eyes: he sees you
+    for (let k = 0; k < 7; k++) this.on(well + 0.2 + 0.4 * k, (a) => this.bell(a, [2093, 2637, 3136, 2349, 2794, 3520, 2637][k]!, 2.4, 0.016, 0.9));
+    // up: the wind
+    this.on(well + 1.5, (a) => this.air(a, C.roar - well - 1.5, 0.04, 400, 2400, 0.8));
+    // he is there
     this.on(C.reveal, (a) => {
+      this.impact(a, 1.3);
+      this.say(a + 0.4, (v: V) => v.xBreath(), 0.8);
+    });
+    // and the camera goes to his eyes: something rising under everything, a heart
+    this.on(C.reveal + 0.5, (a) => this.riser(a, C.roar - C.reveal - 0.55, 0.12, 120, 5000));
+    let h = C.reveal + 1.2;
+    let gap = 0.9;
+    while (h < C.roar - 0.2) {
+      const g = 0.3 + 0.25 * ((h - C.reveal) / (C.roar - C.reveal));
+      this.on(h, (a) => this.heart(a, g));
+      h += gap;
+      gap = Math.max(0.36, gap * 0.85);
+    }
+    // he sees you
+    this.on(C.roar, (a) => {
       this.impact(a, 1.4);
-      this.say(a + 0.15, (v: V) => v.xRoar(), 1.0);
+      this.say(a + 0.05, (v: V) => v.xRoar(), 1.0);
     });
     // black
     this.on(C.black, (a) => {

@@ -10,7 +10,7 @@
   wild        a nature film's orchestra: harp and flute for the night, plucked strings for the blob, an oboe for the moth, the bottom of
               the orchestra for X, her lullaby in minor for the family, and in A major on the horns when the blob does not run
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
-              Moonwell, the drums above, a blast at his eyes
+              Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
   silent.
 """
@@ -576,9 +576,8 @@ def wild(P):
 # ---------------------------------------------------------------- one take
 
 def oner(P):
-    clap, take, rv, bk, e, fade = P['clap'], P['take'], P['reveal'], P['black'], P['end'], P['fadeOut']
-    areas = {name: take + a for a, name in P['areas']}
-    well, above = areas['THE MOONWELL'], areas['ABOVE']
+    clap, take, rv, roar, bk, e, fade = P['clap'], P['take'], P['reveal'], P['roar'], P['black'], P['end'], P['fadeOut']
+    well = take + dict((name, a) for a, name in P['areas'])['THE MOONWELL']
     HARP = HIT
     # the take begins on a low A and a few fireflies; it never stops building
     note(BASS, take, rv - take, 33, 60)
@@ -611,33 +610,33 @@ def oner(P):
         note(HARP, well + 0.035 * k, 1.6, [57, 60, 64, 69][k % 4] + 12 * (k // 4), 60 + k)
     t = well + 0.3
     for i_, m in enumerate(LULL):
-        if t > above + 1.0:
+        if t > rv - 0.6:
             break
         note(HORN, t, 0.9, m - 12, 76 + 3 * i_)
         note(STR, t, 0.9, m + 12, 56 + 3 * i_)
         t += GAPS[i_] * 0.9
-    # above: the drums, the brass rising, the choir climbing
-    for k in range(int((rv - above) / 0.5)):
-        tt = above + 0.5 * k
-        note(TAIKO, tt, 0.4, 48, 90 + 10 * k)
-        if k % 2 == 1:
-            note(TAIKO, tt + 0.25, 0.3, 48, 70 + 8 * k)
-    chord(BRASS, above, rv - above, [45, 52, 57], 70)
-    swell(BRASS, above, rv, 60, 124)
-    chord(TREM, above, rv - above, [69, 72, 76, 81], 60)
-    swell(TREM, above, rv, 50, 127)
     roll(TIMP, rv - 1.2, rv - 0.03, 45, 70, 127)
     roll(DRUMS, rv - 1.2, rv - 0.03, 38, 60, 124, 0.05)
     cut(rv - 0.02)
-    # his eyes: the blast, the voices a semitone apart, and it holds
+    # he fills the frame: the blast; then, as the camera comes round to his eyes, the drums like a heart, quickening, the voices
+    # a semitone apart and climbing, the brass swelling
     braam(rv)
-    chord(STR, rv, bk - rv, [69, 70, 76, 81, 82], 110)
-    chord(CHOIR, rv + 0.3, bk - rv - 0.3, [45, 46, 52, 53, 69, 70], 104)
-    swell(CHOIR, rv + 0.3, bk, 104, 127)
-    chord(TREM, rv + 0.2, bk - rv - 0.2, [81, 82, 88], 70)
-    swell(TREM, rv + 0.2, bk, 60, 127)
+    chord(CHOIR, rv + 0.3, bk - rv - 0.3, [45, 46, 52, 53, 69, 70], 90)
+    swell(CHOIR, rv + 0.3, bk, 70, 127)
+    chord(TREM, rv + 0.2, bk - rv - 0.2, [81, 82, 88], 60)
+    swell(TREM, rv + 0.2, bk, 40, 127)
+    chord(BRASS, rv + 1.5, bk - rv - 1.5, [33, 40, 45], 70)
+    swell(BRASS, rv + 1.5, bk, 60, 124)
     note(BASS, rv, bk - rv, 33, 110)
-    roll(TIMP, bk - 1.0, bk - 0.03, 45, 60, 127)
+    t, gap = rv + 1.0, 0.9
+    while t < roar - 0.1:
+        note(TAIKO, t, 0.4, 48, min(127, 92 + 6 * (rv + 7 - t)))
+        note(TIMP, t, 0.4, 45, 90)
+        t += gap
+        gap = max(0.32, gap * 0.85)
+    # the roar: everything at once, held into the black
+    mega(roar, dur=1.2)
+    chord(STR, roar, bk - roar, [69, 70, 76, 81, 82], 120)
     cut(bk)
     # black; then the title
     title(e, fade)

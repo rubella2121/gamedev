@@ -13,14 +13,14 @@ const TAKE = 21;
 
 /**
  * ONE TAKE - the Crater in a single shot, no cuts: a slate, the clap, and the camera goes - out of the ferns, round in front of
- * the Blob and its moth, over the floor between the standing stones, up the ramp to the Moonwell and round it, and up, and up,
- * until it is looking X in the eye. Black. The camera's own record runs in the corner the whole way, so you can see it never
+ * the Blob and its moth, over the floor between the standing stones, up the ramp to the Moonwell and round it, and up - and he
+ * is there, filling the frame - and round to his eyes, closer, until he roars. Black. The camera's own record runs in the corner the whole way, so you can see it never
  * stops.
  */
 export const Oner: React.FC = () => {
   const ready = useFonts();
   const t = useCurrentFrame() / FPS;
-  const shake = useShake([[S.clap, 0.25], [S.reveal, 0.9], [S.black, 0.6]]);
+  const shake = useShake([[S.clap, 0.25], [S.reveal, 0.7], [S.roar, 1.1], [S.black, 0.6]]);
   const tear = useGlitch([S.black - 0.02]);
   const inTake = t >= S.take && t < S.black;
   return (
@@ -33,7 +33,7 @@ export const Oner: React.FC = () => {
         {inTake ? <Lens t={t} /> : null}
       </AbsoluteFill>
       {/* the clap, the eyes, the black */}
-      <Flash hits={[[S.clap, 0.6], [S.reveal, 0.5], [S.end, 0.35]]} />
+      <Flash hits={[[S.clap, 0.6], [S.reveal, 0.4], [S.roar, 0.6], [S.end, 0.35]]} />
       {ready ? (
         <>
           <Slate t={t} />
@@ -106,7 +106,7 @@ const Slate: React.FC<{ t: number }> = ({ t }) => {
 const Lens: React.FC<{ t: number }> = ({ t }) => {
   const u = t - S.take;
   const k = 1 - smooth((u - 2.6) / 0.6);
-  const flare = span(u, 10.6, 14.0, 1.2, 1.4);
+  const flare = span(u, 9.6, 12.8, 1.2, 1.2);
   return (
     <>
       {k > 0.01 ? (
@@ -160,10 +160,10 @@ const Area: React.FC<{ t: number; at: number; name: string }> = ({ t, at, name }
   );
 };
 
-/** his name, when the camera finds his eyes */
+/** his name, when he fills the frame */
 const Name: React.FC<{ t: number }> = ({ t }) => {
   const at = S.reveal + 0.3;
-  const k = span(t, at, S.black - 0.02, 0.1, 0.02);
+  const k = span(t, at, at + 3.2, 0.1, 0.4);
   if (k <= 0) return null;
   const u = t - at;
   const split = 12 * Math.exp(-u / 0.15);
@@ -187,7 +187,7 @@ const End: React.FC<{ t: number }> = ({ t }) => {
     <AbsoluteFill style={{ opacity: k, alignItems: "center" }}>
       <div style={{ position: "absolute", top: H * 0.33, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.4em", paddingLeft: "0.4em", color: "#bfb8aa", opacity: smooth(u / 0.3) }}>21 SECONDS. ZERO CUTS.</div>
-        <div style={{ marginTop: 26, fontFamily: "Cinzel", fontWeight: 700, fontSize: 88, letterSpacing: "0.06em", color: "#fff1d0", whiteSpace: "nowrap", transform: `scale(${(0.9 + 0.1 * backOut((u - 0.3) / 0.5)).toFixed(3)})`, opacity: smooth((u - 0.3) / 0.3), textShadow: `0 0 26px ${GOLD}66, 0 4px 0 rgba(0,0,0,0.85)` }}>
+        <div style={{ marginTop: 26, fontFamily: "Cinzel", fontWeight: 700, fontSize: 70, letterSpacing: "0.05em", color: "#fff1d0", whiteSpace: "nowrap", transform: `scale(${(0.9 + 0.1 * backOut((u - 0.3) / 0.5)).toFixed(3)})`, opacity: smooth((u - 0.3) / 0.3), textShadow: `0 0 26px ${GOLD}66, 0 4px 0 rgba(0,0,0,0.85)` }}>
           THE THIRD DIRECTION
         </div>
         <div style={{ marginTop: 22, fontFamily: "Cormorant Garamond", fontStyle: "italic", fontWeight: 600, fontSize: 46, color: "#e9e3d6", opacity: smooth((u - 0.8) / 0.4) }}>Now go and walk it yourself.</div>
