@@ -18,7 +18,7 @@ The Python compositor here (`edit.py` and the rest) made the earlier cuts.
 | File | What it does |
 |---|---|
 | `timeline.py` | The one sheet everything reads: the music's cues, the cuts, the words on screen, where each voice line lands, the transitions. |
-| `shots.mjs` | Every shot: how the game is set up for it (debug hooks) and how many frames it runs. |
+| `shots.mjs` | Every shot: how the game is set up for it (debug hooks) and how many frames it runs. Some ride a camera of their own along a path of key positions (Catmull-Rom), with X held still or hidden and the Blob put where the shot wants it. |
 | `capture.mjs` | Plays each shot in headless Chromium on a fixed clock (`Game.manualClock` / `Game.tick`, 1/30 s, or 1/60 s for real slow motion) and saves the canvas as JPEGs. A shot can place its own 3D camera through `Game.beforeDraw`. |
 | `score.ts` | The music: the intro score's instruments and monster voices (`src/cinematic/score.ts`), played to the trailer's cues, with new parts for X's fight, the rush, the last lock, the family and the ending. |
 | `score-render.mjs` | Bundles `score.ts` (esbuild) and renders it on an OfflineAudioContext in headless Chromium. |

@@ -15,7 +15,7 @@ PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
 STEPS=${*:-voices music clips render promos promo-render shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 
@@ -23,6 +23,9 @@ if has voices; then
   echo "== voices"
   $PY audio/lines.py "${KOKORO:?KOKORO: the Kokoro model folder}" "$WORK/takes"
   $PY audio/voices.py "$WORK/takes" "$WORK/voice"
+  # the wildlife film's narrator: its own sheet of lines, placed against its own length
+  $PY audio/lines.py "$KOKORO" "$WORK/takes-wild" src/data/lines-wild.json
+  $PY audio/voices.py "$WORK/takes-wild" "$WORK/voice" src/data/lines-wild.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['wild']['length'])")"
 fi
 if has music; then
   echo "== orchestra"

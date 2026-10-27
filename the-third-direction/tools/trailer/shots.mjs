@@ -97,8 +97,6 @@ export const SHOTS = [
   crater('wild-peek', 90, lerpPath(90, [8.4, 0.75, 11.8], [7.2, 0.8, 10.9], [2, 0.8, 9], [0.4, 0.8, 8.4], 48, 44), { calm: true, hide: true, at: [0, 8] }),
   // its face, from the grass
   crater('wild-face', 120, lerpPath(120, [0.5, 0.25, 9.2], [0.35, 0.3, 9.6], [0, 1.0, 12], [0, 1.0, 12], 42, 38), { calm: true, hide: true }),
-  // the moth, in front of it
-  crater('wild-moth', 90, lerpPath(90, [1.6, 2.6, 8.0], [1.2, 2.4, 8.6], [0, 1.9, 12], [0, 1.9, 12], 30, 28), { calm: true, hide: true, warm: 60 }),
   // at the Moonwell, among the crystal flowers
   crater('wild-wellface', 90, lerpPath(90, [-14.0, 1.6, -6.4], [-14.4, 1.5, -5.8], [-15.4, 1.2, -2.4], [-15.4, 1.2, -2.4], 40, 37), { calm: true, hide: true, at: [-15.2, -2.6], warm: 40 }),
   // X, on a long lens, from behind the Blob

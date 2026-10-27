@@ -12,7 +12,7 @@ import { backOut, easeOut, FPS, H, smooth, W } from "../lib/time";
 import { span } from "./kit";
 
 const S = shorts.shorts.wild;
-const [moon, well, wellface, face, peek, moth, tele, xface, cage, stomp, fight] = S.shots as number[] as [number, number, number, number, number, number, number, number, number, number, number];
+const [moon, well, wellface, face, , moth, tele, xface, cage, stomp, fight] = S.shots as number[] as [number, number, number, number, number, number, number, number, number, number, number];
 
 /**
  * WILDLIFE OF THE THIRD DIRECTION - a nature film of the Crater, narrated: night falling, the Moonwell, one of nature's smallest
@@ -24,9 +24,10 @@ export const CUTS: Cut[] = [
   { at: moon, end: well, clip: "wild-moon", from: 0, z: [1.0, 1.03], in: "fade" },
   { at: well, end: wellface, clip: "wild-well", from: 30, z: [1.0, 1.03], in: "dissolve" },
   { at: wellface, end: face, clip: "wild-wellface", from: 6, z: [1.0, 1.04], in: "dissolve" },
-  { at: face, end: peek, clip: "wild-face", from: 10, z: [1.0, 1.04], in: "cut" },
-  { at: peek, end: moth, clip: "wild-peek", from: 22, z: [1.0, 1.03], in: "cut" },
-  { at: moth, end: tele, clip: "wild-moth", from: 0, rate: 0.75, z: [1.0, 1.05], in: "dissolve" },
+  // the blob, slowed a little, as a nature film slows its animals
+  { at: face, end: moth, clip: "wild-face", from: 0, rate: 0.75, z: [1.0, 1.05], in: "cut" },
+  // the moth, over it, in its shield
+  { at: moth, end: tele, clip: "wild-peek", from: 0, rate: 0.75, z: [1.0, 1.05], in: "dissolve" },
   // the music turns
   { at: tele, end: xface, clip: "wild-tele", from: 20, z: [1.0, 1.04], in: "cut" },
   { at: xface, end: cage, clip: "wild-xface", from: 2, rate: 0.75, z: [1.0, 1.06], in: "cut" },
@@ -37,7 +38,7 @@ export const CUTS: Cut[] = [
 
 /** the field guide's cards: (from, to, name, its Latin, what is known of it, accent) */
 const CARDS: [number, number, string, string, string, string][] = [
-  [face + 0.15, peek - 0.15, "THE BLOB", "Gelatus minimus", "Length 0.4 m  ·  Courage: immeasurable", GOLD],
+  [face + 0.15, moth - 0.3, "THE BLOB", "Gelatus minimus", "Length 0.4 m  ·  Courage: immeasurable", GOLD],
   [moth + 0.25, tele - 0.3, "THE MOTH", "Lepidoptera fidelis", "Bodyguard  ·  Unpaid", "#bfe9ff"],
   [xface + 0.2, cage - 0.2, "X, THE HOLLOW", "Predator maximus", "Height 14 m  ·  Diet: families", RED],
 ];
@@ -112,11 +113,14 @@ const Species: React.FC<{ t: number; at: number; end: number; name: string; lati
   const u = t - at;
   const line = easeOut(u / 0.5);
   return (
-    <div style={{ position: "absolute", left: 64, top: H * 0.52, opacity: k }}>
+    <div style={{ position: "absolute", left: 0, top: H * 0.5, opacity: k }}>
+      <div style={{ position: "absolute", left: 0, top: -30, width: W * 0.9, height: 300, background: "linear-gradient(90deg, rgba(0,0,0,0.62), rgba(0,0,0,0.35) 60%, rgba(0,0,0,0))" }} />
+      <div style={{ position: "relative", marginLeft: 64 }}>
       <div style={{ width: (420 * line) | 0, height: 3, backgroundColor: accent, boxShadow: `0 0 12px ${accent}` }} />
       <div style={{ marginTop: 16, fontFamily: "Cinzel", fontWeight: 700, fontSize: 58, letterSpacing: "0.06em", color: "#fff", transform: `translateX(${(-30 * (1 - easeOut(u / 0.4))).toFixed(1)}px)`, opacity: smooth((u - 0.05) / 0.3), textShadow: "0 3px 14px rgba(0,0,0,0.9)" }}>{name}</div>
       <div style={{ marginTop: 2, fontFamily: "Cormorant Garamond", fontStyle: "italic", fontWeight: 600, fontSize: 42, color: "#e9e3d6", opacity: smooth((u - 0.25) / 0.3), textShadow: "0 2px 10px rgba(0,0,0,0.9)" }}>{latin}</div>
       <div style={{ marginTop: 10, fontFamily: "Inter", fontWeight: 600, fontSize: 26, letterSpacing: "0.08em", color: accent, opacity: smooth((u - 0.5) / 0.3), textShadow: "0 2px 10px rgba(0,0,0,0.95)" }}>{facts}</div>
+      </div>
     </div>
   );
 };
@@ -148,7 +152,7 @@ const End: React.FC<{ t: number }> = ({ t }) => {
       <AbsoluteFill style={{ background: "radial-gradient(ellipse 70% 40% at 50% 46%, rgba(40,80,90,0.5), rgba(0,0,0,0) 70%)" }} />
       <div style={{ position: "absolute", top: H * 0.42, display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 26, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#bfb8aa", opacity: smooth((u - 0.4) / 0.5) }}>WILDLIFE OF</div>
-        <div style={{ marginTop: 14, fontFamily: "Cinzel", fontWeight: 700, fontSize: 86, letterSpacing: "0.06em", color: "#fff1d0", whiteSpace: "nowrap", transform: `scale(${(0.9 + 0.1 * backOut((u - 0.5) / 0.6)).toFixed(3)})`, opacity: smooth((u - 0.5) / 0.4), textShadow: `0 0 26px ${GOLD}66, 0 4px 0 rgba(0,0,0,0.85)` }}>
+        <div style={{ marginTop: 14, fontFamily: "Cinzel", fontWeight: 700, fontSize: 70, letterSpacing: "0.05em", color: "#fff1d0", whiteSpace: "nowrap", transform: `scale(${(0.9 + 0.1 * backOut((u - 0.5) / 0.6)).toFixed(3)})`, opacity: smooth((u - 0.5) / 0.4), textShadow: `0 0 26px ${GOLD}66, 0 4px 0 rgba(0,0,0,0.85)` }}>
           THE THIRD DIRECTION
         </div>
         <div style={{ marginTop: 44, fontFamily: "Inter", fontWeight: 800, fontSize: 38, letterSpacing: "0.18em", paddingLeft: "0.18em", color: "#06181a", backgroundColor: "#9ff4ee", borderRadius: 60, padding: "20px 46px 20px 54px", opacity: smooth((u - 1.2) / 0.3), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 30px rgba(159,244,238,0.45)" }}>
