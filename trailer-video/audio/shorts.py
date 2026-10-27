@@ -7,7 +7,11 @@
   cartridge   silent while the little game plays (that is the chip's); the sky looking back, her lullaby bursting out, the battle
   live        the orchestra wakes at the edge of the 2D run: the 3D boss groove, a brass fanfare for the record, then the dark
   festival    her lullaby on a slow piano with room around it, silence, everything at once, a note for each review, the title
-  fighter, phonk and villain are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
+  wild        a nature film's orchestra: harp and flute for the night, plucked strings for the blob, an oboe for the moth, the bottom of
+              the orchestra for X, her lullaby in minor for the family, and in A major on the horns when the blob does not run
+  oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
+              Moonwell, the drums above, a blast at his eyes
+  fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
   silent.
 """
 import json
@@ -443,6 +447,202 @@ def festival(P):
     cut(fade + 0.65)
 
 
+# ---------------------------------------------------------------- wildlife of the third direction
+
+MAJ = [69, 73, 76, 74, 73, 69, 68, 64]
+
+
+def wild(P):
+    (moon, well, wellface, face, peek, moth, tele, xface, cage, stomp, fight) = P['shots']
+    dn, e, fade = P['doesNot'], P['end'], P['fadeOut']
+    HARP, FLUTE, OBOE, PIZZ = HIT, TROM, TUBA, BOX
+    # night falls: an A major chord opening out, the harp running up, a star or two
+    chord(PAD, 0.0, tele - 0.2, [57, 61, 64], 72)
+    swell(PAD, 0.0, 1.2, 30, 90)
+    chord(STR, 0.2, well, [69, 76], 50)
+    swell(STR, 0.2, well, 30, 80)
+    note(CELLO, 0.0, tele - 0.3, 45, 54)
+    for k, m in enumerate((45, 52, 57, 61, 64, 69, 73, 76)):
+        note(HARP, 0.25 + 0.11 * k, 2.2, m, 66 + 2 * k)
+    for k, m in enumerate((93, 88, 96)):
+        note(CELESTA, 1.0 + 0.7 * k, 1.2, m, 52)
+    # the Moonwell: a glissando, the strings warming onto D
+    for k in range(14):
+        note(HARP, well + 0.04 * k, 1.4, [62, 66, 69, 74][k % 4] + 12 * (k // 4), 58 + k)
+    chord(STR, well, wellface - well + 0.3, [62, 66, 69, 74], 62)
+    swell(STR, well, wellface, 50, 86)
+    for k, m in enumerate((86, 90, 93)):
+        note(CELESTA, well + 0.4 + 0.5 * k, 1.4, m, 50)
+    # by the water: the flute begins her lullaby, in A major
+    t = wellface + 0.1
+    for i, m in enumerate(MAJ[:4]):
+        note(FLUTE, t, 0.9, m + 12, 72 + 4 * (i == 2))
+        t += 0.62 * 1.05
+    chord(STR, wellface + 0.3, face - wellface - 0.2, [57, 61, 64, 69], 56)
+    # the blob: the strings plucked, small and a little silly
+    walk = [45, 52, 57, 61, 57, 52, 45, 52]
+    for k in range(8):
+        note(PIZZ, face + 0.15 + 0.38 * k, 0.25, walk[k], 82)
+        if k % 2 == 1:
+            chord(PIZZ, face + 0.15 + 0.38 * k, 0.2, [69, 73], 60)
+    # utterly defenceless: it trips down the stairs
+    for k, m in enumerate((76, 73, 69, 64, 57)):
+        note(PIZZ, peek + 0.05 + 0.16 * k, 0.2, m, 88 - 4 * k)
+    note(PIZZ, peek + 0.9, 0.4, 33, 92)
+    chord(PAD, peek + 0.9, moth - peek - 0.8, [57, 61, 64], 60)
+    # its only friend: the oboe, tender, the harp turning over under it
+    t = moth + 0.2
+    for i, m in enumerate(MAJ):
+        note(OBOE, t, 1.0, m, 78)
+        t += 0.62 * 0.98 if i not in (2, 5) else 0.9 * 0.98
+    for b, ch in enumerate(([54, 57, 61], [50, 54, 57], [57, 61, 64], [52, 56, 59])):
+        for k, m in enumerate(ch + [ch[0] + 12]):
+            note(HARP, moth + 0.1 + b * 0.95 + 0.08 * k, 1.4, m, 62)
+    chord(STR, moth, tele - moth - 0.1, [57, 61, 66], 54)
+    swell(STR, tele - 0.8, tele - 0.05, 54, 20, 8)
+    cut(tele - 0.02)
+    # but the blob is not alone: the bottom of the orchestra, and something breathing
+    note(BASS, tele, cage - tele, 33, 70)
+    swell(BASS, tele, xface, 50, 96)
+    note(CELLO, tele + 0.2, xface - tele, 33, 70)
+    chord(TREM, tele + 0.3, cage - tele - 0.3, [45, 46], 70)
+    swell(TREM, tele + 0.3, xface, 30, 96)
+    roll(TIMP, xface - 1.2, xface - 0.05, 45, 30, 90)
+    # X: a low blast, kept under the voice
+    chord(BRASS, xface, 2.0, [33, 40, 45], 104)
+    chord(CHOIR, xface + 0.1, cage - xface - 0.2, [45, 48, 52], 74)
+    swell(BRASS, xface + 0.6, xface + 2.0, 104, 30)
+    chord(STR, xface + 1.5, cage - xface - 1.4, [45, 52, 60], 62)
+    # his family: her lullaby, in minor, sad and slow on the celesta, the strings under it
+    cut(cage - 0.02, keep=(BASS, TREM))
+    chord(STR, cage, stomp - cage, [57, 60, 64], 66)
+    chord(STR, cage + 1.6, stomp - cage - 1.6, [53, 57, 60], 66)
+    chord(CHOIR, cage + 0.2, stomp - cage - 0.2, [57, 60, 64], 60)
+    t = cage + 0.15
+    for i, m in enumerate(LULL[:5]):
+        note(CELESTA, t, 1.2, m + 12, 62)
+        t += 0.6
+    # most creatures would run: the strings start to race, the drums
+    cut(stomp - 0.02)
+    n = int(round((dn - stomp) / 0.1))
+    for s_ in range(n):
+        tt = stomp + s_ * 0.1
+        k = s_ / max(1, n - 1)
+        if tt >= fight:
+            break
+        note(STR, tt, 0.09, [57, 60, 64, 60][s_ % 4] + (12 if k > 0.5 else 0), 66 + 40 * k)
+        note(CELLO, tt, 0.09, 45, 72 + 30 * k)
+        if s_ % 4 == 0:
+            note(TAIKO, tt, 0.4, 48, 90 + 30 * k)
+    chord(CHOIR, stomp, fight - stomp, [57, 60, 64], 70)
+    swell(CHOIR, stomp, fight, 60, 120)
+    roll(TIMP, fight - 0.9, fight - 0.05, 45, 60, 124)
+    cut(fight - 0.02)
+    # the blob...: held breath
+    chord(TREM, fight, dn - fight, [81, 88], 60)
+    swell(TREM, fight, dn, 40, 100)
+    note(BASS, fight, dn - fight, 33, 60)
+    cut(dn - 0.02)
+    # ...does not: the whole orchestra, in A major, her lullaby a call to arms
+    chord(BRASS, dn, e - dn, [57, 61, 64], 124)
+    chord(CHOIR, dn, e - dn + 0.6, [57, 61, 64, 69], 118)
+    chord(STR, dn, e - dn, [69, 73, 76, 81], 118)
+    note(BASS, dn, e - dn + 0.6, 33, 116)
+    note(TIMP, dn, 0.8, 45, 127)
+    note(TAIKO, dn, 0.6, 48, 127)
+    drum(dn, 49, 120)
+    drum(dn, 36, 124)
+    t = dn + 0.05
+    for i, m in enumerate(MAJ[:4]):
+        note(HORN, t, 0.38, m - 12, 120)
+        note(TAIKO, t, 0.3, 48, 100 + 6 * (i % 2))
+        t += 0.38
+    roll(TIMP, e - 0.5, e - 0.03, 45, 80, 124)
+    cut(e - 0.01)
+    # the end: settled; the harp, the flute's last notes (E D C# A); room for one more word
+    note(TAIKO, e, 0.8, 48, 110)
+    chord(PAD, e + 0.1, fade - e, [57, 61, 64, 69], 74)
+    note(BASS, e + 0.1, fade - e, 33, 60)
+    chord(STR, e + 0.2, fade - e, [61, 64, 69], 54)
+    for k, m in enumerate((45, 52, 57, 61, 64, 69, 73, 76, 81)):
+        note(HARP, e + 1.6 + 0.07 * k, 2.4, m, 66)
+    for i, m in enumerate((76, 74, 73, 69)):
+        note(FLUTE, e + 2.2 + 0.55 * i + (0.2 if i == 3 else 0), 1.2, m + 12, 66)
+    for ch in (PAD, BASS, STR, HARP, FLUTE):
+        swell(ch, fade, fade + 0.6, 110, 0, 12)
+    cut(fade + 0.65)
+
+
+# ---------------------------------------------------------------- one take
+
+def oner(P):
+    clap, take, rv, bk, e, fade = P['clap'], P['take'], P['reveal'], P['black'], P['end'], P['fadeOut']
+    areas = {name: take + a for a, name in P['areas']}
+    well, above = areas['THE MOONWELL'], areas['ABOVE']
+    HARP = HIT
+    # the take begins on a low A and a few fireflies; it never stops building
+    note(BASS, take, rv - take, 33, 60)
+    swell(BASS, take, rv, 40, 110)
+    note(CELLO, take, rv - take, 45, 56)
+    chord(PAD, take, rv - take, [57, 60, 64], 72)
+    swell(PAD, take, rv, 60, 100)
+    for k in range(9):
+        note(CELESTA, take + 0.4 + 0.9 * k + 0.2 * (k % 2), 1.0, [88, 93, 91, 96, 88, 100, 93, 91, 96][k], 58)
+    # the strings' pulse, from quiet to everything: i, VI, III, VII, two seconds each
+    prog = [(45, [57, 60, 64]), (41, [57, 60, 65]), (48, [55, 60, 64]), (43, [55, 59, 62])]
+    t0 = take + 2.4
+    t = t0
+    i = 0
+    while t < rv - 1e-6:
+        root, ch = prog[(i // 4) % 4]
+        k = (t - t0) / (rv - t0)
+        note(STR, t, 0.22, ch[i % 3] + (12 if k > 0.55 else 0), 58 + 62 * k)
+        note(CELLO, t, 0.22, root + 12, 62 + 50 * k)
+        if k > 0.45:
+            note(STR, t + 0.25, 0.2, ch[(i + 1) % 3] + 12, 40 + 70 * k)
+        if i % 4 == 0 and t > take + 6:
+            chord(CHOIR, t, 2.0, ch, 30 + 90 * k)
+        if i % 4 == 0 and k > 0.3:
+            note(TIMP, t, 0.5, root + 12, 40 + 80 * k)
+        t += 0.5
+        i += 1
+    # the Moonwell: the harp's glissando, and her lullaby on the horns, broad
+    for k in range(18):
+        note(HARP, well + 0.035 * k, 1.6, [57, 60, 64, 69][k % 4] + 12 * (k // 4), 60 + k)
+    t = well + 0.3
+    for i_, m in enumerate(LULL):
+        if t > above + 1.0:
+            break
+        note(HORN, t, 0.9, m - 12, 76 + 3 * i_)
+        note(STR, t, 0.9, m + 12, 56 + 3 * i_)
+        t += GAPS[i_] * 0.9
+    # above: the drums, the brass rising, the choir climbing
+    for k in range(int((rv - above) / 0.5)):
+        tt = above + 0.5 * k
+        note(TAIKO, tt, 0.4, 48, 90 + 10 * k)
+        if k % 2 == 1:
+            note(TAIKO, tt + 0.25, 0.3, 48, 70 + 8 * k)
+    chord(BRASS, above, rv - above, [45, 52, 57], 70)
+    swell(BRASS, above, rv, 60, 124)
+    chord(TREM, above, rv - above, [69, 72, 76, 81], 60)
+    swell(TREM, above, rv, 50, 127)
+    roll(TIMP, rv - 1.2, rv - 0.03, 45, 70, 127)
+    roll(DRUMS, rv - 1.2, rv - 0.03, 38, 60, 124, 0.05)
+    cut(rv - 0.02)
+    # his eyes: the blast, the voices a semitone apart, and it holds
+    braam(rv)
+    chord(STR, rv, bk - rv, [69, 70, 76, 81, 82], 110)
+    chord(CHOIR, rv + 0.3, bk - rv - 0.3, [45, 46, 52, 53, 69, 70], 104)
+    swell(CHOIR, rv + 0.3, bk, 104, 127)
+    chord(TREM, rv + 0.2, bk - rv - 0.2, [81, 82, 88], 70)
+    swell(TREM, rv + 0.2, bk, 60, 127)
+    note(BASS, rv, bk - rv, 33, 110)
+    roll(TIMP, bk - 1.0, bk - 0.03, 45, 60, 127)
+    cut(bk)
+    # black; then the title
+    title(e, fade)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -457,6 +657,9 @@ SCORES = {
     'live': (live, None),
     'festival': (festival, {BOX: 0}),
     'villain': (silent, None),
+    'wild': (wild, {HIT: 46, TROM: 73, TUBA: 68, BOX: 45}),
+    'oner': (oner, {HIT: 46}),
+    'lofi': (silent, None),
 }
 
 if __name__ == '__main__':

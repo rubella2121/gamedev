@@ -5,7 +5,9 @@
  *   phonk    the lullaby on an 808 cowbell, an 808 that slides, half-time trap drums, all of it driven into a little distortion
  *   villain  a Brazilian phonk: X's riff in A Phrygian on the cowbell, a carioca funk kick under a distorted 808, a record scratch,
  *            and the drop again a fourth higher once something is above him
- * and for the cartridge and the stream, the little game's own chip music (her lullaby in A major) under the orchestra's entrance.
+ *   lofi     her lullaby as a lofi beat: a worn electric piano on Am9 Fmaj7 G6 Em7, a round bass, soft swung drums, rain, a record
+ * and for the cartridge and the stream, the little game's own chip music (her lullaby in A major) under the orchestra's entrance;
+ * for the wildlife film and the one take, a night of crickets, the Moonwell's bells, the moth's wings and X's breath.
  *
  *   node tools/trailer/score-render.mjs <{"id": ..., "length": ...}.json> <out.wav> tools/trailer/shorts-sfx.ts __renderShortSfx
  */
@@ -230,6 +232,9 @@ class ShortSfx extends Base {
     if (this.id === 'live') this.stream();
     if (this.id === 'festival') this.festival();
     if (this.id === 'villain') this.villain();
+    if (this.id === 'wild') this.wild();
+    if (this.id === 'oner') this.oner();
+    if (this.id === 'lofi') this.lofi();
   }
 
   theFourth() {
@@ -856,6 +861,193 @@ class ShortSfx extends Base {
       for (const m of [57, 58, 64]) this.osc(a, hz(m), C.fadeOut - C.end, 0.03, 'sine', { swell: true, a: 0.8, wet: 0.8 });
     });
     this.on(C.end + 1.55, (a) => this.ping(a, 1760, 0.04));
+  }
+
+  /* ------------------------------------------------------------------------------------------ the third batch */
+
+  /** a night: air, and crickets, from t0 to t1 */
+  night(t0: number, t1: number, g = 1) {
+    this.on(t0 + 0.02, (a) => this.air(a, t1 - t0, 0.018 * g, 700, 500, 0.6));
+    for (let k = 0; ; k++) {
+      const t = t0 + 0.3 + k * 0.43 + 0.07 * Math.sin(k * 2.3);
+      if (t > t1 - 0.3) break;
+      this.on(t, (a) => {
+        for (let j = 0; j < 3; j++) this.osc(a + j * 0.045, 4700 + 80 * Math.sin(k), 0.025, 0.006 * g, 'sine', { a: 0.003, wet: 0.6, pan: Math.sin(k * 1.7) * 0.7 });
+      });
+    }
+  }
+
+  /** a jelly's wobble: the Blob, being looked at */
+  boing(t: number, g = 0.08) {
+    this.on(t, (a) => {
+      this.osc(a, 420, 0.22, g, 'sine', { to: 190, slide: 0.18, a: 0.004, wet: 0.2 });
+      this.osc(a + 0.05, 300, 0.18, g * 0.5, 'sine', { to: 380, slide: 0.12, a: 0.004, wet: 0.2 });
+    });
+  }
+
+  /** soft wings, beating */
+  flutter(t0: number, t1: number, g = 0.02) {
+    for (let t = t0; t < t1 - 1e-6; t += 1 / 22) {
+      const tt = t;
+      this.on(tt, (a) => this.noise(a, 0.02, 'bandpass', 700 + 300 * Math.sin(tt * 3), 600, g, { q: 1.5, a: 0.004, pan: 0.2 }));
+    }
+  }
+
+  wild() {
+    const C = this.C;
+    const [moon, well, , face, peek, moth, tele, xface, cage, stomp, fight] = C.shots as number[];
+    // the night, until the music turns
+    this.night(0, tele + 0.4);
+    // the Moonwell: a few high bells
+    for (const [dt, f] of [[0.2, 2093], [0.7, 2637], [1.3, 3136], [1.9, 2794]] as const) this.on(well + dt, (a) => this.bell(a, f, 2.2, 0.018, 0.9));
+    // the blob: it wobbles when it is named, and when it is called defenceless
+    this.boing(face + 0.05, 0.07);
+    this.boing(peek + 0.9, 0.06);
+    // the moth's wings
+    this.flutter(moth + 0.1, tele - 0.2);
+    // not alone: the night goes quiet; something very big breathes, a long way off
+    this.on(tele, (a) => this.thud(a, 50, 30, 1.6, 0.25));
+    this.on(tele + 0.6, (a) => this.say(a, (v: V) => v.xBreath(), 0.5));
+    this.on(xface + 0.05, (a) => this.thud(a, 60, 28, 1.2, 0.35));
+    this.on(cage + 0.3, (a) => {
+      this.noise(a, 1.2, 'bandpass', 900, 600, 0.02, { q: 6, a: 0.3, wet: 0.7 });
+      this.bell(a + 0.6, 660, 2.0, 0.015, 0.9);
+    });
+    // his foot, in slow motion: the air pushed down ahead of it, and the ground
+    const land = stomp + C.slam;
+    this.on(land - 0.6, (a) => this.noise(a, 0.6, 'lowpass', 200, 900, 0.12, { rise: true }));
+    this.on(land, (a) => {
+      this.impact(a, 1.25);
+      this.thud(a, 48, 24, 1.8, 0.7);
+      this.noise(a + 0.02, 1.4, 'lowpass', 1200, 90, 0.2, { a: 0.003, wet: 0.5 });
+    });
+    this.on(land + 0.35, (a) => this.say(a, (v: V) => v.xGrowl(0.8), 0.6));
+    // it fights back
+    for (const dt of [0.25, 0.75, 1.15]) {
+      this.whoosh(fight + dt, 0.1, 0.16);
+      this.on(fight + dt, (a) => this.impact(a, 0.45));
+    }
+    this.on(C.doesNot, (a) => {
+      this.impact(a, 1.2);
+      this.noise(a, 0.6, 'bandpass', 3000, 900, 0.1, { a: 0.003, wet: 0.5 });
+    });
+    for (const dt of [0.4, 0.9]) this.on(C.doesNot + dt, (a) => this.impact(a, 0.5));
+    this.endCard(C.end, false);
+    this.on(C.end + 0.3, (a) => this.air(a, C.fadeOut - C.end, 0.012, 700, 500, 0.6));
+  }
+
+  oner() {
+    const C = this.C;
+    const tk = C.take;
+    const area = (n: string) => tk + (C.areas as [number, string][]).find(([, name]) => name === n)![0];
+    // the slate's clap: wood on wood, in a small room
+    this.on(C.clap, (a) => {
+      this.noise(a, 0.03, 'highpass', 1800, 1800, 0.55, { a: 0.0005 });
+      this.noise(a, 0.12, 'bandpass', 1200, 900, 0.3, { q: 1.4, a: 0.0005, wet: 0.45 });
+      this.thud(a, 180, 90, 0.06, 0.25);
+    });
+    // the night all the way, the crickets until the camera climbs
+    this.night(tk, area('ABOVE') + 0.5);
+    // out of the ferns
+    for (let k = 0; k < 10; k++) this.on(tk + 0.1 + k * 0.17 + 0.05 * Math.sin(k), (a) => this.noise(a, 0.12, 'bandpass', 1500 + 900 * Math.sin(k * 2), 1200, 0.05, { q: 0.9, a: 0.01, pan: Math.sin(k * 1.3) * 0.6 }));
+    // past the Blob (a wobble), past a standing stone
+    this.boing(tk + 4.4, 0.05);
+    this.whoosh(tk + 5.0, 0.1, 0.4);
+    this.whoosh(tk + 7.0, 0.12, 0.5);
+    // the Moonwell sings
+    for (let k = 0; k < 7; k++) this.on(area('THE MOONWELL') + 0.2 + 0.4 * k, (a) => this.bell(a, [2093, 2637, 3136, 2349, 2794, 3520, 2637][k]!, 2.4, 0.016, 0.9));
+    // up: the wind, and something rising under everything
+    this.on(area('ABOVE') - 1.0, (a) => this.air(a, C.reveal - area('ABOVE') + 1.0, 0.04, 400, 2400, 0.8));
+    this.on(area('ABOVE'), (a) => this.riser(a, C.reveal - area('ABOVE') - 0.05, 0.12, 120, 5000));
+    for (const [dt, g] of [[1.3, 0.3], [2.1, 0.36], [2.8, 0.42], [3.4, 0.48]] as const) this.on(area('ABOVE') + dt, (a) => this.heart(a, g));
+    // his eyes: he sees you
+    this.on(C.reveal, (a) => {
+      this.impact(a, 1.4);
+      this.say(a + 0.15, (v: V) => v.xRoar(), 1.0);
+    });
+    // black
+    this.on(C.black, (a) => {
+      this.impact(a, 1.0);
+      this.glitch(a - 0.02, 5, 0.1);
+      this.ring(a + 0.1, 3900, 1.0, 0.025);
+    });
+    this.endCard(C.end, false);
+  }
+
+  /** an electric piano, warm and a little worn: two sines and a bell, through a low-pass */
+  rhodes(t: number, m: number, dur: number, g = 0.05, lp = 2200) {
+    const f = hz(m);
+    this.syn(t, f, dur, g, { type: 'sine', a: 0.006, decay: 0.9, r: 0.3, lp, wet: 0.35 });
+    this.syn(t, f * 2.002, dur, g * 0.22, { type: 'sine', a: 0.004, decay: 0.4, r: 0.2, lp, wet: 0.35 });
+    this.syn(t, f, dur, g * 0.12, { type: 'triangle', a: 0.006, decay: 0.7, r: 0.2, lp: lp * 0.7, wet: 0.35 });
+    this.syn(t, f * 4.01, 0.12, g * 0.06, { type: 'sine', a: 0.002, decay: 0.05, r: 0.05, wet: 0.4 });
+  }
+
+  lofi() {
+    const C = this.C;
+    const BEAT = 0.75;
+    const BAR = 4 * BEAT;
+    const SW = 0.07;
+    const quiet = (t: number) => t >= C.eye && t < C.eyeEnd;
+    // her lullaby as a lofi beat: Am9, Fmaj7, G6, Em7
+    const CH: [number, number[]][] = [
+      [33, [60, 64, 67, 71]],
+      [29, [57, 60, 64, 67]],
+      [31, [59, 62, 64, 67]],
+      [28, [55, 59, 62, 64]],
+    ];
+    // (beat, note): two bars of the tune, slow, a little behind the beat
+    const TUNE: [number, number][][] = [
+      [[0, 81], [1, 84], [2, 88]],
+      [[0.5, 86], [1.5, 84], [2.5, 81]],
+      [[0, 79], [1.5, 76]],
+      [[3, 76]],
+    ];
+    // the rain and the record, all the way
+    this.on(0.01, (a) => this.noise(a, C.fadeOut + 0.5, 'bandpass', 2400, 2400, 0.035, { q: 0.4, a: 0.6 }));
+    this.on(0.01, (a) => this.noise(a, C.end + 0.5, 'highpass', 3500, 3000, 0.015, { a: 0.1 }));
+    for (let k = 0; k < 70; k++) this.on(0.05 + ((k * 0.29 + 0.11 * Math.sin(k * 3.1)) % (C.fadeOut - 0.2)), (a) => this.noise(a, 0.005, 'highpass', 5000, 5000, 0.05, { a: 0.0005 }));
+    for (let b0 = 0.2, bi = 0; b0 < C.end - 1e-6; b0 += BAR, bi++) {
+      const [root, chord] = CH[bi % 4]!;
+      if (!quiet(b0) && !quiet(b0 + BEAT)) {
+        chord.forEach((m, k) => this.on(b0 + 0.018 * k, (a) => this.rhodes(a, m, BAR * 0.9, 0.042)));
+      }
+      // the bass, long and round
+      for (const [bt, len] of [[0, 1.6], [2.5, 1.2]] as const) {
+        const t = b0 + bt * BEAT;
+        if (!quiet(t) && t < C.end) this.on(t, (a) => this.syn(a, hz(root + 12), len, 0.16, { type: 'sine', a: 0.01, decay: 0.8, r: 0.15, lp: 400, wet: 0.05 }));
+      }
+      // the drums: a soft kick on one and the and of two, the snare on two and four, swung hats
+      for (let s = 0; s < 8; s++) {
+        const t = b0 + s * (BEAT / 2) + (s % 2 ? SW : 0);
+        if (quiet(t) || t >= C.end) continue;
+        if (s === 0 || s === 3 || (s === 5 && bi % 2 === 1)) this.on(t, (a) => this.syn(a, 110, 0.16, 0.42, { type: 'sine', to: 42, glide: 0.12, lp: 900, r: 0.05 }));
+        if (s === 2 || s === 6)
+          this.on(t, (a) => {
+            this.noise(a, 0.16, 'bandpass', 1700, 1200, 0.12, { q: 0.8, a: 0.002, wet: 0.3 });
+            this.syn(a, 190, 0.05, 0.06, { type: 'triangle', to: 140, glide: 0.05, lp: 1500 });
+          });
+        this.on(t, (a) => this.noise(a, 0.025, 'highpass', 7000, 6500, s % 2 ? 0.022 : 0.032, { a: 0.001 }));
+      }
+      // the tune, on a bell-like piano an octave up
+      for (const [bt, m] of TUNE[bi % 4]!) {
+        const t = b0 + bt * BEAT + 0.03;
+        if (!quiet(t) && t < C.end) this.on(t, (a) => this.rhodes(a, m, 1.3, 0.03, 3200));
+      }
+    }
+    // the tape catches: everything sinks and stops; something low; the tape starts again
+    this.on(C.eye, (a) => {
+      this.syn(a, 260, 0.5, 0.1, { type: 'sawtooth', to: 25, glide: 0.5, lp: 1200 });
+      this.noise(a, 0.5, 'lowpass', 2500, 80, 0.12, { a: 0.003 });
+      this.glitch(a - 0.02, 5, 0.12, 0.14);
+      this.say(a + 0.35, (v: V) => v.fourthGrowl(), 0.7);
+    });
+    this.on(C.eyeEnd - 0.25, (a) => this.syn(a, 40, 0.25, 0.08, { type: 'sawtooth', to: 300, glide: 0.25, lp: 1500 }));
+    // the end: one last chord, rung out; the rain goes on a little
+    this.on(C.end, (a) => {
+      for (const [k, m] of [45, 60, 64, 67, 71, 76].entries()) this.rhodes(a + 0.03 * k, m, 3.6, 0.045);
+      this.bell(a + 0.6, 1760, 2.4, 0.02, 0.9);
+    });
   }
 
   lullaby() {
