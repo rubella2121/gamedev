@@ -24,7 +24,8 @@ data = os.path.join(here, '..', 'src', 'data')
 if promo:
     found = {**json.load(open(os.path.join(data, 'promos.json')))['clips'], **json.load(open(os.path.join(data, 'shorts.json')))['shorts']}
     CUES = found[promo]
-    LINES = CUES['lines']
+    # (a short with a narrator names its own sheet of lines instead of listing them)
+    LINES = CUES['lines'] if isinstance(CUES['lines'], list) else json.load(open(os.path.join(data, CUES['lines'])))
 else:
     CUES = json.load(open(os.path.join(data, 'cues.json')))
     LINES = json.load(open(os.path.join(data, 'lines.json')))

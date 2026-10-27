@@ -8,11 +8,14 @@ import { Cartridge } from "./shorts/Cartridge";
 import { Festival } from "./shorts/Festival";
 import { Fighter } from "./shorts/Fighter";
 import { Live } from "./shorts/Live";
+import { Lofi } from "./shorts/Lofi";
 import { Lullaby } from "./shorts/Lullaby";
+import { Oner } from "./shorts/Oner";
 import { Phonk } from "./shorts/Phonk";
 import { Secrets } from "./shorts/Secrets";
 import { TheFourth } from "./shorts/TheFourth";
 import { Villain } from "./shorts/Villain";
+import { Wild } from "./shorts/Wild";
 import { Trailer } from "./Trailer";
 
 /** the shorts: each its own format, look and sound (src/shorts/) */
@@ -26,6 +29,9 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["live", Live],
   ["villain", Villain],
   ["festival", Festival],
+  ["wild", Wild],
+  ["oner", Oner],
+  ["lofi", Lofi],
 ];
 
 export const RemotionRoot: React.FC = () => {

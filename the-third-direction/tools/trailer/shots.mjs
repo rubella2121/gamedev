@@ -56,7 +56,85 @@ const fight2d = (id) => ({
   frames: 540,
 });
 
+
+// ---- the third batch of shorts: places and angles never filmed before ----
+// a camera along a path: keys are [frame, [x, y, z], [look x, y, z], fov], joined by Catmull-Rom curves
+const path = (keys) =>
+  `window.__f = 0; const K = ${JSON.stringify(keys)};
+   const cr = (a, b, c, d, u) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u * u + (-a + 3 * b - 3 * c + d) * u * u * u);
+   __tt.beforeDraw = () => { const f = window.__f++; let i = 0; while (i < K.length - 2 && f >= K[i + 1][0]) i++;
+     const k0 = K[Math.max(0, i - 1)], k1 = K[i], k2 = K[i + 1], k3 = K[Math.min(K.length - 1, i + 2)];
+     const u = Math.min(1, Math.max(0, (f - k1[0]) / (k2[0] - k1[0])));
+     const v = (j, e) => cr(k0[j][e], k1[j][e], k2[j][e], k3[j][e], u);
+     const c = __tt.act2.arena.camera; c.position.set(v(1, 0), v(1, 1), v(1, 2)); c.lookAt(v(2, 0), v(2, 1), v(2, 2));
+     c.fov = k1[3] + (k2[3] - k1[3]) * u; c.updateProjectionMatrix(); }`;
+// the Crater with X in it, but the Blob never hurt (a hit would make it blink); `calm` holds X in his entrance, so nothing attacks,
+// and `hide` takes him out of the picture; `at` puts the Blob somewhere
+const crater = (name, frames, camera, o = {}) => ({
+  name,
+  setup: '__tt.debugFight(0, 0)',
+  until: "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control",
+  atStart: `__tt.act2.hurt = () => {}; ${camera}`,
+  each: [
+    o.at ? `__tt.act2.pl.x = ${o.at[0]}; __tt.act2.pl.z = ${o.at[1]};` : '',
+    o.calm ? "{ const b = __tt.act2.boss; b.state = 'intro'; b.st = 0; }" : '',
+    o.hide ? '{ const r = __tt.act2.boss.flattenRoot(); if (r) r.visible = false; }' : '',
+  ].join(' '),
+  warm: o.warm ?? 30,
+  frames,
+  ...HI,
+  ...(o.dt ? { dt: o.dt } : {}),
+});
+const lerpPath = (n, p0, p1, l0, l1, f0, f1 = f0) => path([[0, p0, l0, f0], [n, p1, l1, f1]]);
+
 export const SHOTS = [
+  // ---- the third batch of shorts: a wildlife film of the Crater, and one take through it ----
+  // night falls: from the moon down into the Crater (X not there yet)
+  crater('wild-moon', 105, lerpPath(105, [12, 7, 24], [11.5, 6.6, 23], [-10, 26, -40], [-10, 9, -40], 55), { calm: true, hide: true }),
+  // the Moonwell, pushing in
+  crater('wild-well', 105, lerpPath(105, [-12.0, 4.0, -1.0], [-13.2, 3.2, -2.2], [-18.6, 0.9, -5.5], [-18.6, 0.9, -5.5], 45, 42), { calm: true, hide: true }),
+  // the Blob, glimpsed through the ferns
+  crater('wild-peek', 90, lerpPath(90, [8.4, 0.75, 11.8], [7.2, 0.8, 10.9], [2, 0.8, 9], [0.4, 0.8, 8.4], 48, 44), { calm: true, hide: true, at: [0, 8] }),
+  // its face, from the grass
+  crater('wild-face', 120, lerpPath(120, [0.5, 0.25, 9.2], [0.35, 0.3, 9.6], [0, 1.0, 12], [0, 1.0, 12], 42, 38), { calm: true, hide: true }),
+  // the moth, in front of it
+  crater('wild-moth', 90, lerpPath(90, [1.6, 2.6, 8.0], [1.2, 2.4, 8.6], [0, 1.9, 12], [0, 1.9, 12], 30, 28), { calm: true, hide: true, warm: 60 }),
+  // at the Moonwell, among the crystal flowers
+  crater('wild-wellface', 90, lerpPath(90, [-14.0, 1.6, -6.4], [-14.4, 1.5, -5.8], [-15.4, 1.2, -2.4], [-15.4, 1.2, -2.4], 40, 37), { calm: true, hide: true, at: [-15.2, -2.6], warm: 40 }),
+  // X, on a long lens, from behind the Blob
+  crater('wild-tele', 105, lerpPath(105, [1.5, 1.0, 30], [1.2, 1.1, 27], [0, 9, -29], [0, 10, -29], 18, 17)),
+  // his face, closer than you would want to be
+  crater('wild-xface', 90, lerpPath(90, [-3, 6, 6], [-2.6, 6.3, 7], [0, 13.5, -29], [0, 13.5, -29], 14, 12.5)),
+  // what he took: the cage, on a long lens
+  crater('wild-cage', 90, lerpPath(90, [4, 6, 10], [4, 6, 10], [13, 23, -44], [13, 23, -44], 14, 11)),
+  // his foot, from the side, a long way off, in slow motion
+  crater('wild-stomp', 240, lerpPath(240, [22, 1.2, 14], [21, 1.3, 13.4], [0, 2.2, 12], [0, 2.4, 12], 22, 20), { dt: 1 / 60 }),
+  // and the Blob fights back (the bot plays), on a long lens that follows it
+  {
+    ...boss3(0, 0, 'wild-fight', 150),
+    ...HI,
+    atStart: "__tt.act2.hurt = () => {}; __tt.beforeDraw = () => { const a = __tt.act2.arena, c = a.camera, p = a.player.position; c.position.set(p.x + 9, p.y + 1.6, p.z + 6); c.lookAt(p.x, p.y + 1.2, p.z - 3); c.fov = 26; c.updateProjectionMatrix(); }",
+  },
+  // lofi: the Blob asleep by the Moonwell, the moth on its head, the camera barely moving (it loops)
+  crater('lofi', 240, lerpPath(240, [-11.0, 2.4, 1.8], [-11.1, 2.38, 1.7], [-17.0, 1.1, -4.8], [-17.0, 1.1, -4.8], 40, 39.6), { calm: true, hide: true, at: [-15.2, -2.6], warm: 120 }),
+  // ONE TAKE: out of the ferns, round in front of the Blob and the moth, over the floor, up to the Moonwell and round it, up, and
+  // into X's eyes
+  crater(
+    'oner',
+    630,
+    path([
+      [0, [10.8, 0.7, 13.6], [4, 0.8, 9.5], 50],
+      [75, [7.8, 0.8, 11.2], [1, 0.9, 8.6], 50],
+      [150, [2.8, 1.3, 6.2], [0, 1.0, 8], 50],
+      [225, [-3.0, 3.2, 5.6], [-14, 1.8, 0], 50],
+      [300, [-11.5, 2.6, 1.5], [-18.6, 1.0, -5.5], 50],
+      [375, [-13.0, 6.0, -12.5], [-18.6, 1.0, -5.5], 50],
+      [450, [-9, 9.5, -13], [4, 18, -38], 50],
+      [540, [-2.5, 11.5, -12], [0, 12.5, -29], 50],
+      [630, [-0.4, 12.8, -18.5], [0, 13.3, -29], 44],
+    ]),
+    { at: [0, 8] },
+  ),
   // ---- the Remotion cut (v4) ----
   ...['gloom', 'thicket', 'marsh', 'bones', 'meadow'].map(fight2d),
   // X's foot comes down beside the Blob, from the Blob's own height, in slow motion

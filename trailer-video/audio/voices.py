@@ -1,5 +1,7 @@
 """The spoken lines, placed and given a space: <out>/<id>.wav (48 kHz stereo), one file per line of src/data/lines.json.
-   python3 audio/voices.py <takesDir> <out>          (numpy, scipy, soundfile; ffmpeg)
+   python3 audio/voices.py <takesDir> <out> [sheet.json length]          (numpy, scipy, soundfile; ffmpeg)
+A short's own sheet of lines (src/data/lines-<short>.json) is placed the same way, against that short's length; when each of
+its lines is heard goes beside it (lines-<short>.voice.json) instead of into voice.json.
 
 Nothing here bends the voice: pitch shifting and echo taps are what made the earlier cuts sound synthetic. Each style is a
 place the voice is heard in, made with a convolution room:
@@ -7,6 +9,7 @@ place the voice is heard in, made with a convolution room:
   far      the Mother calling from the cage, a long way off: a big dark hall, the top and bottom of the voice thinned
   breathy  "Don't look up": half spoken, half breathed (the take's own breath, from its vocal tract, mixed under it)
   whisper  the thing above, at the very end: only breath, and a second, darker throat under it
+  doc      a wildlife film's narrator in his booth: close, dry, warm, a breath of room
 For every line the slowest take that still ends before the next line is used.
 """
 import glob
@@ -21,8 +24,9 @@ from scipy.signal import lfilter
 
 src, out = sys.argv[1], sys.argv[2]
 here = os.path.dirname(os.path.abspath(__file__))
-LINES = json.load(open(os.path.join(here, '..', 'src', 'data', 'lines.json')))
-CUES = json.load(open(os.path.join(here, '..', 'src', 'data', 'cues.json')))
+SHEET = sys.argv[3] if len(sys.argv) > 3 else None
+LINES = json.load(open(SHEET or os.path.join(here, '..', 'src', 'data', 'lines.json')))
+LENGTH = float(sys.argv[4]) if SHEET else json.load(open(os.path.join(here, '..', 'src', 'data', 'cues.json')))['length']
 os.makedirs(out, exist_ok=True)
 SR = 48000
 rng = np.random.default_rng(3)
@@ -61,6 +65,7 @@ STYLE = {
     'far': ('highpass=f=160,lowpass=f=7200,' + EQ, HALL, 0.42),
     'breathy': ('highpass=f=90,' + EQ + ',equalizer=f=8000:t=q:w=1.5:g=2', ROOM, 0.12),
     'whisper': ('highpass=f=120,equalizer=f=900:t=q:w=1:g=2,equalizer=f=5000:t=q:w=1.4:g=2.5', HALL, 0.45),
+    'doc': ('highpass=f=70,equalizer=f=140:t=q:w=1:g=2,' + EQ, ROOM, 0.05),
 }
 
 
@@ -104,7 +109,7 @@ def place(inp, chain, ir, wet, dst):
 starts = sorted(LINES, key=lambda l: l['at'])
 timing = []
 for i, ln in enumerate(starts):
-    nxt = starts[i + 1]['at'] if i + 1 < len(starts) else CUES['length']
+    nxt = starts[i + 1]['at'] if i + 1 < len(starts) else LENGTH
     room_for = nxt - ln['at'] - 0.15
     takes = sorted(glob.glob(f"{src}/{ln['id']}.s*.wav"), key=lambda p: -sf.info(p).duration)
     pick = next((p for p in takes if sf.info(p).duration <= room_for), takes[-1])
@@ -124,5 +129,5 @@ for i, ln in enumerate(starts):
     print(f"{ln['id']}: {os.path.basename(pick)} ({sf.info(pick).duration:.2f} s of {room_for:.2f}) {ln['style']}")
 
 # when each line is heard, for the captions in the picture
-with open(os.path.join(here, '..', 'src', 'data', 'voice.json'), 'w') as f:
+with open(SHEET[:-5] + '.voice.json' if SHEET else os.path.join(here, '..', 'src', 'data', 'voice.json'), 'w') as f:
     json.dump(timing, f, indent=1)

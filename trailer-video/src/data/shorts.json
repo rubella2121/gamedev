@@ -155,6 +155,41 @@
       "fadeOut": 14.5,
       "lines": [],
       "mix": {"orch": 0.0, "sfx": 1.0}
+    },
+    "wild": {
+      "title": "Wildlife of the Third Direction",
+      "length": 36.4,
+      "shots": [0.0, 2.95, 5.0, 7.6, 10.8, 12.9, 16.8, 19.4, 23.2, 26.4, 29.0],
+      "turn": 16.8,
+      "doesNot": 30.4,
+      "end": 32.0,
+      "fadeOut": 35.8,
+      "lines": "lines-wild.json",
+      "mix": {"orch": 1.0, "sfx": 0.55, "ride": 6}
+    },
+    "oner": {
+      "title": "One take",
+      "length": 26.6,
+      "clap": 1.0,
+      "take": 1.35,
+      "areas": [[0.5, "THE FERNS"], [4.6, "THE CRATER"], [10.4, "THE MOONWELL"], [15.2, "ABOVE"]],
+      "reveal": 19.35,
+      "black": 22.35,
+      "end": 22.6,
+      "fadeOut": 25.9,
+      "lines": [],
+      "mix": {"orch": 1.0, "sfx": 0.8}
+    },
+    "lofi": {
+      "title": "lofi blob",
+      "length": 20.0,
+      "loop": 8.0,
+      "eye": 11.6,
+      "eyeEnd": 12.9,
+      "end": 15.0,
+      "fadeOut": 19.4,
+      "lines": [],
+      "mix": {"orch": 0.0, "sfx": 1.0}
     }
   }
 }
