@@ -31,8 +31,9 @@ quiet moments so they carry on a phone. `scripts/make.sh promos promo-render` ma
 
 ## The shorts
 
-Nine more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
-the end (the Fourth):
+Twelve more vertical clips, each its own format, look and sound, and between them they give away a little of what comes after
+the end (the Fourth). The last three are cut from footage of their own: places and angles the game had never been filmed from
+(the `wild-*`, `oner` and `lofi` shots in `../the-third-direction/tools/trailer/shots.mjs`, on camera paths of their own):
 
 | | |
 |---|---|
@@ -45,8 +46,11 @@ the end (the Fourth):
 | `short-live` | LIVE: WORLD RECORD ATTEMPT: a speedrun stream - timer, splits, the runner's camera, chat, alerts. Five 2D guardians in a blur; the stream's picture cracks and the game goes 3D and fills the frame; three bosses; a new world record. Then a split nobody put there, the timer turns red, ??? joins the chat, and the stream goes offline (last seen: looking up). Next runner: you. |
 | `short-villain` | VILLAIN EDIT: X in red and black to a Brazilian phonk (his riff in A Phrygian on the cowbell): HE TOOK THEM. HE'S THE FINAL BOSS. NOTHING IS ABOVE HIM. His boss bar, tagged FINAL BOSS. A record scratch; above him something unfolds, in violet, its own bar slides in above his, four deep, and takes the tag. EVEN VILLAINS HAVE VILLAINS. |
 | `short-festival` | THE FESTIVAL TRAILER: cut like an art-house film's - letterboxed, graded, grained, the gate weaving, a projector running. White words on black between slow shots (every night she sang him the same song, and gave him one rule), her lullaby on a piano; silence; "Don't look up."; everything at once; laurels and reviews (the moth's, X's, and one from something else); the title. |
+| `short-wild` | WILDLIFE OF THE THIRD DIRECTION: a nature film of the Crater with a narrator (`src/data/lines-wild.json`) - night falling, the Moonwell, the blob ("small, soft, utterly defenceless") and its only friend the moth, each with a field guide's card; then on a long lens, X, the Hollow ("an apex predator"), the cage, his arm sweeping in, in slow motion. "Most creatures would run. The blob... does not." Remarkable. |
+| `short-oner` | ONE TAKE: a slate and a clap, then 21 seconds without a cut - out of the ferns, round the Blob and its moth, over the floor, up to the Moonwell and round it, up, and into X's eyes - with the camera's timecode running the whole way. One crescendo under it. |
+| `short-lofi` | lofi blob, beats to escape a crater to: the Blob by the Moonwell in the rain, her lullaby as a lofi beat, a now-playing card; for a moment the tape catches, the clock says 4:44 and something in the sky opens its eye. Did you see it? |
 
-`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the six
+`src/shorts/` holds them (their kit, their end cards), `src/data/shorts.json` their cue sheets, `audio/shorts.py` the eight
 orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest of their sound (and all the music of the
 three synthesised ones). A short's `mix` can set its balance and how far its quiet moments are brought up (`ride`; the festival
 trailer keeps its silence). `scripts/make.sh shorts short-render` makes them.
@@ -59,7 +63,7 @@ trailer keeps its silence). `scripts/make.sh shorts short-render` makes them.
 | `src/data/lines.json` | The script: every spoken line, who says it, when, and in what space. |
 | `src/edit.ts` | The cut: every shot, which clip, from which frame, how it is framed and how it comes in. |
 | `src/Trailer.tsx` | The composition; `src/components/` holds the shot, the effects, the boom, the words and the title. |
-| `audio/` | `lines.py` (Kokoro takes), `voices.py` (treatment, and `src/data/voice.json` for the captions), `kit.py` (the orchestra and how to write for it), `orchestra.py` (the score), `promo.py` (the promos' scores), `shorts.py` (the shorts' orchestral scores), `mix.py` (mix and master to -14 LUFS). |
+| `audio/` | `lines.py` (Kokoro takes; a short's narrator has its own sheet, `src/data/lines-<short>.json`), `voices.py` (treatment, and `src/data/voice.json` for the captions, or `lines-<short>.voice.json`), `kit.py` (the orchestra and how to write for it), `orchestra.py` (the score), `promo.py` (the promos' scores), `shorts.py` (the shorts' orchestral scores), `mix.py` (mix and master to -14 LUFS). |
 | `scripts/clips.py` | Turns the captured footage into the clips in `public/clips/` (plus the boom still and the grain). |
 | `scripts/make.sh` | All of it, in order. |
 

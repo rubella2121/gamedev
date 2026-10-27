@@ -23,7 +23,10 @@ CLIPS = ['h-x-slam', 'edge', 'opening', 'w-pulse', 'g-gloom', 'f-gloom', 'g-thic
          # the promos also use these
          'x-foot', 'x-rake', 'mash-0', 'collector-0',
          # and the shorts: what comes after the end (the Fourth)
-         't-family', 't-unfold', 't-eye', 't-lift', 't-descend', 't-dial', 'fourth-fight', 'flee']
+         't-family', 't-unfold', 't-eye', 't-lift', 't-descend', 't-dial', 'fourth-fight', 'flee',
+         # and the third batch: places and angles never filmed before (the wildlife film, one take, lofi)
+         'wild-moon', 'wild-well', 'wild-peek', 'wild-face', 'wild-wellface', 'wild-tele', 'wild-xface', 'wild-cage',
+         'wild-stomp', 'wild-fight', 'oner', 'lofi']
 
 
 def frames(clip):

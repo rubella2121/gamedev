@@ -15,5 +15,8 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "tools"]
+  "include": ["src", "tools"],
+  // the promos' sound design imports the Remotion project's promo sheet (which pulls in its TSX); score-render.mjs bundles it,
+  // and the game's type check leaves it out
+  "exclude": ["tools/trailer/promo-sfx.ts"]
 }
