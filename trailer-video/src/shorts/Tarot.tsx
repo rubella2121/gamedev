@@ -21,10 +21,10 @@ const SLOT = 2.4;
 type Arcana = { numeral: string; arcana: string; boss: string; fortune: string; clip: string; from: number; z: number; c: [number, number]; colour: string; pixel?: boolean; rate?: number };
 
 const DECK: Arcana[] = [
-  { numeral: "XVIII", arcana: "THE MOON", boss: "GLOOMMOTHER", fortune: "What hides in the dark is hungry.", clip: "f-gloom", from: 425, z: 2.3, c: [0.5, 0.16], colour: "#7fe6ff", pixel: true },
+  { numeral: "XVIII", arcana: "THE MOON", boss: "GLOOMMOTHER", fortune: "What hides in the dark is hungry.", clip: "f-gloom", from: 400, z: 2.3, c: [0.5, 0.16], colour: "#7fe6ff", pixel: true },
   { numeral: "IV", arcana: "THE EMPEROR", boss: "THORNBACK KING", fortune: "Every throne grows thorns.", clip: "f-thicket", from: 200, z: 2.0, c: [0.52, 0.28], colour: "#e8a858", pixel: true },
   { numeral: "XX", arcana: "JUDGEMENT", boss: "TOLL QUEEN", fortune: "When the bell tolls, it tolls for you.", clip: "f-marsh", from: 80, z: 1.9, c: [0.5, 0.2], colour: "#d9b8ff", pixel: true },
-  { numeral: "XIII", arcana: "DEATH", boss: "BONE WYRM", fortune: "It has too many legs. And no mercy.", clip: "f-bones", from: 105, z: 2.0, c: [0.48, 0.72], colour: "#f4efe0", pixel: true },
+  { numeral: "XIII", arcana: "DEATH", boss: "BONE WYRM", fortune: "It has too many legs. And no mercy.", clip: "f-bones", from: 106, z: 2.0, c: [0.48, 0.72], colour: "#f4efe0", pixel: true, rate: 0.45 },
   { numeral: "I", arcana: "THE MAGICIAN", boss: "MIMIC QUEEN", fortune: "Nothing here is what it seems.", clip: "f-meadow", from: 270, z: 2.2, c: [0.5, 0.15], colour: "#ff8aa8", pixel: true },
   { numeral: "IX", arcana: "THE HERMIT", boss: "THE COLLECTOR", fortune: "He keeps what he takes. In jars.", clip: "tarot-collector", from: 30, z: 1.0, c: [0.5, 0.42], colour: "#ffcf5a" },
   { numeral: "XVI", arcana: "THE TOWER", boss: "THE MASH", fortune: "Everything you beat. All at once.", clip: "tarot-mash", from: 0, z: 1.0, c: [0.5, 0.62], colour: "#ff5a6e", rate: 0.7 },
