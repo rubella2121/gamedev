@@ -24,10 +24,10 @@ export const CUTS: Cut[] = [
   { at: moon, end: well, clip: "wild-moon", from: 0, z: [1.0, 1.03], in: "fade" },
   { at: well, end: wellface, clip: "wild-well", from: 30, z: [1.0, 1.03], in: "dissolve" },
   { at: wellface, end: face, clip: "wild-wellface", from: 6, z: [1.0, 1.04], in: "dissolve" },
-  // the blob, slowed a little, as a nature film slows its animals
-  { at: face, end: moth, clip: "wild-face", from: 0, rate: 0.75, z: [1.0, 1.05], in: "cut" },
-  // the moth, over it, in its shield
-  { at: moth, end: tele, clip: "wild-peek", from: 0, rate: 0.75, z: [1.0, 1.05], in: "dissolve" },
+  // the blob, slowed a little, as a nature film slows its animals (the moth hovering over it)
+  { at: face, end: moth + 1.4, clip: "wild-face", from: 0, rate: 0.75, z: [1.0, 1.06], in: "cut" },
+  // the moth, over it, in its shield (once the long lens is clear of the ferns)
+  { at: moth + 1.4, end: tele, clip: "wild-peek", from: 30, rate: 0.75, z: [1.0, 1.04], in: "dissolve" },
   // the music turns
   { at: tele, end: xface, clip: "wild-tele", from: 20, z: [1.0, 1.04], in: "cut" },
   { at: xface, end: cage, clip: "wild-xface", from: 2, rate: 0.75, z: [1.0, 1.06], in: "cut" },
