@@ -20,7 +20,8 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 3. **Embed options:** viewport **390 × 844** (a phone in portrait), tick **Mobile friendly** (orientation: portrait),
    **Fullscreen button**, and **Automatically start on page load** off (the game has its own "tap to begin").
 4. **Pricing:** **$0 or donate**, with a suggested donation of **$3**. The game stays free and fans can tip.
-5. Cover image: 630 × 500. Screenshots: 3–5 shots from the trailer stills (portrait is fine).
+5. **Cover image:** `brand/cover.png` (1260 × 1000, the 630 × 500 shape at twice the size). **Banner** (Edit theme → Banner):
+   `brand/banner.png`. Screenshots: 3–5 shots from the trailer stills (portrait is fine).
 6. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
 
 ## itch.io: page text
@@ -55,6 +56,16 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 > Best with sound on. 🎧
 >
 > *If you enjoyed it, a small tip helps me make the next boss.* ❤️
+
+## Brand art
+`brand/` holds the logo and store art, drawn by `tools/brand/brand.html` and saved by `node tools/brand/render.mjs`
+(or `node tools/brand/render.mjs cover` for one piece). The game shots come from the trailer footage (`tools/brand/img/`),
+and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so they are free to use in a paid game.
+- `logo.png`: the logo on a transparent background. The mark is the blob at the corner of three axes: two lie flat (teal),
+  the third goes up (gold). That is the game's idea: a flat world that finds a third direction.
+- `cover.png`: itch.io cover. The flat 2D forest on the left, the 3D world tearing through on the right.
+- `banner.png`: itch.io page banner.
+- `icon.png`: 1080 square mark, for an Instagram profile picture or an app icon.
 
 ## Web game sites (ad revenue share)
 Check each site's current developer docs before building for it; requirements change.
