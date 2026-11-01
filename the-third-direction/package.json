@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && rundot deploy",
     "build:standalone": "tsc && vite build --config vite.standalone.config.ts",
+    "build:web": "tsc && vite build --config vite.web.config.ts && cd dist-web && rm -f ../the-third-direction-web.zip && zip -qr ../the-third-direction-web.zip .",
     "gallery": "tsc && vite build --config vite.gallery.config.ts",
     "concepts": "npm run gallery && node tools/render-concepts.mjs",
     "build:artifact": "tsc && vite build --config vite.artifact.config.ts && node tools/make-artifact.mjs"

@@ -1,4 +1,7 @@
 /** No-op stand-in for src/sdk.ts, used by the standalone (non-RUN) preview build. */
+/** the credit line under the title and on the end card */
+export const CREDIT = 'RUN October Jam · Monster Mash';
+
 export function onLifecycle(_onPause: () => void, _onResume: () => void) {}
 /**
  * The standalone preview keeps saved data in memory, and in `window.name` so it survives a reload in the same tab.

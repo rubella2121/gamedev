@@ -4,6 +4,7 @@ import { STORY } from './core/story';
 import { fmtTime } from './core/util';
 import { INTRO, Landing } from './landing';
 import { Logo } from './logo';
+import { CREDIT } from './sdk';
 
 export interface HomeOptions {
   onPlay: () => void;
@@ -177,7 +178,7 @@ export class UI {
     this.cineEl.appendChild(this.grain);
     this.cardEl2 = mk('tcard');
     this.endCardEl = mk('tend');
-    this.endCardEl.innerHTML = '<div class="tt"><span>The Third</span><span>Direction</span></div><div class="tg">don\'t look up</div><div class="tf">RUN October Jam · Monster Mash</div>';
+    this.endCardEl.innerHTML = `<div class="tt"><span>The Third</span><span>Direction</span></div><div class="tg">don't look up</div><div class="tf">${CREDIT}</div>`;
     this.splashEl = mk('splash hide');
     this.bossTitleEl = mk('bosstitle');
     this.titleEl = mk('title');
@@ -441,7 +442,7 @@ export class UI {
     snd.innerHTML = `${SPEAKER}<span>best with sound on</span>`;
     bottom.append(cta, snd);
     const skip = mk('sk', 'skip intro ▸', 'button');
-    el.append(land.canvas, top, bottom, mk('lfoot', 'RUN October Jam · Monster Mash'), skip, mk('lfade'), mk('lflash'));
+    el.append(land.canvas, top, bottom, mk('lfoot', CREDIT), skip, mk('lfade'), mk('lflash'));
     el.classList.remove('hide', 'out', 'go', 'dread');
 
     const t0 = performance.now();
@@ -815,7 +816,7 @@ export class UI {
     pill('Fight a boss', ICON.skull, () => this.showShowcase(o));
     pill('How to play', ICON.help, () => this.showHowTo());
 
-    const foot = mk('foot', 'RUN October Jam · Monster Mash');
+    const foot = mk('foot', CREDIT);
     home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, diffs, blurb, row, foot);
     el.append(home);
     el.classList.remove('hide');

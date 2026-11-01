@@ -8,3 +8,5 @@ dist-standalone/
 dist-gallery/
 dist-artifact/
 __pycache__/
+dist-web/
+the-third-direction-web.zip
