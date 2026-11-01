@@ -1,6 +1,9 @@
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
 /** Thin, failure-proof wrappers around the RUN SDK so the game also runs outside the RUN app. */
+/** the credit line under the title and on the end card */
+export const CREDIT = 'RUN October Jam · Monster Mash';
+
 export function onLifecycle(onPause: () => void, onResume: () => void) {
   try {
     RundotGameAPI.lifecycles.onPause(onPause);
