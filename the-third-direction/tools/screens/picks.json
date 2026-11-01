@@ -1,1 +1,11 @@
-[{"name":"zz-test","words":"a flat forest.\n[five] guardians.","tag":"HAND-MADE 2D BOSS FIGHTS"}]
+[
+  { "name": "01-family", "words": "the forest is flat.\n[don't] look up.", "tag": "A BABY BLOB. A LOST FAMILY." },
+  { "name": "02-gloommother", "words": "a flat forest.\n[five] guardians.", "tag": "HAND-MADE 2D BOSS FIGHTS" },
+  { "name": "03-thornback-king", "words": "every boss fights\n[differently].", "tag": "THE THORNBACK KING" },
+  { "name": "04-toll-queen", "words": "dodge the [rings].\nring the bell.", "tag": "THE TOLL QUEEN" },
+  { "name": "05-bone-wyrm", "words": "something lives\n[under] the bones.", "tag": "THE BONE WYRM" },
+  { "name": "06-mimic-queen", "words": "don't [follow]\nthe glow.", "tag": "THE MIMIC QUEEN" },
+  { "name": "07-x-the-hollow", "words": "then the world\ngoes [3D].", "tag": "X, THE HOLLOW" },
+  { "name": "08-collector", "words": "it wants you\nin a [jar].", "tag": "THE COLLECTOR" },
+  { "name": "09-mash", "words": "all of them.\n[at once].", "tag": "THE MASH" }
+]

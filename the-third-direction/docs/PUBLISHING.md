@@ -21,7 +21,8 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
    **Fullscreen button**, and **Automatically start on page load** off (the game has its own "tap to begin").
 4. **Pricing:** **$0 or donate**, with a suggested donation of **$3**. The game stays free and fans can tip.
 5. **Cover image:** `brand/cover.png` (1260 × 1000, the 630 × 500 shape at twice the size). **Banner** (Edit theme → Banner):
-   `brand/banner.png`. Screenshots: 3–5 shots from the trailer stills (portrait is fine).
+   `brand/banner.png`. **Screenshots:** pick 4–5 from `brand/screens/` (plain gameplay) or `brand/screens/framed/`
+   (the same shots with a hook line). A good set: the family, the Toll Queen, X, the Collector, the Mash.
 6. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
 
 ## itch.io: page text
@@ -66,6 +67,10 @@ and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so 
 - `cover.png`: itch.io cover. The flat 2D forest on the left, the 3D world tearing through on the right.
 - `banner.png`: itch.io page banner.
 - `icon.png`: 1080 square mark, for an Instagram profile picture or an app icon.
+- `screens/`: real gameplay screenshots (1080 × 1920) with the HUD, one per boss plus the opening: the bots in `src/dev`
+  play each fight and `node tools/screens/shoot.mjs <outDir> [scene ...]` captures bursts to choose from (after
+  `npm run build:standalone`). `screens/framed/` is the same shots in a frame with a hook line above, made by
+  `node tools/screens/frame.mjs` from the lines in `tools/screens/picks.json`.
 
 ## Web game sites (ad revenue share)
 Check each site's current developer docs before building for it; requirements change.

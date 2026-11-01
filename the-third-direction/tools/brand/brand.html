@@ -319,8 +319,8 @@ async function framed(src, words, tag) {
 window.render = async (name, ...args) => {
   await document.fonts.load('100px Boldonse');
   await document.fonts.load("700 100px 'Big Shoulders'");
-  const c = name === 'framed' ? await framed(...args) : await PIECES[name]();
-  return c.toDataURL('image/png');
+  if (name === 'framed') return (await framed(...args)).toDataURL('image/jpeg', 0.92);
+  return (await PIECES[name]()).toDataURL('image/png');
 };
 </script>
 </body>

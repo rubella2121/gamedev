@@ -1,6 +1,6 @@
 // Frames the chosen screenshots with a hook line (tools/brand/brand.html, `framed`).
-//   node tools/screens/frame.mjs     reads tools/screens/picks.json, writes brand/screens/framed/<name>.png
-// picks.json: [{ "name": "...", "words": "a line with a [gold] word", "tag": "SMALL LINE UNDER IT" }], pictures from brand/screens/<name>.png
+//   node tools/screens/frame.mjs     reads tools/screens/picks.json, writes brand/screens/framed/<name>.jpg
+// picks.json: [{ "name": "...", "words": "a line with a [gold] word", "tag": "SMALL LINE UNDER IT" }], pictures from brand/screens/<name>.jpg
 import { chromium } from 'playwright-core';
 import fs from 'fs';
 import path from 'path';
@@ -19,9 +19,9 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.error(e));
 await page.goto('file://' + path.join(root, 'tools/brand/brand.html'));
 for (const p of picks) {
-  const src = 'file://' + path.join(root, 'brand/screens', `${p.name}.png`);
+  const src = 'file://' + path.join(root, 'brand/screens', `${p.name}.jpg`);
   const url = await page.evaluate(([s, w, t]) => window.render('framed', s, w, t), [src, p.words, p.tag ?? '']);
-  fs.writeFileSync(path.join(out, `${p.name}.png`), Buffer.from(url.split(',')[1], 'base64'));
-  console.log('wrote', `brand/screens/framed/${p.name}.png`);
+  fs.writeFileSync(path.join(out, `${p.name}.jpg`), Buffer.from(url.split(',')[1], 'base64'));
+  console.log('wrote', `brand/screens/framed/${p.name}.jpg`);
 }
 await browser.close();
