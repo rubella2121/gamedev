@@ -62,8 +62,12 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 `brand/` holds the logo and store art, drawn by `tools/brand/brand.html` and saved by `node tools/brand/render.mjs`
 (or `node tools/brand/render.mjs cover` for one piece). The game shots come from the trailer footage (`tools/brand/img/`),
 and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so they are free to use in a paid game.
-- `logo.png`: the logo on a transparent background. The mark is the blob at the corner of three axes: two lie flat (teal),
-  the third goes up (gold). That is the game's idea: a flat world that finds a third direction.
+- `logo.png`: the full logo on a transparent background (2400 × 1900). X's three eyes open above, the other seven bosses
+  stand in an arc behind the title (the five forest guardians from the game's own pixel painter, the Collector and the Mash
+  as their real 3D models drawn small to match), and the blob family waits in front, looking up. Only soft glows behind,
+  so it sits on any colour. `logo-on-night.jpg` is the same on the game's night colour, for posting.
+- `wordmark.png`: the title alone with the mark (the blob at the corner of three axes, the third going up), for small sizes.
+- The sprites come from `tools/sprites.ts`: `npm run gallery && node tools/brand/sprites.mjs` saves them to `tools/brand/sprites/`.
 - `cover.png`: itch.io cover. The flat 2D forest on the left, the 3D world tearing through on the right.
 - `banner.png`: itch.io page banner.
 - `icon.png`: 1080 square mark, for an Instagram profile picture or an app icon.

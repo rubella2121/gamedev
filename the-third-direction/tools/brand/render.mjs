@@ -20,7 +20,7 @@ const browser = await chromium.launch({
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error(e));
 await page.goto('file://' + path.join(here, 'brand.html'));
-for (const name of process.argv.slice(2).length ? process.argv.slice(2) : ['logo', 'cover', 'icon', 'banner']) {
+for (const name of process.argv.slice(2).length ? process.argv.slice(2) : ['logo', 'wordmark', 'cover', 'icon', 'banner']) {
   const url = await page.evaluate((n) => window.render(n), name);
   writeFileSync(path.join(out, `${name}.png`), Buffer.from(url.split(',')[1], 'base64'));
   console.log('wrote', `brand/${name}.png`);

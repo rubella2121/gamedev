@@ -186,8 +186,152 @@ function dust(g, w, h, n, seed) {
   }
 }
 
+/** a sprite from sprites/ (tools/brand/sprites.mjs), at a whole-number zoom so its pixels stay square and sharp */
+function sprite(im, k, flip = false) {
+  const c = document.createElement('canvas');
+  c.width = im.width * k;
+  c.height = im.height * k;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  if (flip) { g.translate(c.width, 0); g.scale(-1, 1); }
+  g.drawImage(im, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** push a boss back into the night: darker toward its feet, a rim of its own colour around it */
+function receded(im, k, o) {
+  const s = sprite(im, k, o.flip);
+  const pad = 60;
+  const c = document.createElement('canvas');
+  c.width = s.width + pad * 2;
+  c.height = s.height + pad * 2;
+  const g = c.getContext('2d');
+  g.shadowColor = o.rim;
+  g.shadowBlur = 36;
+  g.drawImage(s, pad, pad);
+  g.shadowBlur = 0;
+  g.globalCompositeOperation = 'source-atop';
+  const dk = g.createLinearGradient(0, pad, 0, pad + s.height);
+  dk.addColorStop(0, `rgba(6,8,22,${o.dark * 0.35})`);
+  dk.addColorStop(1, `rgba(6,8,22,${o.dark})`);
+  g.fillStyle = dk;
+  g.fillRect(0, 0, c.width, c.height);
+  return { c, pad };
+}
+
+/** X, the Hollow: three eyes open in the dark above everything, drawn as pixel art like his fight at the Edge */
+function xEyes(g, cx, cy, k) {
+  const w = 120, h = 30;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const p = c.getContext('2d');
+  const ell = (x, y, rx, ry, col) => {
+    p.fillStyle = col;
+    for (let yy = Math.floor(y - ry); yy <= Math.ceil(y + ry); yy++) {
+      const t = (yy - y) / ry;
+      if (Math.abs(t) > 1) continue;
+      const hw = rx * Math.sqrt(1 - t * t);
+      p.fillRect(Math.round(x - hw), yy, Math.round(hw * 2), 1);
+    }
+  };
+  [[20, 17], [60, 13], [100, 17]].forEach(([x, y], i) => {
+    ell(x, y, 17, 9, '#1a0610');
+    ell(x, y, 15, 7.5, '#d9e4ff');
+    ell(x + (i - 1) * 1.5, y + 1, 6.5, 6.5, '#e8343f');
+    ell(x + (i - 1) * 1.5, y + 1, 2, 5.5, '#05060c');
+    p.fillStyle = '#fff';
+    p.fillRect(Math.round(x + (i - 1) * 1.5 + 2), y - 2, 1, 1);
+  });
+  g.save();
+  // the red haze they cast
+  const haze = g.createRadialGradient(cx, cy, 10, cx, cy, w * k * 0.62);
+  haze.addColorStop(0, 'rgba(232,52,63,0.32)');
+  haze.addColorStop(1, 'rgba(232,52,63,0)');
+  g.fillStyle = haze;
+  g.fillRect(cx - w * k, cy - h * k * 3, w * k * 2, h * k * 6);
+  g.imageSmoothingEnabled = false;
+  g.shadowColor = 'rgba(255,60,70,0.9)';
+  g.shadowBlur = 40;
+  g.drawImage(c, cx - (w * k) / 2, cy - (h * k) / 2, w * k, h * k);
+  g.restore();
+}
+
 const PIECES = {
+  /**
+   * The logo: the title in front of every boss in the game. X's three eyes open above, the seven others stand in an arc
+   * behind the words (2D pixel art, the 3D ones drawn small to match), and the blob family waits in front, looking up.
+   * The background is transparent: only soft glows, so it sits on any colour.
+   */
   async logo() {
+    const W = 2400, H = 1900, cx = W / 2;
+    const [c, g] = canvas(W, H);
+    const names = ['gloommother', 'king', 'queen', 'wyrm', 'mimic', 'collector', 'mash', 'blob', 'mother', 'father'];
+    const S = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await load(`sprites/${n}.png`)])));
+    // a night glow that fades to nothing at the edges
+    const night = g.createRadialGradient(cx, 760, 80, cx, 820, 1150);
+    night.addColorStop(0, 'rgba(22,52,74,0.85)');
+    night.addColorStop(0.55, 'rgba(10,20,38,0.55)');
+    night.addColorStop(1, 'rgba(5,6,12,0)');
+    g.fillStyle = night;
+    g.fillRect(0, 0, W, H);
+    // the moon, low behind the Mash
+    const moon = g.createRadialGradient(cx, 500, 0, cx, 500, 380);
+    moon.addColorStop(0, 'rgba(210,250,255,0.55)');
+    moon.addColorStop(0.45, 'rgba(120,220,230,0.22)');
+    moon.addColorStop(1, 'rgba(120,220,230,0)');
+    g.fillStyle = moon;
+    g.fillRect(cx - 400, 70, 800, 800);
+    dust(g, W, H * 0.8, 160, 5);
+    xEyes(g, cx, 140, 6);
+    // the bosses, back to front: outer ones lower and darker, the Mash in the middle
+    const row = [
+      { n: 'wyrm', x: 230, y: 1010, k: 3, rim: 'rgba(244,239,224,0.55)', dark: 0.55 },
+      { n: 'king', x: 2170, y: 1010, k: 3, rim: 'rgba(224,160,96,0.6)', dark: 0.55, flip: true },
+      { n: 'gloommother', x: 520, y: 900, k: 3, rim: 'rgba(111,240,255,0.7)', dark: 0.5 },
+      { n: 'mimic', x: 1890, y: 900, k: 3, rim: 'rgba(255,138,168,0.65)', dark: 0.5 },
+      { n: 'queen', x: 820, y: 790, k: 3, rim: 'rgba(217,184,255,0.7)', dark: 0.45 },
+      { n: 'collector', x: 1590, y: 790, k: 3, rim: 'rgba(247,213,110,0.55)', dark: 0.45 },
+      { n: 'mash', x: cx, y: 745, k: 3, rim: 'rgba(255,90,120,0.6)', dark: 0.4 },
+    ];
+    for (const b of row) {
+      const { c: s, pad } = receded(S[b.n], b.k, b);
+      g.drawImage(s, b.x - s.width / 2, b.y - s.height + pad);
+    }
+    // a dark band so the words read over the crowd
+    // (drawn squashed to an ellipse: the gradient lives in the squashed space, centred where 1100 ends up)
+    const band = g.createRadialGradient(cx, 1100 / 0.45, 60, cx, 1100 / 0.45, 900);
+    band.addColorStop(0, 'rgba(5,6,12,0.82)');
+    band.addColorStop(0.6, 'rgba(5,6,12,0.5)');
+    band.addColorStop(1, 'rgba(5,6,12,0)');
+    g.save();
+    g.scale(1, 0.45);
+    g.fillStyle = band;
+    g.fillRect(0, 1100 / 0.45 - 900, W, 1800);
+    g.restore();
+    const bottom = logo(g, cx, 800, 1150, { emblem: false });
+    // the family in front: the little one looking up, Mother (the bow) and Father a step behind
+    const fam = (n, x, y, k, a) => {
+      const s = sprite(S[n], k);
+      g.globalAlpha = a;
+      g.drawImage(s, x - s.width / 2, y - s.height);
+      g.globalAlpha = 1;
+    };
+    const fy = bottom + 250;
+    const glow = g.createRadialGradient(cx, fy - 60, 10, cx, fy - 60, 320);
+    glow.addColorStop(0, 'rgba(247,213,110,0.5)');
+    glow.addColorStop(1, 'rgba(247,213,110,0)');
+    g.fillStyle = glow;
+    g.fillRect(cx - 330, fy - 390, 660, 660);
+    fam('mother', cx - 250, fy - 14, 6, 0.92);
+    fam('father', cx + 260, fy - 14, 6, 0.92);
+    g.shadowColor = 'rgba(247,213,110,0.9)';
+    g.shadowBlur = 50;
+    fam('blob', cx, fy, 7, 1);
+    g.shadowBlur = 0;
+    return c;
+  },
+  /** the title alone with its mark (for small sizes, where the full logo gets busy) */
+  async wordmark() {
     const [c, g] = canvas(1600, 1300);
     logo(g, 800, 50, 1200);
     return c;
