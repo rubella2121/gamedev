@@ -3,7 +3,7 @@ import { bestTime, PRESETS, type DiffId } from './core/difficulty';
 import { STORY } from './core/story';
 import { fmtTime } from './core/util';
 import { INTRO, Landing } from './landing';
-import { Logo } from './logo';
+import { Crest } from './crest';
 import { CREDIT } from './sdk';
 
 export interface HomeOptions {
@@ -414,7 +414,7 @@ export class UI {
     const land = new Landing(still);
     // (tests: the landing page's state, as `__tt` is the game's)
     if (new URLSearchParams(location.search).has('debug')) (window as unknown as { __landing: Landing }).__landing = land;
-    const logo = new Logo();
+    const logo = new Crest();
     logo.still = still;
     // (the landing page keeps its title still unless something happens to it: no random tears, the glow behind it beats instead
     // of the depth, and it is drawn at most twice the screen's pixels, so a phone has less to redraw)
@@ -745,7 +745,7 @@ export class UI {
       return e;
     };
     const amb = new Ambient();
-    const logo = new Logo();
+    const logo = new Crest();
     const home = mk('home');
 
     // the sound switch lives in the corner, where thumbs expect it
@@ -820,11 +820,11 @@ export class UI {
     home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, diffs, blurb, row, foot);
     el.append(home);
     el.classList.remove('hide');
-    this.runFx(el, logo, amb, 0.92);
+    this.runFx(el, logo, amb, 0.8);
   }
 
   /** The animation of the home page: the logo's depth sways, the fireflies drift, eyes open in the dark. */
-  private runFx(el: HTMLElement, logo: Logo, amb: Ambient, width: number) {
+  private runFx(el: HTMLElement, logo: Crest, amb: Ambient, width: number) {
     this.stopFx();
     const size = () => logo.resize(this.stage.clientWidth * width);
     this.onFit = size;
@@ -856,11 +856,11 @@ export class UI {
    * The landing page's animation: one picture, made thirty times a second (sixty while the pulse goes out, fewer on a phone that
    * cannot keep up: `Landing.frameGap`), and the title, which only repaints when something on it has moved.
    */
-  private runSplash(el: HTMLElement, logo: Logo, land: Landing, t0: number) {
+  private runSplash(el: HTMLElement, logo: Crest, land: Landing, t0: number) {
     this.stopFx();
     const top = el.querySelector<HTMLElement>('.ltop');
     const size = () => {
-      logo.resize(this.stage.clientWidth * 0.9);
+      logo.resize(this.stage.clientWidth * 0.8);
       land.resize(this.stage.clientWidth, window.devicePixelRatio || 1);
     };
     this.onFit = size;

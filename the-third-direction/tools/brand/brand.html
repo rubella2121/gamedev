@@ -186,6 +186,86 @@ function dust(g, w, h, n, seed) {
   }
 }
 
+/** the logo's picture (see PIECES.logo), drawn into g; returns the bottom of the title */
+async function crest(g, W, family, layers = { glow: true, art: true }) {
+    const cx = W / 2, H = 1900;
+    const names = ['gloommother', 'king', 'queen', 'wyrm', 'mimic', 'collector', 'mash', 'blob', 'mother', 'father'];
+    const S = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await load(`sprites/${n}.png`)])));
+    if (layers.glow) {
+    // a night glow that fades to nothing at the edges
+    const night = g.createRadialGradient(cx, 760, 80, cx, 820, 1150);
+    night.addColorStop(0, 'rgba(22,52,74,0.85)');
+    night.addColorStop(0.55, 'rgba(10,20,38,0.55)');
+    night.addColorStop(1, 'rgba(5,6,12,0)');
+    g.fillStyle = night;
+    g.fillRect(0, 0, W, H);
+    // the moon, low behind the Mash
+    const moon = g.createRadialGradient(cx, 500, 0, cx, 500, 380);
+    moon.addColorStop(0, 'rgba(210,250,255,0.55)');
+    moon.addColorStop(0.45, 'rgba(120,220,230,0.22)');
+    moon.addColorStop(1, 'rgba(120,220,230,0)');
+    g.fillStyle = moon;
+    g.fillRect(cx - 400, 70, 800, 800);
+    }
+    if (layers.art) {
+    dust(g, W, H * 0.8, 160, 5);
+    xEyes(g, cx, 140, 6);
+    // the bosses, back to front: outer ones lower and darker, the Mash in the middle
+    const row = [
+      { n: 'wyrm', x: 230, y: 1010, k: 3, rim: 'rgba(244,239,224,0.55)', dark: 0.55 },
+      { n: 'king', x: 2170, y: 1010, k: 3, rim: 'rgba(224,160,96,0.6)', dark: 0.55, flip: true },
+      { n: 'gloommother', x: 520, y: 900, k: 3, rim: 'rgba(111,240,255,0.7)', dark: 0.5 },
+      { n: 'mimic', x: 1890, y: 900, k: 3, rim: 'rgba(255,138,168,0.65)', dark: 0.5 },
+      { n: 'queen', x: 820, y: 790, k: 3, rim: 'rgba(217,184,255,0.7)', dark: 0.45 },
+      { n: 'collector', x: 1590, y: 790, k: 3, rim: 'rgba(247,213,110,0.55)', dark: 0.45 },
+      { n: 'mash', x: cx, y: 745, k: 3, rim: 'rgba(255,90,120,0.6)', dark: 0.4 },
+    ];
+    for (const b of row) {
+      const { c: s, pad } = receded(S[b.n], b.k, b);
+      g.drawImage(s, b.x - s.width / 2, b.y - s.height + pad);
+    }
+    }
+    if (layers.glow) {
+    // a dark band so the words read over the crowd
+    // (drawn squashed to an ellipse: the gradient lives in the squashed space, centred where 1100 ends up)
+    const band = g.createRadialGradient(cx, 1100 / 0.45, 60, cx, 1100 / 0.45, 900);
+    band.addColorStop(0, 'rgba(5,6,12,0.82)');
+    band.addColorStop(0.6, 'rgba(5,6,12,0.5)');
+    band.addColorStop(1, 'rgba(5,6,12,0)');
+    g.save();
+    g.scale(1, 0.45);
+    g.fillStyle = band;
+    g.fillRect(0, 1100 / 0.45 - 900, W, 1800);
+    g.restore();
+    }
+    // (the title is drawn either way: the bottom is where it ends; with no art it is drawn and wiped)
+    g.save();
+    if (!layers.art) g.globalAlpha = 0;
+    const bottom = logo(g, cx, 800, 1150, { emblem: false });
+    g.restore();
+    // the family in front: the little one looking up, Mother (the bow) and Father a step behind
+    const fam = (n, x, y, k, a) => {
+      const s = sprite(S[n], k);
+      g.globalAlpha = a;
+      g.drawImage(s, x - s.width / 2, y - s.height);
+      g.globalAlpha = 1;
+    };
+    if (!family) return bottom;
+    const fy = bottom + 250;
+    const glow = g.createRadialGradient(cx, fy - 60, 10, cx, fy - 60, 320);
+    glow.addColorStop(0, 'rgba(247,213,110,0.5)');
+    glow.addColorStop(1, 'rgba(247,213,110,0)');
+    g.fillStyle = glow;
+    g.fillRect(cx - 330, fy - 390, 660, 660);
+    fam('mother', cx - 250, fy - 14, 6, 0.92);
+    fam('father', cx + 260, fy - 14, 6, 0.92);
+    g.shadowColor = 'rgba(247,213,110,0.9)';
+    g.shadowBlur = 50;
+    fam('blob', cx, fy, 7, 1);
+    g.shadowBlur = 0;
+    return bottom;
+}
+
 /** a sprite from sprites/ (tools/brand/sprites.mjs), at a whole-number zoom so its pixels stay square and sharp */
 function sprite(im, k, flip = false) {
   const c = document.createElement('canvas');
@@ -263,71 +343,35 @@ const PIECES = {
    * The background is transparent: only soft glows, so it sits on any colour.
    */
   async logo() {
-    const W = 2400, H = 1900, cx = W / 2;
+    const W = 2400, H = 1900;
     const [c, g] = canvas(W, H);
-    const names = ['gloommother', 'king', 'queen', 'wyrm', 'mimic', 'collector', 'mash', 'blob', 'mother', 'father'];
-    const S = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await load(`sprites/${n}.png`)])));
-    // a night glow that fades to nothing at the edges
-    const night = g.createRadialGradient(cx, 760, 80, cx, 820, 1150);
-    night.addColorStop(0, 'rgba(22,52,74,0.85)');
-    night.addColorStop(0.55, 'rgba(10,20,38,0.55)');
-    night.addColorStop(1, 'rgba(5,6,12,0)');
-    g.fillStyle = night;
-    g.fillRect(0, 0, W, H);
-    // the moon, low behind the Mash
-    const moon = g.createRadialGradient(cx, 500, 0, cx, 500, 380);
-    moon.addColorStop(0, 'rgba(210,250,255,0.55)');
-    moon.addColorStop(0.45, 'rgba(120,220,230,0.22)');
-    moon.addColorStop(1, 'rgba(120,220,230,0)');
-    g.fillStyle = moon;
-    g.fillRect(cx - 400, 70, 800, 800);
-    dust(g, W, H * 0.8, 160, 5);
-    xEyes(g, cx, 140, 6);
-    // the bosses, back to front: outer ones lower and darker, the Mash in the middle
-    const row = [
-      { n: 'wyrm', x: 230, y: 1010, k: 3, rim: 'rgba(244,239,224,0.55)', dark: 0.55 },
-      { n: 'king', x: 2170, y: 1010, k: 3, rim: 'rgba(224,160,96,0.6)', dark: 0.55, flip: true },
-      { n: 'gloommother', x: 520, y: 900, k: 3, rim: 'rgba(111,240,255,0.7)', dark: 0.5 },
-      { n: 'mimic', x: 1890, y: 900, k: 3, rim: 'rgba(255,138,168,0.65)', dark: 0.5 },
-      { n: 'queen', x: 820, y: 790, k: 3, rim: 'rgba(217,184,255,0.7)', dark: 0.45 },
-      { n: 'collector', x: 1590, y: 790, k: 3, rim: 'rgba(247,213,110,0.55)', dark: 0.45 },
-      { n: 'mash', x: cx, y: 745, k: 3, rim: 'rgba(255,90,120,0.6)', dark: 0.4 },
-    ];
-    for (const b of row) {
-      const { c: s, pad } = receded(S[b.n], b.k, b);
-      g.drawImage(s, b.x - s.width / 2, b.y - s.height + pad);
-    }
-    // a dark band so the words read over the crowd
-    // (drawn squashed to an ellipse: the gradient lives in the squashed space, centred where 1100 ends up)
-    const band = g.createRadialGradient(cx, 1100 / 0.45, 60, cx, 1100 / 0.45, 900);
-    band.addColorStop(0, 'rgba(5,6,12,0.82)');
-    band.addColorStop(0.6, 'rgba(5,6,12,0.5)');
-    band.addColorStop(1, 'rgba(5,6,12,0)');
-    g.save();
-    g.scale(1, 0.45);
-    g.fillStyle = band;
-    g.fillRect(0, 1100 / 0.45 - 900, W, 1800);
-    g.restore();
-    const bottom = logo(g, cx, 800, 1150, { emblem: false });
-    // the family in front: the little one looking up, Mother (the bow) and Father a step behind
-    const fam = (n, x, y, k, a) => {
-      const s = sprite(S[n], k);
-      g.globalAlpha = a;
-      g.drawImage(s, x - s.width / 2, y - s.height);
-      g.globalAlpha = 1;
-    };
-    const fy = bottom + 250;
-    const glow = g.createRadialGradient(cx, fy - 60, 10, cx, fy - 60, 320);
-    glow.addColorStop(0, 'rgba(247,213,110,0.5)');
-    glow.addColorStop(1, 'rgba(247,213,110,0)');
-    g.fillStyle = glow;
-    g.fillRect(cx - 330, fy - 390, 660, 660);
-    fam('mother', cx - 250, fy - 14, 6, 0.92);
-    fam('father', cx + 260, fy - 14, 6, 0.92);
-    g.shadowColor = 'rgba(247,213,110,0.9)';
-    g.shadowBlur = 50;
-    fam('blob', cx, fy, 7, 1);
-    g.shadowBlur = 0;
+    await crest(g, W, true);
+    return c;
+  },
+  /**
+   * The logo for the game's own title screens (src/assets/crest.webp): the same picture without the family, who are already
+   * standing in the scene under it, cut off just under the title.
+   */
+  async crest() {
+    // the glows go on first and fade out before the cut, so the picture has no hard bottom edge
+    const [glow, gg] = canvas(2400, 1900);
+    const bottom = await crest(gg, 2400, false, { glow: true, art: false });
+    const H = Math.ceil(bottom + 70);
+    gg.globalCompositeOperation = 'destination-in';
+    const fade = gg.createLinearGradient(0, H - 380, 0, H);
+    fade.addColorStop(0, 'rgba(0,0,0,1)');
+    fade.addColorStop(1, 'rgba(0,0,0,0)');
+    gg.fillStyle = fade;
+    gg.fillRect(0, 0, 2400, H - 380);
+    gg.fillRect(0, H - 380, 2400, 380);
+    gg.clearRect(0, H, 2400, 1900);
+    const [art, ga] = canvas(2400, 1900);
+    await crest(ga, 2400, false, { glow: false, art: true });
+    const [c, g] = canvas(2400, H);
+    g.drawImage(glow, 0, 0);
+    g.drawImage(art, 0, 0);
+    glow.remove();
+    art.remove();
     return c;
   },
   /** the title alone with its mark (for small sizes, where the full logo gets busy) */
@@ -398,7 +442,172 @@ const PIECES = {
     logo(g, W * 0.27, 70, 640, { emblem: false });
     return c;
   },
+
+  /**
+   * The itch.io page background (2560 x 1440). itch.io centres it at the top behind a ~960 px page column, so the art lives
+   * just outside that column: the flat 2D forest on the left, the deep 3D world on the right, more bosses at the far
+   * edges for wide screens, and plain night in the middle where the page covers it.
+   */
+  async itchbg() {
+    const W = 2560, H = 1440, cx = W / 2;
+    const [c, g] = canvas(W, H);
+    const [flat, deep] = await Promise.all([load('img/flat.jpg'), load('img/deep.jpg')]);
+    const S = Object.fromEntries(await Promise.all(['queen', 'wyrm', 'collector', 'mash', 'mimic', 'king'].map(async (n) => [n, await load(`sprites/${n}.png`)])));
+    nightSky(g, W, H, 21);
+    // the two worlds, each fading out toward the middle and toward the outer edge
+    sideWorld(g, flat, 590, 0, 1000, H, 1.05, 0.5, 0.3, 'left');
+    sideWorld(g, deep, 1970, 0, 1000, H, 1.05, 0.5, 0.4, 'right');
+    // a seam of gold light down each side of the column: the tear between the worlds
+    for (const x of [cx - 492, cx + 492]) tear(g, x, H, x < cx ? 7 : 13);
+    // more bosses at the far edges (seen on wide screens)
+    edgeBoss(g, S.queen, 160, 700, 3, 'rgba(217,184,255,0.7)');
+    edgeBoss(g, S.wyrm, 190, 1180, 3, 'rgba(244,239,224,0.55)');
+    edgeBoss(g, S.collector, 2400, 560, 3, 'rgba(247,213,110,0.6)');
+    edgeBoss(g, S.mash, 2330, 1230, 3, 'rgba(255,90,120,0.6)');
+    // X watches over the page from the very top
+    xEyes(g, cx, 70, 3);
+    fireflies(g, W, H, 140, 4);
+    finish(g, W, H);
+    return c;
+  },
+
+  /**
+   * The itch.io embed background (behind the "Run game" button), 3x the 390 x 844 game frame. The 3D world above, the
+   * flat forest below, the gold tear between them right where the button sits, and the title at the top.
+   */
+  async itchembed() {
+    const W = 1170, H = 2532, cx = W / 2;
+    const [c, g] = canvas(W, H);
+    const [flat, deep] = await Promise.all([load('img/flat.jpg'), load('img/deep.jpg')]);
+    nightSky(g, W, H, 9);
+    const seam = H * 0.5;
+    // above: the deep world, X looking down at the blob
+    g.save();
+    g.beginPath(); g.rect(0, 0, W, seam); g.clip();
+    // (placed by hand, lower than the picture's own top, so X stands below the title; its top edge melts into the sky)
+    const dw = deep.width * 1.12, dh = deep.height * 1.12, dy = 380;
+    g.drawImage(deep, cx - dw / 2, dy, dw, dh);
+    const top = g.createLinearGradient(0, dy, 0, dy + 360);
+    top.addColorStop(0, 'rgba(8,15,28,1)'); top.addColorStop(1, 'rgba(8,15,28,0)');
+    g.fillStyle = top; g.fillRect(0, 0, W, dy + 360);
+    g.fillStyle = 'rgba(8,15,28,1)'; g.fillRect(0, 0, W, dy);
+    dust(g, W, dy + 200, 90, 4);
+    g.restore();
+    // below: the flat forest, the Gloommother and the little blob
+    g.save();
+    g.beginPath(); g.rect(0, seam, W, H - seam); g.clip();
+    cover(g, flat, 0, seam, W, H - seam, 1.1, 0.5, 0.3, 0.5, 0.42);
+    const bot = g.createLinearGradient(0, H * 0.8, 0, H);
+    bot.addColorStop(0, 'rgba(5,6,12,0)'); bot.addColorStop(1, 'rgba(5,6,12,0.95)');
+    g.fillStyle = bot; g.fillRect(0, seam, W, H - seam);
+    g.restore();
+    // the tear across the middle, with a soft gold halo where the Run button sits
+    const halo = g.createRadialGradient(cx, seam, 10, cx, seam, 520);
+    halo.addColorStop(0, 'rgba(247,213,110,0.38)'); halo.addColorStop(1, 'rgba(247,213,110,0)');
+    g.fillStyle = halo; g.fillRect(0, seam - 520, W, 1040);
+    g.save();
+    g.shadowColor = 'rgba(247,213,110,1)'; g.shadowBlur = 40;
+    g.strokeStyle = '#ffe9a6'; g.lineWidth = 5;
+    g.beginPath(); g.moveTo(0, seam);
+    for (let x = 0; x <= W; x += 30) g.lineTo(x, seam + ((x / 30) % 2 ? 11 : -11));
+    g.stroke(); g.stroke();
+    g.restore();
+    logo(g, cx, 70, 600, { emblem: false });
+    // a quiet line at the bottom
+    g.save();
+    g.font = "700 40px 'Big Shoulders'"; g.letterSpacing = '12px'; g.textAlign = 'center';
+    g.fillStyle = 'rgba(239,230,210,0.85)';
+    g.shadowColor = 'rgba(0,0,0,0.8)'; g.shadowBlur = 12;
+    g.fillText('BEST WITH SOUND ON', cx + 6, H - 110);
+    g.restore();
+    fireflies(g, W, H, 70, 2);
+    finish(g, W, H);
+    return c;
+  },
 };
+
+/** the game's night: deep blue at the top to ink at the bottom, with stars */
+function nightSky(g, W, H, seed) {
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0d1b2c'); bg.addColorStop(0.5, '#080f1c'); bg.addColorStop(1, INK);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  dust(g, W, H, Math.round((W * H) / 9000), seed);
+}
+
+/** one of the two worlds beside the page column: the picture fades out toward the middle and toward the outer edge */
+function sideWorld(g, im, cxSide, y, w, h, scale, fx, fy, side) {
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  const o = off.getContext('2d');
+  const dw = im.width * scale, dh = im.height * scale;
+  o.drawImage(im, w * 0.5 - fx * dw, h * 0.5 - fy * dh, dw, dh);
+  // fade it out in a soft oval, so no edge of the picture shows
+  o.globalCompositeOperation = 'destination-in';
+  o.save();
+  o.translate(w / 2, h * 0.5);
+  o.scale(w / 2, h / 2);
+  const m = o.createRadialGradient(0, 0, 0, 0, 0, 1);
+  m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(0.5, 'rgba(0,0,0,0.95)'); m.addColorStop(1, 'rgba(0,0,0,0)');
+  o.fillStyle = m; o.fillRect(-1, -1, 2, 2);
+  o.restore();
+  g.drawImage(off, cxSide - w / 2, y);
+}
+
+/** a jagged seam of gold light, top to bottom */
+function tear(g, x, H, seed) {
+  g.save();
+  const fade = g.createLinearGradient(0, 0, 0, H);
+  fade.addColorStop(0, 'rgba(255,233,166,0)'); fade.addColorStop(0.2, 'rgba(255,233,166,0.75)');
+  fade.addColorStop(0.75, 'rgba(255,233,166,0.75)'); fade.addColorStop(1, 'rgba(255,233,166,0)');
+  g.strokeStyle = fade;
+  g.shadowColor = 'rgba(247,213,110,0.9)'; g.shadowBlur = 28;
+  g.lineWidth = 3;
+  let r = seed;
+  const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+  g.beginPath(); g.moveTo(x, 0);
+  for (let y = 0; y <= H; y += 22) g.lineTo(x + (rnd() - 0.5) * 18, y);
+  g.stroke();
+  g.restore();
+}
+
+/** a boss sprite in the dark at the screen's far edge */
+function edgeBoss(g, im, x, y, k, rim) {
+  const { c, pad } = receded(im, k, { rim, dark: 0.55 });
+  g.save();
+  g.globalAlpha = 0.85;
+  g.drawImage(c, x - c.width / 2, y - c.height + pad);
+  g.restore();
+}
+
+/** gold and teal motes drifting in the dark, some soft and big */
+function fireflies(g, W, H, n, seed) {
+  let r = seed * 7919;
+  const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647);
+  g.save();
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * W, y = rnd() * H, s = 2 + rnd() * 5, gold = rnd() < 0.7;
+    g.shadowColor = gold ? 'rgba(247,213,110,0.9)' : 'rgba(111,240,255,0.9)';
+    g.shadowBlur = s * 4;
+    g.fillStyle = gold ? `rgba(255,233,166,${0.35 + rnd() * 0.5})` : `rgba(160,245,240,${0.3 + rnd() * 0.4})`;
+    g.beginPath(); g.arc(x, y, s / 2, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+}
+
+/** the last pass: a vignette and a fine film grain */
+function finish(g, W, H) {
+  const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+  const im = g.getImageData(0, 0, W, H);
+  let r = 12345;
+  for (let i = 0; i < im.data.length; i += 4) {
+    r = (r * 16807) % 2147483647;
+    const n = ((r / 2147483647) - 0.5) * 10;
+    im.data[i] += n; im.data[i + 1] += n; im.data[i + 2] += n;
+  }
+  g.putImageData(im, 0, 0);
+}
 
 /**
  * A store screenshot with a hook line: the game's own picture (1080 x 1920), a little smaller, in a frame, with the line above it.
