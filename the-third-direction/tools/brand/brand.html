@@ -472,7 +472,7 @@ const PIECES = {
   },
 
   /**
-   * The itch.io embed background (behind the "Run game" button), 3x the 390 x 844 game frame. The 3D world above, the
+   * The itch.io embed background (behind the "Run game" button), 2x the 390 x 844 game frame (itch.io's limit is 3840 x 2160). The 3D world above, the
    * flat forest below, the gold tear between them right where the button sits, and the title at the top.
    */
   async itchembed() {
@@ -522,7 +522,13 @@ const PIECES = {
     g.restore();
     fireflies(g, W, H, 70, 2);
     finish(g, W, H);
-    return c;
+    // itch.io takes images up to 3840 x 2160: hand it two times the frame (780 x 1688), drawn at three and scaled down
+    const out = document.createElement('canvas');
+    out.width = 780; out.height = 1688;
+    const o = out.getContext('2d');
+    o.imageSmoothingQuality = 'high';
+    o.drawImage(c, 0, 0, 780, 1688);
+    return out;
   },
 };
 
