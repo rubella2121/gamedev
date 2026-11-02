@@ -444,29 +444,65 @@ const PIECES = {
   },
 
   /**
-   * The itch.io page background (2560 x 1440). itch.io centres it at the top behind a ~960 px page column, so the art lives
-   * just outside that column: the flat 2D forest on the left, the deep 3D world on the right, more bosses at the far
-   * edges for wide screens, and plain night in the middle where the page covers it.
+   * The itch.io page background (2560 x 2160, itch.io's tallest). itch.io shows it at its real size, centred at the top
+   * behind a 960 px page column, so on most screens only a strip of 250 to 480 px shows on each side. Everything that
+   * matters sits in those strips, close to the column: a bestiary of the five 2D guardians down the left, windows into the
+   * 3D world with X, the Collector and the Mash down the right, gold seams along the column's edges, X's eyes on top.
    */
   async itchbg() {
-    const W = 2560, H = 1440, cx = W / 2;
+    const W = 2560, H = 2160, cx = W / 2;
+    const L = cx - 480, R = cx + 480;
     const [c, g] = canvas(W, H);
-    const [flat, deep] = await Promise.all([load('img/flat.jpg'), load('img/deep.jpg')]);
-    const S = Object.fromEntries(await Promise.all(['queen', 'wyrm', 'collector', 'mash', 'mimic', 'king'].map(async (n) => [n, await load(`sprites/${n}.png`)])));
+    const [flat, deep, x3d, col3d, mash3d] = await Promise.all(['flat', 'deep', 'x3d', 'collector3d', 'mash3d'].map((n) => load(`img/${n}.jpg`)));
+    const S = Object.fromEntries(await Promise.all(['gloommother', 'king', 'queen', 'wyrm', 'mimic', 'blob', 'mother', 'father'].map(async (n) => [n, await load(`sprites/${n}.png`)])));
     nightSky(g, W, H, 21);
-    // the two worlds, each fading out toward the middle and toward the outer edge
-    sideWorld(g, flat, 590, 0, 1000, H, 1.05, 0.5, 0.3, 'left');
-    sideWorld(g, deep, 1970, 0, 1000, H, 1.05, 0.5, 0.4, 'right');
-    // a seam of gold light down each side of the column: the tear between the worlds
-    for (const x of [cx - 492, cx + 492]) tear(g, x, H, x < cx ? 7 : 13);
-    // more bosses at the far edges (seen on wide screens)
-    edgeBoss(g, S.queen, 160, 700, 3, 'rgba(217,184,255,0.7)');
-    edgeBoss(g, S.wyrm, 190, 1180, 3, 'rgba(244,239,224,0.55)');
-    edgeBoss(g, S.collector, 2400, 560, 3, 'rgba(247,213,110,0.6)');
-    edgeBoss(g, S.mash, 2330, 1230, 3, 'rgba(255,90,120,0.6)');
-    // X watches over the page from the very top
-    xEyes(g, cx, 70, 3);
-    fireflies(g, W, H, 140, 4);
+    // faint worlds behind each strip
+    g.globalAlpha = 0.45;
+    sideWorld(g, flat, L - 170, 0, 760, H, 1.15, 0.5, 0.45, 'left');
+    sideWorld(g, deep, R + 170, 0, 760, H, 1.15, 0.5, 0.45, 'right');
+    g.globalAlpha = 1;
+    for (const x of [L - 8, R + 8]) tear(g, x, H, x < cx ? 7 : 13);
+    // left: the flat world's guardians, one under another, each named
+    const sx = L - 165;
+    const guardians = [
+      ['gloommother', 'GLOOMMOTHER', 'rgba(111,240,255,0.8)', '#6ff0ff'],
+      ['king', 'THORNBACK KING', 'rgba(224,160,96,0.75)', '#e8b27a'],
+      ['queen', 'TOLL QUEEN', 'rgba(217,184,255,0.8)', '#d9b8ff'],
+      ['wyrm', 'BONE WYRM', 'rgba(244,239,224,0.6)', '#f4efe0'],
+      ['mimic', 'MIMIC QUEEN', 'rgba(255,138,168,0.75)', '#ff8aa8'],
+    ];
+    guardians.forEach(([n, name, rim, ink], i) => {
+      const foot = 420 + i * 360;
+      const im = S[n];
+      const { c: sp, pad } = receded(im, 2, { rim, dark: 0.12, flip: n === 'king' });
+      const pool = g.createRadialGradient(sx, foot, 4, sx, foot, 170);
+      pool.addColorStop(0, rim.replace(/[\d.]+\)$/, '0.22)')); pool.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = pool; g.fillRect(sx - 180, foot - 180, 360, 360);
+      g.drawImage(sp, sx - sp.width / 2, foot - sp.height + pad);
+      label(g, name, sx, foot + 46, ink);
+    });
+    // right: windows into the 3D world
+    const rx = R + 165;
+    const wins = [
+      [x3d, 0.47, 0.47, 1.6, 'X, THE HOLLOW', '#ff6b74'],
+      [col3d, 0.47, 0.6, 1.6, 'THE COLLECTOR', '#f7d56e'],
+      [mash3d, 0.5, 0.58, 1.5, 'THE MASH', '#ff8aa8'],
+    ];
+    wins.forEach(([im, fx, fy, zoom, name, ink], i) => {
+      const top = 250 + i * 620;
+      archWindow(g, im, rx, top, 280, 440, fx, fy, zoom);
+      label(g, name, rx, top + 500, ink);
+    });
+    // the family, at the bottom of the left strip, looking up at it all
+    const fam = (n, x, y, k) => { const s = sprite(S[n], k); g.drawImage(s, x - s.width / 2, y - s.height); };
+    const fy = 2120;
+    const gl = g.createRadialGradient(sx, fy - 30, 4, sx, fy - 30, 150);
+    gl.addColorStop(0, 'rgba(247,213,110,0.4)'); gl.addColorStop(1, 'rgba(247,213,110,0)');
+    g.fillStyle = gl; g.fillRect(sx - 160, fy - 180, 320, 330);
+    fam('mother', sx - 112, fy - 6, 3); fam('father', sx + 116, fy - 6, 3);
+    g.shadowColor = 'rgba(247,213,110,0.9)'; g.shadowBlur = 24; fam('blob', sx, fy, 4); g.shadowBlur = 0;
+    xEyes(g, cx, 66, 3);
+    fireflies(g, W, H, 200, 4);
     finish(g, W, H);
     return c;
   },
@@ -557,6 +593,45 @@ function sideWorld(g, im, cxSide, y, w, h, scale, fx, fy, side) {
   o.fillStyle = m; o.fillRect(-1, -1, 2, 2);
   o.restore();
   g.drawImage(off, cxSide - w / 2, y);
+}
+
+/** a name under a boss, small and spaced, in its own colour */
+function label(g, text, x, y, ink) {
+  g.save();
+  g.font = "700 30px 'Big Shoulders'";
+  g.letterSpacing = '7px';
+  g.textAlign = 'center';
+  g.fillStyle = ink;
+  g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 10;
+  g.fillText(text, x + 3.5, y);
+  g.restore();
+}
+
+/** a game picture seen through an arched window with a thin gold rim and a soft glow */
+function archWindow(g, im, cx, top, w, h, fx, fy, zoom) {
+  const x = cx - w / 2, r = w / 2;
+  const path = () => {
+    g.beginPath();
+    g.moveTo(x, top + h);
+    g.lineTo(x, top + r);
+    g.arc(cx, top + r, r, Math.PI, 0);
+    g.lineTo(x + w, top + h);
+    g.closePath();
+  };
+  g.save();
+  g.shadowColor = 'rgba(247,213,110,0.45)'; g.shadowBlur = 50;
+  path(); g.fillStyle = INK; g.fill();
+  g.restore();
+  g.save();
+  path(); g.clip();
+  // the picture `zoom` times the window's width, its focus point (fx, fy) in the window's middle
+  const dw = w * zoom, dh = dw * (im.height / im.width);
+  g.drawImage(im, cx - fx * dw, top + h * 0.5 - fy * dh, dw, dh);
+  const fade = g.createLinearGradient(0, top + h * 0.7, 0, top + h);
+  fade.addColorStop(0, 'rgba(5,6,12,0)'); fade.addColorStop(1, 'rgba(5,6,12,0.85)');
+  g.fillStyle = fade; g.fillRect(x, top, w, h);
+  g.restore();
+  path(); g.strokeStyle = 'rgba(247,213,110,0.85)'; g.lineWidth = 3; g.stroke();
 }
 
 /** a jagged seam of gold light, top to bottom */

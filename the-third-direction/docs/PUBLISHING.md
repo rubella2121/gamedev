@@ -23,10 +23,12 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 5. **Cover image:** `brand/cover.png` (1260 × 1000, the 630 × 500 shape at twice the size). **Banner** (Edit theme → Banner):
    `brand/banner.png`. **Screenshots:** pick 4–5 from `brand/screens/` (plain gameplay) or `brand/screens/framed/`
    (the same shots with a hook line). A good set: the family, the Toll Queen, X, the Collector, the Mash.
-6. **Theme** (Edit theme on the game page): **Background image** `brand/itchbg.jpg`, set to **don't repeat**, position
-   **top center**, background colour `#05060c` (so the page below the picture stays the same night). The art sits just
-   outside the page column: the flat world on the left, the 3D world on the right, more bosses at the far edges for wide
-   screens. **Embed background** (Edit game → Embed options): `brand/itchembed.jpg` (780 × 1688, twice the 390 × 844
+6. **Theme** (Edit theme on the game page): **Background image** `brand/itchbg.jpg` (2560 × 2160), set to **don't repeat**,
+   position **top center**, background colour `#05060c` (so the page below the picture stays the same night). itch.io shows
+   it at its real size behind a 960 px column, so on most screens only a strip of 250–480 px shows on each side: the art
+   lives in those strips. Left: the five 2D guardians, named, with the blob family at the bottom. Right: windows into the
+   3D world with X, the Collector and the Mash. Gold seams run along the column's edges.
+   **Embed background** (Edit game → Embed options): `brand/itchembed.jpg` (780 × 1688, twice the 390 × 844
    frame; itch.io takes images up to 3840 × 2160), shown behind the Run game button.
 7. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
 
