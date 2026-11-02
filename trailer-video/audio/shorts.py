@@ -13,6 +13,8 @@
               crash; for the Fool, A major and the lullaby gently; the waltz's last turn on the end card
   lineup      crime jazz for a booking room (walking bass, ride, piano, a muted trumpet), a bar a suspect; a tape stop and the
               strings climbing for X, the shout chorus under the stamps, her lullaby on the vibraphone, the big ending
+  popup       a storybook's orchestra (harp, celesta, flute, soft strings) and her lullaby; a march for the guardians, the
+              whole orchestra as X rises out of the book, the lullaby in A major for the last page
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
@@ -875,6 +877,129 @@ def lineup(P):
     cut(fade + 0.55)
 
 
+# ---------------------------------------------------------------- the pop-up book
+
+def popup(P):
+    """a storybook's orchestra: harp, celesta, a flute and soft strings, her lullaby; dark for the night they are taken, a
+    march that climbs as each guardian stands up, the whole orchestra as X rises out of the book, her lullaby in A major for
+    the last page, and the book closing"""
+    op, sp, turns, taken, gd, tear, rise, eyes, two, close, e, fade = (P['open'], P['spreads'], P['turns'], P['taken'],
+                                                                         P['guardians'], P['tear'], P['rise'], P['eyes'],
+                                                                         P['two'], P['close'], P['end'], P['fadeOut'])
+    HARP, FLUTE, CLAR = BOX, HORN, TROM
+
+    def arp(t0, t1, notes, v=60, step=0.18):
+        t, k = t0, 0
+        while t < t1 - 0.05:
+            note(HARP, t, 0.9, notes[k % len(notes)], v)
+            t += step
+            k += 1
+
+    def tune(t0, notes, gaps, v=80, ch=FLUTE, until=99):
+        t = t0
+        for m, g in zip(notes, gaps):
+            if t >= until - 0.1:
+                break
+            note(ch, t, g * 0.95, m, v)
+            t += g
+
+    # ---- the cover: a celesta's twinkle, a pad; the book opens on a harp running up
+    chord(PAD, 0.0, op + 0.9, [57, 64, 69], 50)
+    swell(PAD, 0.0, op, 30, 80)
+    for k, m in enumerate((88, 93, 91, 96, 88, 84)):
+        note(CELESTA, 0.25 + 0.32 * k, 1.2, m, 52)
+    for k in range(14):
+        note(HARP, op + 0.06 * k, 1.2, [45, 52, 57, 60, 64, 69, 72, 76, 81, 84, 88, 93, 96, 100][k], 60 + 2 * k)
+    chord(CHOIR, op + 0.3, sp[0] - op + 0.6, [57, 64, 69], 50)
+    swell(CHOIR, op + 0.3, sp[0], 30, 86)
+    # ---- the first page: her lullaby on the flute, over the harp
+    prog1 = [[45, 52, 57, 60, 64], [41, 48, 53, 57, 60], [48, 55, 60, 64, 67], [43, 50, 55, 59, 62]]
+    bar = 1.1
+    for k in range(int((turns[0] - sp[0]) / bar)):
+        t0 = sp[0] + k * bar
+        arp(t0, t0 + bar, prog1[k % 4], 58)
+        note(BASS, t0, bar, prog1[k % 4][0] - 12, 60)
+    chord(STR, sp[0], turns[0] - sp[0], [57, 64, 69], 54)
+    tune(sp[0] + 0.3, LULL, [0.5, 0.5, 0.8, 0.5, 0.5, 0.8, 0.5, 1.0], 78, until=turns[0])
+    # ---- the night they are taken: low strings, the celesta gone wrong, a blow as they are pulled away
+    note(BASS, sp[1], sp[2] - sp[1], 33, 80)
+    chord(TREM, sp[1], sp[2] - sp[1], [45, 46, 52], 64)
+    swell(TREM, sp[1], taken, 40, 100)
+    note(TIMP, sp[1] + 0.25, 0.8, 45, 100)
+    for k, m in enumerate((81, 80, 77, 76)):
+        note(CELESTA, sp[1] + 0.5 + 0.45 * k, 1.0, m, 50)
+    chord(HIT, taken, 0.5, [58, 64, 70], 110)
+    chord(STR, taken, 1.4, [46, 52, 58, 64], 104)
+    chord(CHOIR, taken + 0.1, 1.6, [70, 69, 64], 90)
+    for k in range(5):
+        bend(CHOIR, taken + 0.2 + 0.25 * k, -50 * k)
+    note(TAIKO, taken, 0.5, 48, 116)
+    cut(sp[2] - 0.65, keep=())
+    # ---- the guardians: a march that climbs, a blow as each one stands up
+    roots = [45, 48, 50, 52, 53]
+    for k, g in enumerate(gd):
+        nxt = gd[k + 1] if k + 1 < len(gd) else turns[2]
+        r = roots[k]
+        for j in range(int((nxt - g) / 0.25)):
+            note(CELLO, g + j * 0.25, 0.14, r - 12 + (12 if j % 4 == 2 else 0), 80 + 4 * k)
+            if j % 2 == 0:
+                drum(g + j * 0.25, 38, 46 + 6 * k)
+        mega(g + 0.3, root=r - 12, dur=0.6, big=0.5 + 0.08 * k)
+        chord(CHOIR, g + 0.3, nxt - g - 0.3, [r + 12, r + 15, r + 19], 70 + 6 * k)
+    arp(sp[2], gd[0], [57, 60, 64, 69], 52)
+    cut(turns[2] + 0.02)
+    # ---- past the edge: hushed; the tear; the whole orchestra as X rises out of the book
+    chord(TREM, sp[3], tear, [76, 81, 84], 50)
+    swell(TREM, sp[3], tear, 30, 90)
+    for k, m in enumerate((88, 91, 93, 96)):
+        note(CELESTA, sp[3] + 0.3 + 0.5 * k, 1.2, m, 50)
+    crack(tear)
+    chord(CHOIR, tear + 0.1, eyes - tear, [57, 60, 64], 70)
+    swell(CHOIR, tear + 0.1, eyes, 50, 124)
+    climb_ = [45, 47, 48, 50, 52, 53, 55, 57, 59, 60]
+    for k, m in enumerate(climb_):
+        at = rise + (eyes - rise) * k / len(climb_)
+        note(STR, at, (eyes - rise) / len(climb_) * 1.05, m + 12, 70 + 5 * k)
+        note(BRASS, at, (eyes - rise) / len(climb_) * 1.05, m, 60 + 6 * k)
+    roll(TIMP, eyes - 1.4, eyes - 0.04, 45, 60, 126)
+    cut(eyes - 0.02)
+    braam(eyes)
+    chord(STR, eyes + 0.7, turns[3] - eyes - 0.5, [45, 48, 51, 57], 80)
+    swell(STR, eyes + 0.7, turns[3], 100, 40)
+    note(TUBA, eyes + 0.7, turns[3] - eyes - 0.5, 33, 86)
+    cut(turns[3] + 0.2)
+    # ---- two more: a pulse, a blow for each
+    for j in range(int((sp[5] - sp[4]) / 0.3)):
+        note(CELLO, sp[4] + j * 0.3, 0.16, 45 - 12 + (7 if j % 4 == 3 else 0), 84)
+        note(TAIKO, sp[4] + j * 0.3, 0.3, 48, 70 if j % 2 else 92)
+    for at in two:
+        mega(at + 0.3, dur=0.7, big=0.75)
+    cut(turns[4] + 0.05)
+    # ---- the last page: her lullaby in A major, the flute and the celesta together, the strings warm under it
+    chord(STR, sp[5], close - sp[5] + 0.4, [57, 61, 64, 69], 66)
+    swell(STR, sp[5], sp[5] + 1.0, 40, 90)
+    chord(CHOIR, sp[5] + 0.4, close - sp[5], [61, 64, 69], 60)
+    note(BASS, sp[5], close - sp[5] + 0.4, 33, 64)
+    arp(sp[5], close, [57, 61, 64, 69, 73, 76], 56, 0.2)
+    tune(sp[5] + 0.3, MAJ, [0.45, 0.45, 0.7, 0.45, 0.45, 0.7, 0.45, 0.9], 82, until=close)
+    tune(sp[5] + 0.3, [m + 12 for m in MAJ], [0.45, 0.45, 0.7, 0.45, 0.45, 0.7, 0.45, 0.9], 48, ch=CELESTA, until=close)
+    # ---- the book closes: the harp runs down; the end, in A major
+    for k in range(12):
+        note(HARP, close + 0.05 * k, 0.8, [100, 96, 93, 88, 85, 81, 76, 73, 69, 64, 61, 57][k], 70 - 2 * k)
+    cut(e - 0.02)
+    chord(BRASS, e, 1.6, [57, 61, 64], 104)
+    chord(STR, e, fade - e, [69, 73, 76, 81], 90)
+    chord(CHOIR, e, fade - e, [57, 61, 64, 69], 90)
+    note(BASS, e, fade - e, 33, 92)
+    note(TIMP, e, 0.8, 45, 116)
+    drum(e, 49, 104)
+    for k, m in enumerate((88, 85, 81, 76, 81)):
+        note(CELESTA, e + 0.5 + 0.55 * k, 1.4, m, 64)
+    for ch in (STR, CHOIR, BASS, CELESTA):
+        swell(ch, fade, fade + 0.5, 110, 0, 12)
+    cut(fade + 0.55)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -894,6 +1019,7 @@ SCORES = {
     'lofi': (silent, None),
     'tarot': (tarot, {BOX: 6, HORN: 40, CELLO: 45}),
     'lineup': (lineup, {BOX: 0, CELESTA: 11, HORN: 59, BASS: 32, TREM: 44}),
+    'popup': (popup, {BOX: 46, HORN: 73, TROM: 71, HIT: 46}),
 }
 
 if __name__ == '__main__':

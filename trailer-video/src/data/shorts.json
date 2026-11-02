@@ -225,6 +225,24 @@
       "fadeOut": 34.5,
       "lines": [],
       "mix": {"orch": 1.8, "sfx": 0.6}
+    },
+    "popup": {
+      "title": "The pop-up book",
+      "length": 38.0,
+      "open": 2.0,
+      "spreads": [2.9, 7.5, 11.5, 17.9, 25.6, 29.7],
+      "turns": [6.8, 10.8, 17.2, 24.9, 29.0],
+      "taken": 9.7,
+      "guardians": [11.9, 12.9, 13.9, 14.9, 15.9],
+      "tear": 19.9,
+      "rise": 20.8,
+      "eyes": 23.0,
+      "two": [26.2, 27.0],
+      "close": 33.2,
+      "end": 34.0,
+      "fadeOut": 37.5,
+      "lines": "lines-popup.json",
+      "mix": {"orch": 1.5, "sfx": 0.6}
     }
   }
 }

@@ -1,5 +1,6 @@
 import { Pix } from '../src/core/pix';
-import { drawBlob } from '../src/core/art';
+import { drawBlob, drawMoon, makeTree } from '../src/core/art';
+import { C } from '../src/core/palette';
 import * as boss from '../src/forest/bossart';
 import { BOSS_Z } from '../src/act2/arena';
 import { cutout3d } from './gallery3d';
@@ -57,6 +58,22 @@ const SPRITES: Record<string, () => Promise<HTMLCanvasElement> | HTMLCanvasEleme
   father: () => pix(60, 40, (p) => drawBlob(p, 30, 34, { s: 2.3, lookY: -1, shadow: false })),
   collector: async () => hardAlpha(await cutout3d('collector', 190, 190)),
   mash: async () => hardAlpha(await cutout3d('mash', 190, 160)),
+  // the forest's own trees and moon, and X's three eyes as he opens them at the Edge (for the pop-up book)
+  'tree-a': () => trim(makeTree(3, 120)),
+  'tree-b': () => trim(makeTree(11, 150)),
+  'tree-c': () => trim(makeTree(23, 110, true)),
+  moon: () => pix(60, 60, (p) => drawMoon(p, 30, 30, 20)),
+  'x-eyes': () =>
+    pix(130, 34, (p) => {
+      for (const [x, y] of [[22, 18], [65, 14], [108, 18]] as [number, number][]) {
+        p.dither(x, y, 26, 14, C.redDark, 0.35);
+        p.ellipse(x, y, 16, 8, '#d9e4ff');
+        p.ellipse(x, y + 1, 7, 6.5, C.red);
+        p.ellipse(x, y + 1, 2, 5.5, C.ink);
+        p.px(x + 2, y - 1, C.white);
+        p.ring(x, y, 16, 8, 1, C.ink);
+      }
+    }),
   // the 3D bosses at full size, smooth (for the videos)
   'collector-hd': async () => trim(await cutout3d('collector', 900, 900)),
   'mash-hd': async () => trim(await cutout3d('mash', 1000, 840)),

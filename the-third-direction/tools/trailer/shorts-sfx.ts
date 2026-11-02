@@ -237,6 +237,7 @@ class ShortSfx extends Base {
     if (this.id === 'lofi') this.lofi();
     if (this.id === 'tarot') this.tarot();
     if (this.id === 'lineup') this.lineup();
+    if (this.id === 'popup') this.popup();
   }
 
   theFourth() {
@@ -1220,6 +1221,99 @@ class ShortSfx extends Base {
         this.thud(a, 260, 160, 0.04, 0.08);
       });
     this.endCard(C.end, false);
+  }
+
+  /* ------------------------------------------------------------------------------------------ the pop-up book */
+
+  /** a paper cut-out folding up off the page: a quick paper swish, and its little slap as it stands */
+  fwip(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.noise(a, 0.16, 'bandpass', 1400, 5200, 0.07 * g, { q: 1.4, rise: true, pan: this.rnd() * 0.8 - 0.4 });
+      this.noise(a + 0.17, 0.035, 'bandpass', 2400, 1600, 0.12 * g, { q: 1.2, a: 0.001 });
+      this.thud(a + 0.17, 220, 140, 0.05, 0.06 * g);
+    });
+  }
+  /** a page turned: the paper lifting, the air under it, the page laid down */
+  pageTurn(t: number, dur: number) {
+    this.on(t, (a) => {
+      this.noise(a, dur, 'bandpass', 900, 3800, 0.09, { q: 0.9, swell: true, a: dur * 0.6, wet: 0.2 });
+      for (let k = 0; k < 6; k++) this.noise(a + 0.05 + k * 0.07, 0.03, 'bandpass', 2500 + this.rnd() * 2500, 2000, 0.03, { q: 2, a: 0.001 });
+    });
+    this.on(t + dur, (a) => {
+      this.noise(a, 0.08, 'lowpass', 1800, 400, 0.12, { a: 0.002 });
+      this.thud(a, 160, 90, 0.08, 0.1);
+    });
+  }
+
+  popup() {
+    const C = this.C;
+    const sp = C.spreads as number[];
+    const turns = C.turns as number[];
+    const gd = C.guardians as number[];
+    // a quiet room: a lamp's hum, a clock somewhere
+    this.on(0.02, (a) => this.air(a, C.fadeOut, 0.012, 300, 260, 0.6));
+    for (let k = 0; k < 36; k++) this.on(0.3 + k * 1.0, (a) => this.noise(a, 0.012, 'bandpass', 3200, 3000, 0.012, { q: 4, a: 0.0005, pan: 0.5 }));
+    // the cover lifts, and the page stands
+    this.on(C.open, (a) => {
+      this.noise(a, 0.5, 'bandpass', 500, 1500, 0.06, { q: 1, swell: true, a: 0.3 });
+      this.noise(a + 0.1, 0.4, 'bandpass', 2200, 1600, 0.025, { q: 3, swell: true, a: 0.2 });
+    });
+    this.on(sp[0]!, (a) => {
+      this.thud(a, 140, 70, 0.12, 0.18);
+      this.noise(a, 0.1, 'lowpass', 1500, 300, 0.1, { a: 0.002 });
+    });
+    // every cut-out standing up
+    const pops = [sp[0]! + 0.05, sp[0]! + 0.15, sp[0]! + 0.25, sp[0]! + 0.45, sp[0]! + 0.55, sp[0]! + 0.65, sp[1]! + 0.1, sp[1]! + 0.15, sp[1]! + 0.2, sp[2]! + 0.1, ...gd, sp[3]! + 0.1, sp[4]! + 0.1, ...(C.two as number[]), sp[5]! + 0.1, sp[5]! + 0.25, sp[5]! + 0.35];
+    pops.forEach((p) => this.fwip(p, 1));
+    turns.forEach((t) => this.pageTurn(t, 0.7));
+    // the eyes open in the dark; the parents are pulled off the page
+    this.on(sp[1]! + 0.25, (a) => {
+      this.say(a, (v: V) => v.xBreath(), 0.8);
+      this.thud(a, 70, 40, 0.6, 0.25);
+    });
+    this.on(C.taken, (a) => {
+      this.noise(a, 0.7, 'bandpass', 300, 2600, 0.12, { q: 1, rise: true });
+      this.say(a + 0.3, (v: V) => v.xGrowl(0.6), 0.6);
+    });
+    // the guardians, each in its own voice
+    const VOICES: [(v: V) => void, number][] = [
+      [(v) => v.motherWhispers(4), 2.6],
+      [(v) => v.kingBellow(), 0.5],
+      [(v) => v.queenToll(1, 1), 0.45],
+      [(v) => v.wyrmScreech(0.8), 0.4],
+      [(v) => v.mimicLaugh(), 0.8],
+    ];
+    gd.forEach((g, i) => this.on(g + 0.35, (a) => this.say(a, VOICES[i]![0], VOICES[i]![1])));
+    // the page tears
+    this.on(C.tear, (a) => {
+      for (let k = 0; k < 26; k++) {
+        const tt = a + 0.7 * Math.pow(k / 26, 0.8);
+        this.noise(tt, 0.03 + this.rnd() * 0.03, 'bandpass', 900 + this.rnd() * 3500, 1200 + this.rnd() * 2000, 0.07 + 0.05 * (k / 26), { q: 1.5, a: 0.001, pan: this.rnd() * 1.2 - 0.6 });
+      }
+      this.noise(a + 0.6, 0.15, 'lowpass', 2400, 500, 0.12, { a: 0.002 });
+    });
+    // X rises out of the book; his eyes
+    this.on(C.rise, (a) => {
+      this.riser(a, C.eyes - C.rise, 0.1, 100, 2800, [44, 176]);
+      this.noise(a, C.eyes - C.rise, 'lowpass', 120, 500, 0.14, { swell: true, a: (C.eyes - C.rise) * 0.9, wet: 0.4 });
+    });
+    this.on(C.eyes, (a) => {
+      this.impact(a, 1.2);
+      this.say(a + 0.1, (v: V) => v.xGrowl(1), 0.9);
+    });
+    // two more
+    this.on((C.two as number[])[0]! + 0.35, (a) => {
+      this.say(a, (v: V) => v.glassPing(), 2);
+      this.say(a + 0.25, (v: V) => v.collectorChuckle(), 1.4);
+    });
+    this.on((C.two as number[])[1]! + 0.35, (a) => this.say(a, (v: V) => v.mashRoar(), 1.0));
+    // the book closes: the page laid down, the cover clapped shut
+    this.on(C.close, (a) => this.noise(a, 0.7, 'bandpass', 3000, 700, 0.08, { q: 1, swell: true, a: 0.4 }));
+    this.on(C.end, (a) => {
+      this.thud(a, 120, 55, 0.25, 0.4);
+      this.noise(a, 0.1, 'lowpass', 2600, 300, 0.22, { a: 0.002 });
+    });
+    this.on(C.end + 1.2, (a) => this.ping(a, 1760, 0.04));
   }
 
   lullaby() {

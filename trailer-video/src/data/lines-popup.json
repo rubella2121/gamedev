@@ -1,0 +1,10 @@
+[
+  {"id": "b1", "voice": "af_heart", "speeds": [0.88, 0.92, 0.96], "at": 0.5, "style": "close", "gain": 1.0, "text": "This is the story of a very small light.", "caption": "This is the story of a very small light."},
+  {"id": "b2", "voice": "af_heart", "speeds": [0.88, 0.92, 0.96], "at": 3.5, "style": "close", "gain": 1.0, "text": "Once, the whole world was flat.", "caption": "Once, the whole world was flat."},
+  {"id": "b3", "voice": "af_heart", "speeds": [0.86, 0.9, 0.94], "at": 7.8, "style": "close", "gain": 1.0, "text": "Then, one night...|something took them.", "caption": "Then, one night\u2026 something took them."},
+  {"id": "b4", "voice": "af_heart", "speeds": [0.88, 0.92, 0.96], "at": 11.6, "style": "close", "gain": 1.0, "text": "Five guardians stood in the way.", "caption": "Five guardians stood in the way."},
+  {"id": "b5", "voice": "af_heart", "speeds": [0.86, 0.9, 0.94], "at": 18.1, "style": "close", "gain": 1.0, "text": "But past the edge...|the world was never flat.", "caption": "But past the edge\u2026 the world was never flat."},
+  {"id": "b6", "voice": "af_heart", "speeds": [0.82, 0.86, 0.9], "at": 23.4, "style": "breathy", "gain": 1.1, "text": "Don't look up.", "caption": "Don't look up."},
+  {"id": "b7", "voice": "af_heart", "speeds": [0.88, 0.92, 0.96], "at": 25.8, "style": "close", "gain": 1.0, "text": "Two more were waiting.", "caption": "Two more were waiting."},
+  {"id": "b8", "voice": "af_heart", "speeds": [0.84, 0.88, 0.92], "at": 29.9, "style": "close", "gain": 1.0, "text": "The rest of the story...|is yours.", "caption": "The rest of the story\u2026 is yours."}
+]

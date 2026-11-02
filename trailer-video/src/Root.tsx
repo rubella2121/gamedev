@@ -13,6 +13,7 @@ import { Lofi } from "./shorts/Lofi";
 import { Lullaby } from "./shorts/Lullaby";
 import { Oner } from "./shorts/Oner";
 import { Phonk } from "./shorts/Phonk";
+import { Popup } from "./shorts/Popup";
 import { Secrets } from "./shorts/Secrets";
 import { Tarot } from "./shorts/Tarot";
 import { TheFourth } from "./shorts/TheFourth";
@@ -36,6 +37,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["lofi", Lofi],
   ["tarot", Tarot],
   ["lineup", Lineup],
+  ["popup", Popup],
 ];
 
 export const RemotionRoot: React.FC = () => {
