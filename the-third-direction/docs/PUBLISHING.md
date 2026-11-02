@@ -23,7 +23,12 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 5. **Cover image:** `brand/cover.png` (1260 × 1000, the 630 × 500 shape at twice the size). **Banner** (Edit theme → Banner):
    `brand/banner.png`. **Screenshots:** pick 4–5 from `brand/screens/` (plain gameplay) or `brand/screens/framed/`
    (the same shots with a hook line). A good set: the family, the Toll Queen, X, the Collector, the Mash.
-6. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
+6. **Theme** (Edit theme on the game page): **Background image** `brand/itchbg.jpg`, set to **don't repeat**, position
+   **top center**, background colour `#05060c` (so the page below the picture stays the same night). The art sits just
+   outside the page column: the flat world on the left, the 3D world on the right, more bosses at the far edges for wide
+   screens. **Embed background** (Edit game → Embed options): `brand/itchembed.jpg` (1170 × 2532, three times the 390 × 844
+   frame), shown behind the Run game button.
+7. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
 
 ## itch.io: page text
 
@@ -70,6 +75,7 @@ and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so 
 - The sprites come from `tools/sprites.ts`: `npm run gallery && node tools/brand/sprites.mjs` saves them to `tools/brand/sprites/`.
 - `cover.png`: itch.io cover. The flat 2D forest on the left, the 3D world tearing through on the right.
 - `banner.png`: itch.io page banner.
+- `itchbg.jpg` and `itchembed.jpg`: the itch.io page background and embed background (see the upload steps above).
 - `icon.png`: 1080 square mark, for an Instagram profile picture or an app icon.
 - `screens/`: real gameplay screenshots (1080 × 1920) with the HUD, one per boss plus the opening: the bots in `src/dev`
   play each fight and `node tools/screens/shoot.mjs <outDir> [scene ...]` captures bursts to choose from (after

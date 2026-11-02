@@ -302,6 +302,12 @@ body {
 .splash .lscene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .splash .ltop { position: absolute; left: 0; right: 0; top: calc(var(--u) * 8 + env(safe-area-inset-top, 0px)); display: flex; flex-direction: column; align-items: center; pointer-events: none; }
 .splash .logo { margin: 0; display: block; filter: none; }
+/* the night logo (src/crest.ts): one picture with its own glows, so no outline filter; X's eyes glow with the heartbeat */
+.crest { position: relative; filter: none; margin-top: calc(var(--u) * 1); transform-origin: 50% 60%; will-change: transform, opacity; }
+.crest img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; }
+.crest .cglow { position: absolute; pointer-events: none; opacity: 0.25; mix-blend-mode: screen;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 70, 80, 0.75), rgba(255, 70, 80, 0.25) 40%, rgba(255, 70, 80, 0) 70%); }
+.crest.torn img { filter: drop-shadow(3px 0 0 rgba(255, 40, 60, 0.7)) drop-shadow(-3px 0 0 rgba(80, 230, 255, 0.6)); }
 .splash .ltag { margin-top: calc(var(--u) * 2.2); font-size: calc(var(--u) * 3.9); font-style: italic; letter-spacing: 0.3em; padding-left: 0.3em; white-space: pre; color: #e8fffb; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(159, 244, 238, 0.65), 0 2px 0 #000; transition: color 1.2s ease; }
 .splash .ltag span { display: inline-block; opacity: 0; animation: ltype 0.4s ease-out forwards; animation-delay: calc(2.05s + var(--i) * 0.055s); }
 @keyframes ltype { 0% { opacity: 0; transform: translateY(calc(var(--u) * -0.8)); } 100% { opacity: 1; transform: none; } }
