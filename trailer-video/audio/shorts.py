@@ -11,6 +11,8 @@
               the orchestra for X, her lullaby in minor for the family, and in A major on the horns when the blob does not run
   tarot       a dark waltz of her lullaby (a solo violin, plucked strings, a harpsichord), a blow as each card turns, the Tower's
               crash; for the Fool, A major and the lullaby gently; the waltz's last turn on the end card
+  lineup      crime jazz for a booking room (walking bass, ride, piano, a muted trumpet), a bar a suspect; a tape stop and the
+              strings climbing for X, the shout chorus under the stamps, her lullaby on the vibraphone, the big ending
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
@@ -735,6 +737,144 @@ def tarot(P):
     cut(fade + 0.65)
 
 
+# ---------------------------------------------------------------- the lineup
+
+def lineup(P):
+    """crime jazz for a booking room: a walking upright bass, ride cymbal and side-stick, piano comping, a muted trumpet; a
+    bar a suspect. It stops like a tape for X, the strings climb with the camera, the whole orchestra on his eyes; then the
+    band's shout chorus under the stamps, her lullaby on the vibraphone for the wanted poster, and the big ending"""
+    b, slots, x, tilt, eyes, ln, s1, s2, wanted, e, fade = (P['beat'], P['slots'], P['x'], P['xTilt'], P['xEyes'], P['lineup'],
+                                                          P['stamp1'], P['stamp2'], P['wanted'], P['end'], P['fadeOut'])
+    PIANO, VIBES, TRUMPET, UPRIGHT = BOX, CELESTA, HORN, BASS
+    BAR = 4 * b
+    sw = 2 / 3  # the swung eighth: two thirds of the way through the beat
+
+    def ride(t0, t1, k=1.0):
+        t = t0
+        while t < t1 - 1e-6:
+            for bt in range(4):
+                drum(t + bt * b, 51, (86 if bt % 2 == 0 else 74) * k)
+                if bt % 2 == 1:
+                    drum(t + (bt + sw) * b, 51, 60 * k)
+                    drum(t + bt * b, 44, 70 * k)
+                    drum(t + bt * b, 37, 78 * k)
+                drum(t + bt * b, 36, 38 * k)
+            t += BAR
+
+    # chords: (bass root, walking line, piano voicing, trumpet phrase [(beat, midi, beats)])
+    AM = (45, [45, 48, 52, 51], [60, 64, 67, 71], [(0, 76, 1.4), (1 + sw, 77, 0.3), (2, 76, 0.9), (3, 72, 1.0)])
+    DM = (50, [50, 53, 57, 56], [60, 65, 69, 72], [(0, 77, 1.4), (1 + sw, 81, 0.3), (2, 77, 0.9), (3, 74, 1.0)])
+    E7 = (52, [52, 56, 59, 46], [56, 62, 65, 68], [(0, 68, 0.6), (1, 71, 0.6), (2, 74, 0.6), (3, 77, 1.0)])
+    F7 = (53, [53, 57, 60, 51], [57, 63, 67, 70], [(0, 77, 1.4), (1 + sw, 75, 0.3), (2, 72, 0.9), (3, 69, 1.0)])
+    PROG = [AM, DM, E7, AM, F7, E7, AM]
+
+    def bar(t0, ch, k=1.0, trumpet=True, shout=False):
+        root, walk, voicing, phrase = ch
+        for i, m in enumerate(walk):
+            note(UPRIGHT, t0 + i * b, b * 0.92, m - 12 if m > 47 else m, (102 if i == 0 else 92) * k)
+        for at in (0, 1 + sw):
+            chord(PIANO, t0 + at * b, 0.35, voicing, 70 * k)
+        if trumpet:
+            for at, m, ln_ in phrase:
+                note(TRUMPET, t0 + at * b, ln_ * b, m, 96 * k)
+        if shout:
+            for at in (0, 1 + sw, 3):
+                chord(BRASS, t0 + at * b, 0.3 if at else 0.5, [p + 12 for p in voicing[:3]], 112 * k)
+                chord(TROM, t0 + at * b, 0.3 if at else 0.5, voicing[:2], 104 * k)
+
+    # ---- the hook: the dark before the booking; a stamp, a hit
+    chord(TREM, 0.0, slots[0] - 0.05, [45, 46, 52], 70)
+    swell(TREM, 0.0, slots[0], 40, 110)
+    roll(TIMP, 0.0, 2 * b - 0.05, 45, 50, 110)
+    note(UPRIGHT, 0.0, 2 * b, 33, 90)
+    for at, big in ((b, 0.75), (2 * b, 1.0), (3 * b, 0.8)):
+        chord(BRASS, at, 0.35, [57, 60, 64], int(118 * big))
+        chord(TROM, at, 0.35, [45, 52], int(110 * big))
+        note(TUBA, at, 0.4, 33, int(120 * big))
+        drum(at, 49 if big == 1.0 else 57, int(110 * big))
+        note(TIMP, at, 0.4, 45, int(120 * big))
+    drum(3 * b + 2 * b * sw, 38, 90)
+    drum(3 * b + 2 * b * 0.83, 38, 100)
+    # ---- the seven bookings: a bar each, the band warming up as it goes
+    for i, t0 in enumerate(slots):
+        k = min(1.0, 0.8 + 0.04 * i)
+        bar(t0, PROG[i], k, trumpet=True, shout=(i == len(slots) - 1))
+        ride(t0, t0 + BAR, k)
+        # the vibraphone rings with each flash
+        note(VIBES, t0 + b, 0.8, 88, 70)
+        note(VIBES, t0 + 3 * b, 0.8, 84, 64)
+        if i == 0:
+            drum(t0, 49, 104)
+    # ---- X: the band stops like a tape; the strings climb with the camera; his eyes: everything
+    tape_stop(x, [UPRIGHT, PIANO, TRUMPET, VIBES, BRASS, TROM], 0.45)
+    note(TUBA, x + 0.3, eyes - x - 0.3, 33, 90)
+    note(UPRIGHT, x + 0.3, eyes - x - 0.3, 21 + 12, 80)
+    chord(TREM, tilt, eyes - tilt, [45, 46], 60)
+    swell(TREM, tilt, eyes, 40, 120)
+    climb_notes = [57, 58, 60, 61, 63, 64, 66, 67, 69, 70, 72, 73]
+    for k_, m in enumerate(climb_notes):
+        at = tilt + (eyes - tilt) * k_ / len(climb_notes)
+        note(STR, at, (eyes - tilt) / len(climb_notes) * 1.05, m, 70 + 4 * k_)
+        note(CELLO, at, (eyes - tilt) / len(climb_notes) * 1.05, m - 24, 70 + 3 * k_)
+    chord(CHOIR, tilt + 0.5, eyes - tilt - 0.5, [57, 60, 63], 70)
+    swell(CHOIR, tilt + 0.5, eyes, 40, 120)
+    roll(TIMP, eyes - 1.2, eyes - 0.04, 45, 60, 124)
+    cut(eyes - 0.02)
+    braam(eyes)
+    chord(STR, eyes + 0.6, ln - eyes - 0.8, [45, 48, 51, 57], 84)
+    swell(STR, eyes + 0.6, ln - 0.2, 100, 50)
+    chord(CHOIR, eyes + 0.6, ln - eyes - 0.8, [57, 60, 63], 70)
+    note(TUBA, eyes + 0.6, ln - eyes - 0.8, 33, 90)
+    for k_ in range(3):
+        note(TAIKO, eyes + 1.2 + 0.575 * 2 * k_, 0.4, 48, 110 - 10 * k_)
+    drum(ln - 2 * b + b * sw, 38, 96)
+    drum(ln - b, 38, 106)
+    drum(ln - b + b * sw, 38, 116)
+    cut(ln - 0.02)
+    # ---- the lineup: the shout chorus, a hit under each stamp
+    for k_, ch in enumerate([AM, DM]):
+        bar(ln + k_ * BAR, ch, 1.0, trumpet=False, shout=True)
+        ride(ln + k_ * BAR, ln + (k_ + 1) * BAR, 1.0)
+    for st in (s1, s2):
+        mega(st, dur=0.6, big=0.75)
+    bar(ln + 2 * BAR, E7, 0.9, trumpet=True)
+    ride(ln + 2 * BAR, wanted, 0.9)
+    # ---- the wanted poster: bass and ride, quiet; her lullaby on the vibraphone
+    for k_ in range(int(round((e - wanted) / BAR + 0.49))):
+        t0 = wanted + k_ * BAR
+        if t0 >= e - 0.05:
+            break
+        root, walk, voicing, _ = [AM, DM, AM][k_ % 3]
+        for i, m in enumerate(walk):
+            if t0 + i * b < e - 0.05:
+                note(UPRIGHT, t0 + i * b, b * 0.9, m - 12 if m > 47 else m, 80)
+        chord(PIANO, t0, 0.4, voicing, 50)
+        ride(t0, min(e, t0 + BAR), 0.6)
+    tl = wanted + 0.1
+    for m, g in zip(LULL, [0.5, 0.5, 0.75, 0.5, 0.5, 0.75, 0.5, 0.9]):
+        if tl < e - 0.2:
+            note(VIBES, tl, 1.2, m + 12, 76)
+        tl += g
+    cut(e - 0.02)
+    # ---- the end: the big ending, A minor with the sixth and the ninth, and the cymbal; the vibraphone's last notes
+    chord(BRASS, e, 1.8, [69, 72, 76, 78, 83], 120)
+    chord(TROM, e, 1.8, [57, 64], 116)
+    note(TUBA, e, 2.2, 33, 120)
+    note(UPRIGHT, e, fade - e, 33, 100)
+    chord(STR, e, fade - e, [69, 72, 76, 81], 90)
+    chord(CHOIR, e, fade - e, [57, 64, 69], 84)
+    chord(PIANO, e, 1.0, [57, 64, 66, 71, 72], 96)
+    note(TIMP, e, 0.8, 45, 124)
+    drum(e, 49, 120)
+    drum(e, 57, 110)
+    roll(PIANO, e + 0.1, e + 1.2, 81, 70, 30, step=0.05)
+    for i, m in enumerate((76, 72, 69, 64)):
+        note(VIBES, e + 1.6 + 0.55 * i, 1.6, m + 12, 72)
+    for ch in (STR, CHOIR, UPRIGHT, VIBES):
+        swell(ch, fade, fade + 0.5, 110, 0, 12)
+    cut(fade + 0.55)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -753,6 +893,7 @@ SCORES = {
     'oner': (oner, {HIT: 46}),
     'lofi': (silent, None),
     'tarot': (tarot, {BOX: 6, HORN: 40, CELLO: 45}),
+    'lineup': (lineup, {BOX: 0, CELESTA: 11, HORN: 59, BASS: 32, TREM: 44}),
 }
 
 if __name__ == '__main__':

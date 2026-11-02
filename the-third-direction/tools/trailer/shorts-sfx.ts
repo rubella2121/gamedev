@@ -236,6 +236,7 @@ class ShortSfx extends Base {
     if (this.id === 'oner') this.oner();
     if (this.id === 'lofi') this.lofi();
     if (this.id === 'tarot') this.tarot();
+    if (this.id === 'lineup') this.lineup();
   }
 
   theFourth() {
@@ -1116,6 +1117,108 @@ class ShortSfx extends Base {
     this.cardSlide(C.fool + 0.05, 0.05);
     this.cardFlip(C.fool + 0.95, 0.8);
     this.boing(C.fool + 1.25, 0.08);
+    this.endCard(C.end, false);
+  }
+
+  /* ------------------------------------------------------------------------------------------ the lineup */
+
+  /** a police siren's two tones, from t0 to t1, fading in and out */
+  siren(t0: number, t1: number, g = 0.035) {
+    const half = 0.36;
+    for (let k = 0; t0 + k * half < t1; k++) {
+      const t = t0 + k * half;
+      const u = Math.min(1, (t - t0) / 0.4, (t1 - t) / 0.6);
+      this.on(t, (a) => {
+        this.osc(a, k % 2 ? 770 : 960, half * 1.05, g * u, 'square', { a: 0.02, lp: 2200, q: 0.8, wet: 0.45, pan: Math.sin(k * 0.7) * 0.5 });
+        this.osc(a, (k % 2 ? 770 : 960) * 1.005, half * 1.05, g * u * 0.6, 'sawtooth', { a: 0.02, lp: 1600, wet: 0.45 });
+      });
+    }
+  }
+  /** a booking camera: the shutter, and the flash's whine charging back up */
+  shutter(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.noise(a, 0.012, 'highpass', 4000, 4000, 0.22 * g, { a: 0.0005 });
+      this.noise(a + 0.045, 0.02, 'bandpass', 2600, 2200, 0.16 * g, { q: 2, a: 0.0008 });
+      this.thud(a, 180, 120, 0.05, 0.08 * g);
+      this.osc(a + 0.12, 2200, 0.7, 0.012 * g, 'sine', { to: 7600, a: 0.3, swell: true });
+    });
+  }
+  /** a rubber stamp slammed on a desk */
+  stampHit(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.thud(a, 120, 52, 0.28, 0.7 * g);
+      this.noise(a, 0.08, 'lowpass', 2400, 300, 0.4 * g, { a: 0.002, wet: 0.3 });
+      this.noise(a + 0.01, 0.16, 'bandpass', 900, 500, 0.16 * g, { q: 1.2, a: 0.003 });
+    });
+  }
+
+  lineup() {
+    const C = this.C;
+    const b = C.beat as number;
+    const slots = C.slots as number[];
+    // the hook: sirens, the radio, a stamp
+    this.siren(0.0, slots[0]! + 0.1, 0.04);
+    this.on(0.05, (a) => this.noise(a, 0.4, 'bandpass', 1800, 1400, 0.06, { q: 2, a: 0.01 }));
+    this.on(0.1, (a) => this.osc(a, 1320, 0.09, 0.05, 'sine', { a: 0.003 }));
+    this.on(0.22, (a) => this.osc(a, 1320, 0.09, 0.05, 'sine', { a: 0.003 }));
+    this.on(b, (a) => this.thud(a, 140, 60, 0.3, 0.5));
+    this.stampHit(2 * b, 1.1);
+    this.on(3 * b, (a) => this.thud(a, 140, 60, 0.25, 0.4));
+    // each booking: in on a whip, it lands; a flash; the letters go up; the evidence pinned; the profile, flashed
+    const VOICES: [(v: V) => void, number][] = [
+      [(v) => v.motherWhispers(5), 3],
+      [(v) => v.kingBellow(), 0.55],
+      [(v) => v.queenToll(1, 1), 0.5],
+      [(v) => v.wyrmScreech(0.9), 0.45],
+      [(v) => v.mimicLaugh(), 0.9],
+      [(v) => v.collectorChuckle(), 1.6],
+      [(v) => v.mashRoar(), 1.1],
+    ];
+    slots.forEach((t0, i) => {
+      this.whoosh(t0 + 0.08, 0.1, 0.2);
+      this.on(t0 + 0.2, (a) => this.thud(a, 110, 50, 0.22, 0.45));
+      this.shutter(t0 + b, 1);
+      this.typing(t0 + b + 0.05, 22, 60, 0.035);
+      this.on(t0 + 2 * b, (a) => {
+        this.noise(a, 0.05, 'bandpass', 1200, 700, 0.2, { q: 1, a: 0.002 });
+        this.noise(a + 0.02, 0.02, 'highpass', 5000, 5000, 0.08, { a: 0.0008 });
+      });
+      this.on(t0 + 1.25 * b, (a) => this.say(a, VOICES[i]![0], VOICES[i]![1]));
+      this.on(t0 + 3 * b - 0.05, (a) => this.noise(a, 0.1, 'bandpass', 700, 1400, 0.05, { q: 1, rise: true }));
+      this.shutter(t0 + 3 * b, 0.85);
+    });
+    // X: the power dips; the lights stutter; the camera tilts up and up; his eyes
+    this.whoosh(C.x + 0.08, 0.1, 0.2);
+    this.on(C.x, (a) => {
+      this.osc(a, 120, 0.9, 0.06, 'sawtooth', { to: 50, a: 0.01, lp: 600 });
+      for (let k = 0; k < 9; k++) this.noise(a + 0.05 + k * 0.08 * (1 + 0.4 * Math.sin(k)), 0.02, 'bandpass', 3000, 2600, 0.07, { q: 3, a: 0.001 });
+    });
+    this.on(C.xTilt, (a) => {
+      this.riser(a, C.xEyes - C.xTilt, 0.12, 120, 3800, [55, 220]);
+      this.noise(a, C.xEyes - C.xTilt, 'lowpass', 200, 600, 0.12, { swell: true, a: (C.xEyes - C.xTilt) * 0.9, wet: 0.4 });
+    });
+    this.on(C.xEyes, (a) => {
+      this.impact(a, 1.3);
+      this.say(a + 0.1, (v: V) => v.xGrowl(1), 0.9);
+    });
+    this.shutter(C.xFlash, 1.1);
+    this.on(C.xSay, (a) => this.say(a, (v: V) => v.xSpeak("Don't look up."), 1.1));
+    // all eight: the sirens again, far off; the stamps
+    this.siren(C.lineup + 0.2, C.wanted - 0.2, 0.012);
+    this.stampHit(C.stamp1, 1.2);
+    this.stampHit(C.stamp2, 1.1);
+    this.on(C.stamp2 + 0.4, (a) => this.noise(a, 0.25, 'bandpass', 2600, 4200, 0.04, { q: 2, a: 0.01 }));
+    // the wanted poster: it drops, swings, and is pinned at four corners
+    this.on(C.wanted + 0.05, (a) => this.noise(a, 0.35, 'bandpass', 600, 2200, 0.12, { rise: true, q: 1 }));
+    this.on(C.wanted + 0.4, (a) => {
+      this.noise(a, 0.12, 'lowpass', 1800, 300, 0.25, { a: 0.002 });
+      this.thud(a, 160, 80, 0.12, 0.2);
+    });
+    for (let k = 0; k < 4; k++)
+      this.on(C.wanted + 0.45 + 0.12 * k, (a) => {
+        this.noise(a, 0.015, 'highpass', 3500, 3500, 0.14, { a: 0.0005 });
+        this.thud(a, 260, 160, 0.04, 0.08);
+      });
     this.endCard(C.end, false);
   }
 

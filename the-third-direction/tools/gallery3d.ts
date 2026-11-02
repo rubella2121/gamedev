@@ -596,26 +596,32 @@ void hash2;
 void BOSS_Z;
 
 /**
- * A 3D boss alone on a transparent background (for the brand art, tools/sprites.ts): only the model and its lights,
- * no arena, no sky, no fog. Drawn small, so it reads as pixel art once scaled up with hard edges.
+ * A 3D boss alone on a transparent background (for the brand art and the videos, tools/sprites.ts): only the model and its
+ * lights, no arena, no sky, no fog. `cam` frames it (by default the boss from the fight's side of the arena).
  */
-export async function cutout3d(name: 'collector' | 'mash', w: number, h: number): Promise<HTMLCanvasElement> {
+export async function cutout3d(name: 'collector' | 'mash' | 'x', w: number, h: number, cam?: Cam): Promise<HTMLCanvasElement> {
   await ready3d();
   const { arena: a } = ctx3d();
-  reset({ x: false, wall: false });
-  showLab(name);
-  const L = labs[name]!.api;
+  reset({ x: name === 'x', wall: false });
+  showLab(name === 'x' ? null : name);
   if (name === 'collector') {
+    const L = labs[name]!.api;
     L.pose?.('lid', 0);
     L.pose?.('eye', 0);
     L.pose?.('pins', 1);
     L.pose?.('look', 1);
     runLab('collector', 1.2);
-  } else {
-    L.pose?.('bloom', 0);
+  } else if (name === 'mash') {
+    labs[name]!.api.pose?.('bloom', 0);
     runLab('mash', 1.2);
+  } else {
+    a.setRise(1);
+    a.update(0, 3.2);
+    xm!.lookAt(0, 3, 14);
+    xm!.setWide(1);
+    xm!.update(0.016, 3.4);
   }
-  const mine = new Set(labs[name]!.objs.map((x) => x.o));
+  const mine = new Set<THREE.Object3D>(name === 'x' ? [xm!.root] : labs[name]!.objs.map((x) => x.o));
   // everything but the model and the lights: the arena, the sky dome and its stars
   const hidden = [
     ...a.world.children.filter((o) => o.visible && !mine.has(o)),
@@ -627,15 +633,16 @@ export async function cutout3d(name: 'collector' | 'mash', w: number, h: number)
   a.scene.background = null;
   a.scene.fog = null;
   const cv = document.createElement('canvas');
-  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: false, alpha: true, preserveDrawingBuffer: true });
+  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true });
   r.setPixelRatio(1);
   r.setClearColor(0x000000, 0);
   r.setSize(w, h, false);
   const c = a.camera;
+  const view = cam ?? { pos: [0, 11, 26], look: [0, name === 'collector' ? 8 : 9, BOSS_Z], fov: name === 'collector' ? 44 : 34 };
   c.aspect = w / h;
-  c.fov = name === 'collector' ? 44 : 34;
-  c.position.set(0, 11, 26);
-  c.lookAt(0, name === 'collector' ? 8 : 9, BOSS_Z);
+  c.fov = view.fov ?? 55;
+  c.position.set(...view.pos);
+  c.lookAt(...view.look);
   c.updateProjectionMatrix();
   r.render(a.scene, c);
   const out = document.createElement('canvas');
@@ -646,5 +653,6 @@ export async function cutout3d(name: 'collector' | 'mash', w: number, h: number)
   hidden.forEach((o) => (o.visible = true));
   a.scene.background = bg;
   a.scene.fog = fog;
+  if (name === 'x') xm!.root.visible = false;
   return out;
 }

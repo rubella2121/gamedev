@@ -74,7 +74,8 @@ and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so 
   as their real 3D models drawn small to match), and the blob family waits in front, looking up. Only soft glows behind,
   so it sits on any colour. `logo-on-night.jpg` is the same on the game's night colour, for posting.
 - `wordmark.png`: the title alone with the mark (the blob at the corner of three axes, the third going up), for small sizes.
-- The sprites come from `tools/sprites.ts`: `npm run gallery && node tools/brand/sprites.mjs` saves them to `tools/brand/sprites/`.
+- The sprites come from `tools/sprites.ts`: `npm run gallery && node tools/brand/sprites.mjs` saves them to `tools/brand/sprites/`
+  (the `-hd` ones are the 3D bosses at full size with smooth edges, X among them, for the videos).
 - `cover.png`: itch.io cover. The flat 2D forest on the left, the 3D world tearing through on the right.
 - `banner.png`: itch.io page banner.
 - `itchbg.jpg` and `itchembed.jpg`: the itch.io page background and embed background (see the upload steps above).

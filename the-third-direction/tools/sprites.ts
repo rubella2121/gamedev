@@ -1,6 +1,7 @@
 import { Pix } from '../src/core/pix';
 import { drawBlob } from '../src/core/art';
 import * as boss from '../src/forest/bossart';
+import { BOSS_Z } from '../src/act2/arena';
 import { cutout3d } from './gallery3d';
 
 /**
@@ -56,6 +57,10 @@ const SPRITES: Record<string, () => Promise<HTMLCanvasElement> | HTMLCanvasEleme
   father: () => pix(60, 40, (p) => drawBlob(p, 30, 34, { s: 2.3, lookY: -1, shadow: false })),
   collector: async () => hardAlpha(await cutout3d('collector', 190, 190)),
   mash: async () => hardAlpha(await cutout3d('mash', 190, 160)),
+  // the 3D bosses at full size, smooth (for the videos)
+  'collector-hd': async () => trim(await cutout3d('collector', 900, 900)),
+  'mash-hd': async () => trim(await cutout3d('mash', 1000, 840)),
+  'x-hd': async () => trim(await cutout3d('x', 900, 1500, { pos: [0, 9, 22], look: [0, 9, BOSS_Z], fov: 52 })),
 };
 
 (window as unknown as { __sprites: unknown }).__sprites = {
