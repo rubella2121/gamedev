@@ -15,7 +15,7 @@ PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
 STEPS=${*:-voices music clips render promos promo-render shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup popup"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 
@@ -26,6 +26,9 @@ if has voices; then
   # the wildlife film's narrator: its own sheet of lines, placed against its own length
   $PY audio/lines.py "$KOKORO" "$WORK/takes-wild" src/data/lines-wild.json
   $PY audio/voices.py "$WORK/takes-wild" "$WORK/voice" src/data/lines-wild.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['wild']['length'])")"
+  # the pop-up book: the Mother reads it
+  $PY audio/lines.py "$KOKORO" "$WORK/takes-popup" src/data/lines-popup.json
+  $PY audio/voices.py "$WORK/takes-popup" "$WORK/voice" src/data/lines-popup.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['popup']['length'])")"
 fi
 if has music; then
   echo "== orchestra"
@@ -44,6 +47,15 @@ if has clips; then
     cp "../the-third-direction/tools/brand/sprites/$n.png" public/lineup/
   done
   cp ../the-third-direction/brand/logo.png public/lineup/logo.png
+  # the pop-up book: its printed pages (frames of the 2D and 3D game) and its cut-outs
+  mkdir -p public/popup
+  for n in blob mother father gloommother king queen wyrm mimic collector-hd mash-hd x-hd tree-a tree-b tree-c x-eyes; do
+    cp "../the-third-direction/tools/brand/sprites/$n.png" public/popup/
+  done
+  cp ../the-third-direction/brand/logo.png public/popup/logo.png
+  page() { ffmpeg -v error -y -ss "$2" -i "public/clips/$1.mp4" -frames:v 1 ${4:+-vf "$4"} -q:v 3 "public/popup/$3.jpg"; }
+  page g-thicket 1.0 page1; page edge 2.0 page2; page g-gloom 0.5 page3; page edge-stars 1.0 page4
+  page wild-moon 1.0 page5; page t-family 1.25 page6; page g-gloom 0.5 ground "crop=1080:420:0:700"
 fi
 if has render; then
   echo "== render"
