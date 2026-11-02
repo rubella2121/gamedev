@@ -26,8 +26,8 @@ Three.js is bundled in, so the zip runs on its own with no outside downloads.
 6. **Theme** (Edit theme on the game page): **Background image** `brand/itchbg.jpg`, set to **don't repeat**, position
    **top center**, background colour `#05060c` (so the page below the picture stays the same night). The art sits just
    outside the page column: the flat world on the left, the 3D world on the right, more bosses at the far edges for wide
-   screens. **Embed background** (Edit game → Embed options): `brand/itchembed.jpg` (1170 × 2532, three times the 390 × 844
-   frame), shown behind the Run game button.
+   screens. **Embed background** (Edit game → Embed options): `brand/itchembed.jpg` (780 × 1688, twice the 390 × 844
+   frame; itch.io takes images up to 3840 × 2160), shown behind the Run game button.
 7. Save as **Draft**, play it on a phone and a computer, then set it to **Public**.
 
 ## itch.io: page text
