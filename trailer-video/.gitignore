@@ -11,6 +11,8 @@ public/clips
 public/stills
 public/grain
 public/audio
+# copied by scripts/make.sh (clips) from ../the-third-direction/tools/brand/sprites and brand/logo.png
+public/lineup
 
 # Python bytecode (audio/kit.py is imported)
 __pycache__

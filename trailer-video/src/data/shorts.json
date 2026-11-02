@@ -205,6 +205,26 @@
       "fadeOut": 27.6,
       "lines": [],
       "mix": {"orch": 1.6, "sfx": 0.55}
+    },
+    "lineup": {
+      "title": "The lineup",
+      "length": 35.0,
+      "beat": 0.575,
+      "hook": 0.0,
+      "slots": [2.3, 4.6, 6.9, 9.2, 11.5, 13.8, 16.1],
+      "x": 18.4,
+      "xTilt": 19.1,
+      "xEyes": 21.85,
+      "xFlash": 22.425,
+      "xSay": 22.625,
+      "lineup": 24.15,
+      "stamp1": 25.3,
+      "stamp2": 26.45,
+      "wanted": 27.6,
+      "end": 31.05,
+      "fadeOut": 34.5,
+      "lines": [],
+      "mix": {"orch": 1.8, "sfx": 0.6}
     }
   }
 }

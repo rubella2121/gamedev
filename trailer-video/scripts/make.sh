@@ -15,7 +15,7 @@ PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
 STEPS=${*:-voices music clips render promos promo-render shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 
@@ -38,6 +38,12 @@ fi
 if has clips; then
   echo "== clips"
   python3 scripts/clips.py "${FOOT:?FOOT: the captured footage}"
+  # the lineup's suspects: the game's sprites and 3D cutouts (../the-third-direction: npm run gallery && node tools/brand/sprites.mjs)
+  mkdir -p public/lineup
+  for n in gloommother king queen wyrm mimic blob mother father collector-hd mash-hd x-hd; do
+    cp "../the-third-direction/tools/brand/sprites/$n.png" public/lineup/
+  done
+  cp ../the-third-direction/brand/logo.png public/lineup/logo.png
 fi
 if has render; then
   echo "== render"
