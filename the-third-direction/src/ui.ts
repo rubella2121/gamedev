@@ -67,6 +67,33 @@ const GESTURES = [
   { pic: '<path d="M19 8a8 8 0 1 0 1 6" fill="none" stroke="#9ff4ee" stroke-width="1.8"/><path d="M20 3v5h-5" fill="none" stroke="#9ff4ee" stroke-width="1.8"/>', name: 'Camera', text: 'In 3D: drag on the right side, or Q / E. R recentres.' },
 ];
 
+/** What the tutorial's panel shows (src/forest/tutorial.ts). */
+export interface TutPanel {
+  step: number;
+  steps: number;
+  title: string;
+  text: string;
+  /** a picture from GESTURES, or -1 a heart, -2 the arrow */
+  icon: number;
+  /** "1 / 3", or '' */
+  count: string;
+  /** the step is done: a tick for a moment */
+  done: boolean;
+  /** the label of the panel's button on a card to read (Next / Let's go) */
+  next?: string;
+  /** show where to drag (touch, the first step) */
+  joy: boolean;
+  /** the orbs and the dash bar are being taught: they glow */
+  orbs: boolean;
+  /** the hearts are being taught: they glow */
+  hearts: boolean;
+}
+
+const TUT_ICON: Record<number, string> = {
+  [-1]: '<path d="M7 4h4v2H7zM13 4h4v2h-4zM5 6h14v6H5zM7 12h10v2H7zM9 14h6v2H9zM11 16h2v2h-2z" fill="#e02b3a"/>',
+  [-2]: '<path d="M4 12h12M12 6l6 6-6 6" fill="none" stroke="#9ff4ee" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+
 /** All DOM overlays: captions, hints, hearts, title card, start and end screens. */
 /** Who is speaking: the blob's own thoughts, its family's voices, or the world itself (see src/core/story.ts). */
 export type Tone = 'thought' | 'warm' | 'world';
@@ -103,6 +130,9 @@ export class UI {
   private moonEl: HTMLElement;
   private bossEl: HTMLElement;
   private lightEl: HTMLElement;
+  private tutEl: HTMLElement | null = null;
+  private tutJoy: HTMLElement | null = null;
+  private tutKey = '';
   private speechEl: HTMLElement;
   private bossTitleEl: HTMLElement;
   private speechTimer = 0;
@@ -553,6 +583,76 @@ export class UI {
     this.stage.appendChild(card);
   }
 
+  /**
+   * The tutorial's panel at the top: which step of how many, what to do (with its gesture), how far along, a tick when it is
+   * done, Next on a card, and Skip. While the first step is on a phone, a ghost of the joystick shows where to drag.
+   */
+  tutorial(s: TutPanel | null, onSkip?: () => void, onNext?: () => void) {
+    if (!s) {
+      const old = this.tutEl;
+      if (old) {
+        old.classList.add('gone');
+        window.setTimeout(() => old.remove(), 450);
+      }
+      this.tutEl = null;
+      this.tutJoy?.remove();
+      this.tutJoy = null;
+      this.tutKey = '';
+      this.heartsEl.classList.remove('tutglow');
+      this.lightEl.classList.remove('tutglow');
+      this.dashEl.classList.remove('tutglow');
+      return;
+    }
+    if (!this.tutEl) {
+      const el = document.createElement('div');
+      el.className = 'tut';
+      el.innerHTML =
+        '<div class="tpips"></div><div class="tmain"><svg class="tico" viewBox="0 0 24 24"></svg><div class="ttx"><b></b><span></span></div></div>' +
+        '<div class="tfoot"><i class="tcount"></i><i class="tcheck">&#10003; Nice!</i><button class="tnext"></button><button class="tskip">Skip tutorial</button></div>';
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.stage.append(el);
+      this.tutEl = el;
+    }
+    const el = this.tutEl;
+    (el.querySelector('.tskip') as HTMLButtonElement).onclick = (e) => {
+      e.stopPropagation();
+      onSkip?.();
+    };
+    const nx = el.querySelector('.tnext') as HTMLButtonElement;
+    nx.onclick = (e) => {
+      e.stopPropagation();
+      onNext?.();
+    };
+    nx.style.display = s.next && !s.done ? '' : 'none';
+    nx.textContent = s.next ?? '';
+    const key = `${s.step}`;
+    if (key !== this.tutKey) {
+      this.tutKey = key;
+      el.querySelector('.tpips')!.innerHTML = Array.from({ length: s.steps }, (_, i) => `<i class="${i < s.step ? 'past' : i === s.step ? 'now' : ''}"></i>`).join('');
+      el.querySelector('.tico')!.innerHTML = s.icon >= 0 ? GESTURES[s.icon]!.pic : TUT_ICON[s.icon] ?? '';
+      el.querySelector('.ttx b')!.textContent = s.title;
+      el.querySelector('.ttx span')!.textContent = s.text;
+      el.classList.remove('enter');
+      void el.offsetWidth;
+      el.classList.add('enter');
+    }
+    el.querySelector('.tcount')!.textContent = s.count;
+    el.classList.toggle('done', s.done);
+    if (s.joy && !this.tutJoy) {
+      const j = document.createElement('div');
+      j.className = 'tutjoy';
+      j.innerHTML = '<i></i><b>drag</b>';
+      this.stage.append(j);
+      this.tutJoy = j;
+    } else if (!s.joy && this.tutJoy) {
+      this.tutJoy.remove();
+      this.tutJoy = null;
+    }
+    this.heartsEl.classList.toggle('tutglow', s.hearts);
+    this.lightEl.classList.toggle('tutglow', s.orbs);
+    this.dashEl.classList.toggle('tutglow', s.orbs);
+  }
+
   hint(text: string | null) {
     if (this.mute && text !== null) return;
     if (text === null) {
@@ -990,7 +1090,7 @@ export class UI {
       ['Rootmaw Thicket', "Stand by a wall of roots until X's shadow falls on it, then run: his stomp breaks the wall. Wait by the Rootheart until it opens, and tap."],
       ['Echo Marsh', 'Bells only see movement: freeze in the reeds when one looks your way. The reed gate opens when the bell rings. Reach the bell tower.'],
       ['Bone Wastes', 'Stand beside the bone barricade: the skitterbones pounce straight into it and break it. Then tap the Bone Nest.'],
-      ['Moth Meadow', 'Hold the button by the cage to free the moth. Stand still beside each sleeping flower while the moth hovers. Then walk into the Lightseed.'],
+      ['Moth Meadow', 'Follow the arrow to the caged moth and hold the button beside it to free it. Then wake the five sleeping flowers (pale buds with z\'s drifting up): stand still inside the ring around each one until it opens. The arrow points to the next one. Then walk into the Lightseed.'],
     ];
     const bosses3d = [
       ['How every 3D boss works', 'None of them can be hurt all the time. Each one has a moment when it is stuck or open: survive its attacks, wait for that moment, then hit the part that glows. Tap to strike up close, or drag the button to aim a lance from afar. Double-tap to dash: you cannot be hurt while you dash. Red marks on the floor show where the next blow lands.'],

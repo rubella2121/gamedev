@@ -94,6 +94,43 @@ export function drawBlossom(p: Pix, x: number, y: number, t: number, lit: number
   }
 }
 
+/**
+ * A sleeping flower (Moth Meadow): a closed bud of pale moonlight that sways as it breathes, with z's drifting up from it, so it
+ * can be told from the Mimic Blooms around it at a glance. `wake` (0..1) is how far along waking it is: the bud brightens.
+ */
+export function drawSleepyBud(p: Pix, x: number, y: number, t: number, seed: number, wake: number) {
+  const breathe = 0.5 + 0.5 * Math.sin(t * 1.6 + seed * 1.3);
+  const sway = Math.sin(t * 1.1 + seed) * 0.8;
+  p.dither(x, y - 8, 13 + 3 * breathe + 8 * wake, 9 + 2 * breathe + 5 * wake, C.moon, 0.2 + 0.08 * breathe + 0.15 * wake);
+  p.ellipse(x, y + 1, 5, 2, '#05090f');
+  p.rect(x, y - 7, 1, 7, '#2f6a5a');
+  p.px(x - 1, y - 4, '#2f6a5a');
+  p.px(x + 1, y - 3, '#2f6a5a');
+  // the closed bud: a teardrop of pale petals, its tip leaning with the sway
+  const bx = x + sway;
+  const body = wake > 0.05 ? C.moonCore : '#9cc4dc';
+  p.ellipse(bx, y - 9, 3.4, 3.6, '#5d86a6');
+  p.ellipse(bx, y - 9.4, 2.8, 3.1, body);
+  p.rect(bx - 1, y - 14, 2, 2, body);
+  p.px(bx + sway * 0.6, y - 15, body);
+  p.px(bx - 1, y - 10, '#ffffff');
+  // z z z: three letters drifting up and to the side, growing and fading
+  for (let k = 0; k < 3; k++) {
+    const ph = (t * 0.45 + k / 3 + seed * 0.17) % 1;
+    const s = ph < 0.4 ? 4 : 5;
+    const zx = Math.round(x + 4 + ph * 8 + Math.sin(t * 2 + k) * 1);
+    const zy = Math.round(y - 16 - ph * 16);
+    p.alpha(Math.min(1, ph * 5) * (1 - ph) * 0.95);
+    // (a dark edge under each stroke, so the letter reads on the bright glow and on the dark grass alike)
+    for (const [ox, oy, col] of [[1, 1, '#06121c'], [0, 0, '#f4faff']] as const) {
+      p.rect(zx + ox, zy + oy, s, 1, col);
+      for (let i = 1; i < s - 1; i++) p.px(zx + ox + s - 1 - i, zy + oy + i, col);
+      p.rect(zx + ox, zy + oy + s - 1, s, 1, col);
+    }
+    p.alpha(1);
+  }
+}
+
 /** A heart-flower: the reward of a secret. */
 export function drawHeartBloom(p: Pix, x: number, y: number, t: number) {
   const b = 1 + 0.1 * Math.sin(t * 4);

@@ -15,6 +15,7 @@ import { arenaDef, CLIFF_Y, HUB, Land, PLATEAU, START, WORLD_H, WORLD_W, ZONES, 
 import { drawBeacon } from './art3';
 import type { Drawable, Features, Hub, Lance, Nova, Patch, Player, Rect, Slam, Zone } from './types';
 import { makeZones } from './zones';
+import { Tutorial } from './tutorial';
 
 type Mode = 'opening' | 'play' | 'consume' | 'edge' | 'crack' | 'done' | 'xfight' | 'pinned' | 'rift' | 'dive';
 
@@ -34,6 +35,10 @@ const NOVA_T = 1.3;
 const LANCE_SPEED = 300;
 const NOVA_R = 84;
 const BRIEF_KEY = 'tt.briefed';
+/** the tutorial has been played (or skipped) once on this device: it is not offered again */
+const TUT_KEY = 'tt.tutorial';
+/** in the tutorial the blob stays in the clearing where it woke (this far from where the tutorial began) */
+const TUT_FENCE = 175;
 const PULSE_HINT = 'tap to pulse light';
 const DASH_T = 0.17;
 const DASH_SPEED = 235;
@@ -144,6 +149,11 @@ export class Forest implements Hub {
   /** the trailer is filming: no zone rings or compass arrow over the picture */
   cinema = false;
   onBoom: (() => void) | null = null;
+  /** the tutorial ended after `secs` seconds (the run clock does not count them) */
+  onTutorial: ((secs: number, skipped: boolean) => void) | null = null;
+  /** the tutorial, while it is on (right after the opening, the first time someone plays) */
+  private tut: Tutorial | null = null;
+  private tutAt = { x: 0, y: 0 };
   onSection: ((name: string) => void) | null = null;
   onTeaserFlash: (() => void) | null = null;
 
@@ -515,6 +525,9 @@ export class Forest implements Hub {
     this.ui.falls(null);
     this.mood.reset();
     this.mothGuide = null;
+    this.tut = null;
+    this.ui.tutorial(null);
+    this.input.highlight(false);
     this.zones.forEach((z) => z.reset());
     this.player = this.newPlayer();
     this.player.maxHearts = this.maxHearts;
@@ -562,21 +575,53 @@ export class Forest implements Hub {
     pl.hearts = pl.maxHearts;
     this.ui.hearts(pl.hearts, pl.maxHearts);
     this.onSection?.('run');
-    // the first time anyone plays, say what the game is about before anything else (test builds skip it)
+    // the first time anyone plays, say what the game is about before anything else, then teach the controls (test builds skip both)
     const q = new URLSearchParams(location.search);
-    const show = this.briefNext && !this.previewMode && !this.cinema && !storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'));
+    const real = this.briefNext && !this.previewMode && !this.cinema;
+    const show = real && !storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'));
+    const teach = (real && !storageGet(TUT_KEY) && !q.has('debug')) || (this.briefNext && q.has('tutorial'));
     this.briefNext = false;
+    const go = () => {
+      this.input.setMoveEnabled(true);
+      if (teach) this.startTutorial();
+      else this.startMoveHint();
+    };
     if (show) {
       this.input.setMoveEnabled(false);
       this.ui.briefing(() => {
         storageSet(BRIEF_KEY, '1');
-        this.input.setMoveEnabled(true);
-        this.startMoveHint();
+        go();
       });
-    } else {
-      this.input.setMoveEnabled(true);
-      this.startMoveHint();
-    }
+    } else go();
+  }
+
+  /** the tutorial, in the clearing where the blob woke */
+  private startTutorial() {
+    this.tutAt = { x: this.player.x, y: this.player.y - 70 };
+    this.tut = new Tutorial(this, (skipped) => this.endTutorial(skipped));
+  }
+
+  private endTutorial(skipped: boolean) {
+    const tut = this.tut;
+    if (!tut) return;
+    storageSet(TUT_KEY, '1');
+    this.tut = null;
+    this.input.highlight(false);
+    this.player.light = 0;
+    this.ui.light(null);
+    this.lances = [];
+    this.novas = [];
+    this.ghosts = [];
+    this.aimShot = null;
+    this.chargeStage = 0;
+    this.input.setCharge(0, 0);
+    if (skipped && tut.i === 0) this.startMoveHint();
+    this.onTutorial?.(tut.t, skipped);
+  }
+
+  /** in the tutorial the blob keeps to the clearing (anywhere, otherwise) */
+  private inTraining(x: number, y: number) {
+    return !this.tut || Math.hypot(x - this.tutAt.x, y - this.tutAt.y) < TUT_FENCE;
   }
 
   /** "drag to move" stays until the blob has actually gone somewhere (or a long while has passed). */
@@ -999,6 +1044,7 @@ export class Forest implements Hub {
     this.audio.pulse();
     burst(this.parts, pl.x, pl.y - 6, 10, [C.blobLight, C.moonCore, C.mossGlow], 46, 0, 0);
     for (const z of this.zones) z.onPulse?.(pl.x, pl.y, PULSE_R);
+    this.tut?.onPulse(pl.x, pl.y - 4);
   }
 
   /** `aimed`: thrown the way the button was dragged (only the lightest help with the aim: it goes where you meant it to) */
@@ -1008,7 +1054,7 @@ export class Forest implements Hub {
     let ay = aimed ? this.input.aimY : this.aim.y;
     if (aimed) this.aim = { x: ax, y: ay };
     // aim assist: if the guardian is within about 40 degrees of where you face (10 when you aimed), the lance goes for it
-    const tg = this.fightZone?.lanceTarget?.();
+    const tg = this.fightZone?.lanceTarget?.() ?? this.tut?.lanceTarget() ?? null;
     if (tg) {
       const dx = tg.x - pl.x;
       const dy = tg.y - (pl.y - 8);
@@ -1037,6 +1083,7 @@ export class Forest implements Hub {
     this.shake(7);
     burst(this.parts, pl.x, pl.y - 6, 30, [C.moonCore, C.blobLight, '#ff9ad0', '#ffe9a0'], 90, 0, 0);
     this.fightZone?.onNova?.(n);
+    this.tut?.onNova();
   }
 
   private dash() {
@@ -1059,6 +1106,7 @@ export class Forest implements Hub {
     pl.invuln = Math.max(pl.invuln, DASH_T + 0.05);
     this.dashPool.use();
     this.audio.dash();
+    this.tut?.onDash();
   }
 
   /** In a guardian's arena the one button does four things: tap pulses, double-tap dashes, hold-and-release throws a Lance, hold longer with a full meter bursts a Nova. */
@@ -1124,6 +1172,7 @@ export class Forest implements Hub {
       l.y += l.vy * dt;
       let dead = l.t >= l.life || !this.land.isWalk(l.x, l.y);
       if (!dead && this.fightZone?.onLance?.(l)) dead = true;
+      if (!dead && this.tut?.hitLance(l)) dead = true;
       if (dead) {
         burst(this.parts, l.x, l.y, 6, [C.moonCore, '#ffe9a0'], 30, 0, 0);
         this.lances.splice(i, 1);
@@ -1180,10 +1229,10 @@ export class Forest implements Hub {
     // (stuck inside something, however it happened: step out to the nearest free spot)
     if (!this.canStand(pl.x, pl.y)) this.unstick();
     const nx = pl.x + pl.vx * dt;
-    if (this.canStand(nx, pl.y)) pl.x = nx;
+    if (this.canStand(nx, pl.y) && this.inTraining(nx, pl.y)) pl.x = nx;
     else pl.vx = 0;
     const ny = pl.y + pl.vy * dt;
-    if (this.canStand(pl.x, ny)) pl.y = ny;
+    if (this.canStand(pl.x, ny) && this.inTraining(pl.x, ny)) pl.y = ny;
     else pl.vy = 0;
     const sp = Math.hypot(pl.vx, pl.vy);
     if (sp > 8) {
@@ -1218,15 +1267,20 @@ export class Forest implements Hub {
     }
     this.updateSlams(dt);
 
-    // --- the action button: pulse, unless a zone wants "hold"
-    if (!fighting || this.holdReq) this.aimShot = null;
+    // --- the action button: pulse, unless a zone wants "hold" (in the tutorial: what the step teaches)
+    const tb = this.tut ? this.tut.button : null;
+    const powers = fighting || tb === 'powers';
+    if (!powers || this.holdReq) this.aimShot = null;
     if (this.holdReq) input.setAction(this.holdReq);
-    else if (fighting) this.updateAttacks(dt);
+    else if (powers) this.updateAttacks(dt);
+    else if (tb === 'none') input.setAction(null);
+    else if (tb === 'next') input.setAction('next');
     else {
       input.setAction('pulse');
       if (input.actionPressed && pl.pulseCd <= 0 && pl.dead <= 0) this.castPulse();
     }
-    if (fighting) this.updateFightFx(dt);
+    if (fighting || this.tut) this.updateFightFx(dt);
+    this.tut?.update(dt);
 
     // --- camera
     let tx = clamp(pl.x - W / 2 + pl.lookX * 24, 0, WORLD_W - W);
@@ -1269,7 +1323,8 @@ export class Forest implements Hub {
       this.moveHintFrom = null;
       if (this.ui.hintIs('drag to move') || this.ui.hintIs('wasd / arrows to move')) this.ui.hint(null);
     }
-    this.ui.goal(!this.arena && !this.cinema && this.mode === 'play' && !this.trans ? this.goalText() : null);
+    const tutGoal = !this.tut || this.tut.step.id === 'way';
+    this.ui.goal(!this.arena && !this.cinema && this.mode === 'play' && !this.trans && tutGoal ? this.goalText() : null);
 
     // --- the story: the crossroads, and a name card the first time you step into each zone
     if (!this.arena && !this.cinema && this.mode === 'play') {
@@ -2179,7 +2234,7 @@ export class Forest implements Hub {
 
   /** Lances in flight, novas, the afterimages of a dash. */
   private drawFightFx() {
-    if (!this.arena && this.mode !== 'xfight') return;
+    if (!this.arena && this.mode !== 'xfight' && !this.tut) return;
     const p = this.p;
     const t = this.time;
     for (const g of this.ghosts) {
@@ -2306,6 +2361,7 @@ export class Forest implements Hub {
       });
     }
     for (const z of this.zones) z.push?.(list);
+    this.tut?.push(list);
     if (!opening) {
       for (const z of ZONES) {
         const bx = z.entry.x;
@@ -2378,7 +2434,7 @@ export class Forest implements Hub {
     if (opening && ot < 1.6) this.drawDark(1 - ot / 1.6);
     if ((this.mode === 'play' || this.mode === 'consume') && !this.arena && !this.cinema) {
       this.drawHud();
-      if (this.mode === 'play') this.drawCompass();
+      if (this.mode === 'play' && (!this.tut || this.tut.step.id === 'way')) this.drawCompass();
     }
     if (this.mode === 'crack') this.drawCracks();
     if (this.glitchT > 0) this.applyGlitch();
@@ -2419,11 +2475,19 @@ export class Forest implements Hub {
     }
   }
 
-  /** A small arrow beside the blob that points at the nearest zone you have not finished (or at the Edge), while you are out on the roads. */
+  /**
+   * A small arrow beside the blob that points at the nearest zone you have not finished (or at the Edge), while you are out on the
+   * roads; inside a zone that has a next thing to find (`guide`: the meadow's cage and sleeping flowers), at that.
+   */
   private drawCompass() {
     const pl = this.player;
     if (pl.dead > 0 || this.glitchT > 0) return;
-    for (const z of ZONES) if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) < 1.0) return;
+    for (const z of ZONES) {
+      if (Math.hypot((pl.x - z.x) / z.rx, (pl.y - z.y) / z.ry) >= 1.0) continue;
+      const g = this.zones.find((q) => q.id === z.id)?.guide?.();
+      if (g && Math.hypot(g.x - pl.x, g.y - pl.y) > 40) this.drawArrow(Math.atan2(g.y - pl.y, g.x - pl.x), ZONE_COLOR[z.id]);
+      return;
+    }
     let tx = PLATEAU.x;
     let ty = 560;
     let col: string = C.red;
@@ -2440,7 +2504,12 @@ export class Forest implements Hub {
     }
     const d = Math.hypot(tx - pl.x, ty - pl.y);
     if (d < 130) return;
-    const a = Math.atan2(ty - pl.y, tx - pl.x);
+    this.drawArrow(Math.atan2(ty - pl.y, tx - pl.x), col);
+  }
+
+  /** the compass arrow itself: beside the blob, pointing `a` */
+  private drawArrow(a: number, col: string) {
+    const pl = this.player;
     const p = this.p;
     const sx = pl.x - this.camX + Math.cos(a) * 34;
     const sy = pl.y - this.camY - 8 + Math.sin(a) * 26;
