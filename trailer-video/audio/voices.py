@@ -11,7 +11,8 @@ place the voice is heard in, made with a convolution room:
   whisper  the thing above, at the very end: only breath, and a second, darker throat under it
   doc      a wildlife film's narrator in his booth: close, dry, warm, a breath of room
   radio    mission control on a headset: the top and bottom of the voice cut, squeezed, a little crushed
-  noir     a hardboiled narrator: a little lower than himself, close and warm, a small smoky room
+  noir     a hardboiled narrator, close and warm in a small smoky room, a little of his own breath and rasp under the voice;
+           noir-hush is the same man half whispering, noir-fear the same with his breath shaking
 For every line the slowest take that still ends before the next line is used.
 """
 import glob
@@ -70,9 +71,12 @@ STYLE = {
     'doc': ('highpass=f=70,equalizer=f=140:t=q:w=1:g=2,' + EQ, ROOM, 0.05),
     'radio': ('highpass=f=330,lowpass=f=3300,equalizer=f=1500:t=q:w=1:g=5,acompressor=threshold=-30dB:ratio=6:attack=3:release=80:makeup=4,'
               'acrusher=bits=11:mix=0.22', ROOM, 0.02),
-    'noir': ('asetrate=44880,aresample=48000,atempo=1.0695,highpass=f=60,equalizer=f=130:t=q:w=1:g=3,' + EQ + ',equalizer=f=2600:t=q:w=1.4:g=1.2',
-             ROOM, 0.07),
+    'noir': ('highpass=f=65,equalizer=f=140:t=q:w=1:g=2.5,' + EQ + ',equalizer=f=4500:t=q:w=1.5:g=1.2', ROOM, 0.06),
+    'noir-hush': ('highpass=f=80,equalizer=f=160:t=q:w=1:g=2,' + EQ + ',equalizer=f=6000:t=q:w=1.5:g=2', ROOM, 0.05),
+    'noir-fear': ('highpass=f=80,equalizer=f=160:t=q:w=1:g=2,' + EQ + ',vibrato=f=5.6:d=0.035,tremolo=f=6.2:d=0.18', ROOM, 0.05),
 }
+# how much of a line is the take's own breath (its vocal tract driven by air instead of a voice): a whisper's worth, or a rasp's
+BREATH = {'breathy': 0.38, 'noir': 0.14, 'noir-hush': 0.45, 'noir-fear': 0.3}
 
 
 def lpc_breath(x, sr, order=24):
@@ -121,8 +125,9 @@ for i, ln in enumerate(starts):
     pick = next((p for p in takes if sf.info(p).duration <= room_for), takes[-1])
     chain, ir, wet = STYLE[ln['style']]
     x, sr = sf.read(pick)
-    if ln['style'] == 'breathy':
-        x = 0.62 * x / (np.abs(x).max() + 1e-9) + 0.38 * lpc_breath(x, sr)
+    if ln['style'] in BREATH:
+        b = BREATH[ln['style']]
+        x = (1 - b) * x / (np.abs(x).max() + 1e-9) + b * lpc_breath(x, sr)
     elif ln['style'] == 'whisper':
         b = lpc_breath(x, sr)
         d = int(0.018 * sr)
