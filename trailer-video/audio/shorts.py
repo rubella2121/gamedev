@@ -18,6 +18,8 @@
   launch      launch day: a blow for NOW and the whole orchestra for CRAZYGAMES; a clock under the poll and a stab a step
               higher for each GO, the dark for X's; the count, the engines, her lullaby in A major on the horns at liftoff, the
               sky breaking, space on the whole orchestra, the portal, white, the end in A major
+  noir        a noir comic: a slow blues in A minor (her lullaby on a tenor sax, brushes, an upright bass, piano and vibraphone),
+              a stalking riff and a stab for each guardian, the orchestra in colour when the page tears, X's dread, the blues again
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
@@ -1201,6 +1203,201 @@ def launch(P):
     cut(fade + 0.55)
 
 
+def noir(P):
+    """a noir comic's score: a slow blues in A minor for the rain (a tenor sax with her lullaby, brushes, an upright bass,
+    a piano comping, the vibraphone), a sting for the sticker; a stalking riff and a stab for each guardian; the floor dropping
+    out as he looks up; the whole orchestra in colour when the page tears; the bottom of the orchestra for X; the blues again,
+    resolved, for the back cover"""
+    stk, thunder, flip, panels, turn, gd, up, crack, tear, color, splash, found, e, fade = (
+        P['sticker'], P['thunder'], P['flip'], P['panels'], P['turn'], P['guardians'], P['up'], P['crack'], P['tear'],
+        P['color'], P['splash'], P['found'], P['end'], P['fadeOut'])
+    SAX, VIB, PNO = BOX, CELESTA, HIT
+    MUTE = HORN
+    def kit(t, prog):
+        msg(t, mido.Message('program_change', channel=DRUMS, program=prog), 0)
+    kit(0, 40)
+    beat = 0.75
+    sw = beat * 2 / 3
+
+    def ride(t0, t1, v=58):
+        t = t0
+        k = 0
+        while t < t1 - 0.05:
+            drum(t, 51, v + (8 if k % 2 == 0 else 0))
+            if k % 2 == 1 and t + sw < t1:
+                drum(t + sw, 51, v - 14)
+            if k % 2 == 1:
+                drum(t, 38, v - 6)
+            if k % 4 == 0:
+                drum(t, 40, v - 18)
+            t += beat
+            k += 1
+
+    def sax(t, notes, v=78, until=99):
+        for m, d in notes:
+            if t >= until - 0.1:
+                break
+            if m:
+                note(SAX, t, min(d, until - t) * 0.96, m, v)
+            t += d
+        return t
+
+    # ---- the cover: a low A on the piano, the vibraphone's chord in the rain; a stab for the sticker; the sax's first words
+    chord(PNO, 0.0, 2.5, [33, 45], 96)
+    chord(VIB, 0.05, 3.0, [57, 60, 64, 71], 62)
+    note(BASS, 0.0, 2.4, 33, 90)
+    chord(PAD, 0.0, flip, [45, 52, 57], 48)
+    chord(BRASS, stk, 0.22, [57, 60, 64, 67], 112)
+    chord(TROM, stk, 0.22, [45, 52], 108)
+    chord(MUTE, stk, 0.22, [69, 72], 100)
+    drum(stk, 49, 96)
+    note(TIMP, stk, 0.5, 45, 104)
+    sax(2.3, [(64, 0.25), (67, 0.25), (69, 0.5), (72, 0.9)], 74)
+    for i in range(9):
+        bend(SAX, 3.3 + 0.03 * i, -60 * i)
+    bend(SAX, 3.62, 0)
+    roll(TIMP, thunder[0], thunder[0] + 0.9, 33 + 12, 70, 30)
+    chord(PNO, thunder[0], 1.0, [21, 28, 33], 90)
+    # the cover opens: the vibraphone falls down the page
+    for k, m in enumerate((84, 79, 76, 72, 69, 64)):
+        note(VIB, flip + 0.06 * k, 0.6, m, 56)
+    # ---- page one: a slow blues; her lullaby on the tenor sax
+    t0 = panels[0]
+    bars = [([45, 48, 52, 55], [60, 64, 67, 71]), ([50, 53, 57, 60], [65, 69, 72, 76]), ([52, 56, 59, 62], [56, 62, 67, 72])]
+    ride(t0, turn)
+    for b, (walk, voic) in enumerate(bars):
+        bt = t0 + b * 4 * beat
+        if bt >= turn - 0.1:
+            break
+        for k, m in enumerate(walk):
+            tt = bt + k * beat
+            if tt < turn - 0.1:
+                note(BASS, tt, beat * 0.9, m - 12, 92)
+        for k in (0, 2):
+            tt = bt + k * beat + (sw if k else 0)
+            if tt < turn - 0.1:
+                chord(PNO, tt, beat * 0.9, voic, 58)
+        chord(VIB, bt, min(4 * beat, turn - bt) * 0.95, voic, 40)
+    sax(t0 + 0.4, [(57, 0.75), (60, 0.75), (64, 1.3), (62, 0.75), (60, 0.75), (57, 1.3), (55, 0.75), (52, 1.5), (0, 0.3),
+                   (57, 0.5), (60, 0.5), (64, 0.5), (63, 1.4)], 70, until=turn)
+    # the eyes: the muted trumpet growls, the bass drops out from under it
+    chord(MUTE, panels[3] + 0.25, 1.0, [63, 69], 92)
+    note(BASS, panels[3] + 0.25, 1.2, 28, 104)
+    chord(PNO, panels[3] + 0.25, 1.0, [40, 46, 51], 90)
+    # the page turns: the piano runs down
+    for k, m in enumerate((81, 76, 72, 69, 64, 60, 57, 52)):
+        note(PNO, turn - 0.1 + 0.045 * k, 0.4, m, 70)
+    cut(turn + 0.38)
+    # ---- page two: the stalking riff (bass and piano in octaves), a stab for each guardian, climbing
+    riff = [45, 45, 48, 45, 51, 50, 48, 47]
+    r0 = turn + 0.4
+    q = 0.25
+    k = 0
+    while r0 + k * q < up - 0.05:
+        tt = r0 + k * q
+        m = riff[k % 8]
+        lift = 3 * sum(1 for g in gd if tt >= g)
+        vv = 76 + 2 * lift
+        note(BASS, tt, q * 0.8, m - 12, vv + 10)
+        note(PNO, tt, q * 0.7, m - 12, vv - 6)
+        if k % 2 == 0:
+            drum(tt, 51, 54 + lift)
+        if k % 4 == 2:
+            drum(tt, 38, 66 + lift)
+        k += 1
+    chord(TREM, r0, up - r0, [57, 63], 40)
+    swell(TREM, r0, up, 30, 110)
+    for i, g in enumerate(gd):
+        r = [45, 46, 48, 50, 51][i]
+        ch = [r + 12, r + 15, r + 19, r + 23]
+        chord(BRASS, g, 0.4, ch, 104 + 4 * i)
+        chord(TROM, g, 0.4, [r, r + 7], 104 + 4 * i)
+        chord(MUTE, g, 0.4, [r + 24, r + 27], 96)
+        note(TIMP, g, 0.6, 45, 110 + 3 * i)
+        note(TAIKO, g, 0.4, 48, 96 + 4 * i)
+        drum(g, 49, 86 + 6 * i)
+    chord(STR, gd[-1], up - gd[-1], [57, 60, 63, 68], 70)
+    swell(STR, gd[-1], up, 70, 110)
+    cut(up - 0.02)
+    # ---- he looks up: the floor drops out; one high note, the sax held, the vibraphone shaking; then the crack, rising
+    chord(TREM, up, tear - up, [88, 93], 46)
+    swell(TREM, up, crack, 30, 80)
+    note(SAX, up + 1.4, crack - up - 1.3, 69, 70)
+    swell(SAX, up + 1.4, crack, 60, 100)
+    for k in range(int((crack - up) / 0.15)):
+        note(VIB, up + k * 0.15, 0.3, [76, 81][k % 2], 34 + k)
+    note(BASS, up, crack - up, 33, 70)
+    n = 12
+    for k in range(n):
+        at = crack + (tear - crack - 0.05) * k / n
+        note(STR, at, (tear - crack) / n * 1.05, 64 + k, 80 + 3 * k)
+        note(BRASS, at, (tear - crack) / n * 1.05, 40 + k, 70 + 4 * k)
+    chord(CHOIR, crack, tear - crack, [57, 60, 64], 70)
+    swell(CHOIR, crack, tear, 50, 127)
+    roll(TIMP, crack, tear - 0.03, 45, 50, 127)
+    cut(tear - 0.02)
+    # ---- the page tears: colour; the whole orchestra, the battle's drums, her lullaby on the brass
+    kit(tear - 0.01, 0)
+    mega(tear, root=29, dur=1.4)
+    drum(tear, 52, 124)
+    chord(CELESTA, tear, 1.2, [89, 93, 96, 100], 100)
+    t = tear + 0.4
+    for root, ch in ((29, [53, 57, 60]), (31, [55, 59, 62]), (33, [57, 60, 64])):
+        if t >= splash - 0.1:
+            break
+        groove(t, min(t + BAR, splash - 0.02), root, ch, k=1.0, heavy=True)
+        chord(STR, t, min(BAR, splash - t), [p + 12 for p in ch], 96)
+        t += BAR
+    t = tear + 0.4
+    for m, d in zip(LULL, [0.4, 0.4, 0.8, 0.4, 0.4, 0.8, 0.4, 0.8]):
+        if t >= splash - 0.1:
+            break
+        dd = min(d * 0.97, splash - 0.05 - t)
+        note(BRASS, t, dd, m - 12, 120)
+        note(CHOIR, t, dd, m, 108)
+        note(TROM, t, dd, m - 24, 104)
+        t += d
+    cut(splash - 0.02)
+    # ---- X: the blast, then the bottom of the orchestra under him, a heart on the timpani, nothing resolving
+    kit(splash - 0.01, 40)
+    braam(splash)
+    chord(TREM, splash + 0.4, found - splash - 0.4, [45, 46, 52, 53], 60)
+    swell(TREM, splash + 0.4, found, 40, 110)
+    chord(CHOIR, splash + 0.5, found - splash - 0.5, [45, 48, 51], 70)
+    swell(CHOIR, splash + 0.5, found, 50, 112)
+    note(TUBA, splash + 0.5, found - splash - 0.5, 33, 80)
+    for k in range(int((found - splash - 0.8) / 0.8)):
+        tt = splash + 0.8 + k * 0.8
+        note(TIMP, tt, 0.3, 33 + 12, 80 + 4 * k)
+        note(TIMP, tt + 0.22, 0.3, 33 + 12, 60 + 4 * k)
+    chord(MUTE, splash + 1.6, 1.6, [57, 58], 70)
+    for i in range(12):
+        bend(MUTE, splash + 1.6 + 0.12 * i, -40 * i)
+    bend(MUTE, splash + 3.3, 0)
+    roll(TIMP, found - 0.6, found - 0.03, 45, 70, 124)
+    cut(found - 0.02)
+    # FOUND YOU: the blow
+    mega(found, dur=0.8)
+    drum(found, 52, 124)
+    chord(PNO, found, 0.7, [21, 28, 33, 39], 120)
+    cut(e - 0.02)
+    # ---- the back cover: the blues again, slower, resolved; a stab for the sticker; the sax's last phrase; the last chord
+    ride(e, fade - 0.6, 50)
+    for k in range(int((fade - e) / beat)):
+        note(BASS, e + k * beat, beat * 0.9, [33, 40, 43, 40][k % 4], 84)
+    chord(PNO, e, 2.2, [45, 57, 60, 64, 71], 74)
+    chord(VIB, e, fade - e, [60, 64, 67, 71], 46)
+    chord(BRASS, e + 0.4, 0.25, [57, 60, 64, 67], 104)
+    chord(MUTE, e + 0.4, 0.25, [69, 72], 96)
+    drum(e + 0.4, 49, 90)
+    tt = sax(e + 1.0, [(64, 0.5), (62, 0.5), (60, 0.75), (57, 1.6)], 74)
+    chord(PNO, tt - 1.6, fade - tt + 1.6, [45, 52, 59, 60, 64], 70)
+    sax(tt + 0.2, [(64, 0.4), (67, 0.4), (69, 1.8)], 68, until=fade)
+    for ch in (SAX, PNO, VIB, BASS, DRUMS):
+        swell(ch, fade, fade + 0.5, 110, 0, 12)
+    cut(fade + 0.55)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -1222,6 +1419,7 @@ SCORES = {
     'lineup': (lineup, {BOX: 0, CELESTA: 11, HORN: 59, BASS: 32, TREM: 44}),
     'popup': (popup, {BOX: 46, HORN: 73, TROM: 71, HIT: 46}),
     'launch': (launch, {HIT: 55}),
+    'noir': (noir, {BOX: 66, CELESTA: 11, HIT: 0, BASS: 32, HORN: 59}),
 }
 
 if __name__ == '__main__':

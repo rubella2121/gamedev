@@ -15,6 +15,7 @@ public/audio
 public/lineup
 public/popup
 public/launch
+public/noir
 
 # Python bytecode (audio/kit.py is imported)
 __pycache__

@@ -11,6 +11,7 @@ place the voice is heard in, made with a convolution room:
   whisper  the thing above, at the very end: only breath, and a second, darker throat under it
   doc      a wildlife film's narrator in his booth: close, dry, warm, a breath of room
   radio    mission control on a headset: the top and bottom of the voice cut, squeezed, a little crushed
+  noir     a hardboiled narrator: a little lower than himself, close and warm, a small smoky room
 For every line the slowest take that still ends before the next line is used.
 """
 import glob
@@ -69,6 +70,8 @@ STYLE = {
     'doc': ('highpass=f=70,equalizer=f=140:t=q:w=1:g=2,' + EQ, ROOM, 0.05),
     'radio': ('highpass=f=330,lowpass=f=3300,equalizer=f=1500:t=q:w=1:g=5,acompressor=threshold=-30dB:ratio=6:attack=3:release=80:makeup=4,'
               'acrusher=bits=11:mix=0.22', ROOM, 0.02),
+    'noir': ('asetrate=44880,aresample=48000,atempo=1.0695,highpass=f=60,equalizer=f=130:t=q:w=1:g=3,' + EQ + ',equalizer=f=2600:t=q:w=1.4:g=1.2',
+             ROOM, 0.07),
 }
 
 

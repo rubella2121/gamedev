@@ -262,6 +262,26 @@
       "fadeOut": 33.5,
       "lines": "lines-launch.json",
       "mix": {"orch": 1.2, "sfx": 0.7}
+    },
+    "noir": {
+      "title": "Noir",
+      "length": 37.5,
+      "sticker": 0.5,
+      "thunder": [2.6, 31.5],
+      "flip": 3.2,
+      "panels": [3.7, 4.5, 8.6, 10.5],
+      "turn": 11.9,
+      "guardians": [13.3, 14.3, 15.3, 16.3, 17.3],
+      "up": 20.5,
+      "crack": 22.4,
+      "tear": 23.3,
+      "color": [23.4, 24.6],
+      "splash": 27.0,
+      "found": 31.5,
+      "end": 33.0,
+      "fadeOut": 37.0,
+      "lines": "lines-noir.json",
+      "mix": {"orch": 1.5, "sfx": 0.85}
     }
   }
 }

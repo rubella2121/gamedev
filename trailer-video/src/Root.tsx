@@ -11,6 +11,7 @@ import { Live } from "./shorts/Live";
 import { Launch } from "./shorts/Launch";
 import { Lineup } from "./shorts/Lineup";
 import { Lofi } from "./shorts/Lofi";
+import { Noir } from "./shorts/Noir";
 import { Lullaby } from "./shorts/Lullaby";
 import { Oner } from "./shorts/Oner";
 import { Phonk } from "./shorts/Phonk";
@@ -40,6 +41,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["lineup", Lineup],
   ["popup", Popup],
   ["launch", Launch],
+  ["noir", Noir],
 ];
 
 export const RemotionRoot: React.FC = () => {

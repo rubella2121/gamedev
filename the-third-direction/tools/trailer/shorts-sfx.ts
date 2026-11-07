@@ -12,6 +12,8 @@
  *   node tools/trailer/score-render.mjs <{"id": ..., "length": ...}.json> <out.wav> tools/trailer/shorts-sfx.ts __renderShortSfx
  */
 import LAUNCH_VOICE from '../../../trailer-video/src/data/lines-launch.voice.json';
+import NOIR_LINES from '../../../trailer-video/src/data/lines-noir.json';
+import NOIR_VOICE from '../../../trailer-video/src/data/lines-noir.voice.json';
 import shorts from '../../../trailer-video/src/data/shorts.json';
 import { Base, renderScore } from './sfx';
 
@@ -240,6 +242,7 @@ class ShortSfx extends Base {
     if (this.id === 'lineup') this.lineup();
     if (this.id === 'popup') this.popup();
     if (this.id === 'launch') this.launch();
+    if (this.id === 'noir') this.noir();
   }
 
   theFourth() {
@@ -1458,6 +1461,143 @@ class ShortSfx extends Base {
       this.ping(a, 1760, 0.05);
       this.thud(a, 160, 90, 0.08, 0.12);
     });
+  }
+
+  /** rain: a hiss and a patter, from t0 to t1 (overlapping swells, so it holds steady) */
+  rainBed(t0: number, t1: number, g = 1) {
+    for (let t = t0 - 1.5; t < t1 - 0.5; t += 1.5) {
+      this.on(Math.max(0.01, t), (a) => {
+        this.noise(a, 3, 'bandpass', 4300, 3900, 0.05 * g, { q: 0.35, swell: true, a: 1.5, wet: 0.3 });
+        this.noise(a, 3, 'lowpass', 900, 800, 0.035 * g, { swell: true, a: 1.5 });
+      });
+    }
+    for (let k = 0; ; k++) {
+      const t = t0 + 0.2 + k * 0.06 + 0.03 * Math.sin(k * 1.7);
+      if (t > t1 - 0.2) break;
+      this.on(t, (a) => this.noise(a, 0.012, 'bandpass', 2400 + this.rnd() * 5200, 3000, 0.03 * g * (0.3 + this.rnd()), { q: 5, a: 0.0005, pan: this.rnd() * 1.6 - 0.8, wet: 0.2 }));
+    }
+  }
+  /** thunder: the crack, then the roll going away */
+  thunder(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.noise(a, 0.18, 'highpass', 2500, 1200, 0.25 * g, { a: 0.002 });
+      this.thud(a, 70, 32, 1.2, 0.45 * g);
+      this.noise(a + 0.05, 3.2, 'lowpass', 420, 70, 0.4 * g, { a: 0.1, wet: 0.5 });
+      this.noise(a + 0.4, 2.2, 'lowpass', 260, 90, 0.25 * g, { swell: true, a: 0.6, wet: 0.6 });
+    });
+  }
+  /** paper torn: fibres giving way one after another over `dur` */
+  rip(t: number, dur: number, g = 1) {
+    this.on(t, (a) => {
+      const n = Math.round(dur * 40);
+      for (let k = 0; k < n; k++) {
+        const tt = a + dur * Math.pow(k / n, 0.85);
+        this.noise(tt, 0.03 + this.rnd() * 0.03, 'bandpass', 900 + this.rnd() * 3600, 1300 + this.rnd() * 2000, (0.06 + 0.06 * (k / n)) * g, { q: 1.5, a: 0.001, pan: this.rnd() * 1.2 - 0.6 });
+      }
+      this.noise(a + dur - 0.05, 0.15, 'lowpass', 2400, 500, 0.12 * g, { a: 0.002 });
+    });
+  }
+  /** a comic panel slammed down on the page */
+  slam(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.thud(a, 130, 55, 0.22, 0.55 * g);
+      this.noise(a, 0.07, 'lowpass', 2600, 400, 0.3 * g, { a: 0.002, wet: 0.25 });
+      this.noise(a, 0.03, 'highpass', 3500, 3500, 0.12 * g, { a: 0.001 });
+    });
+  }
+
+  noir() {
+    const C = this.C;
+    const panels = C.panels as number[];
+    const gd = C.guardians as number[];
+    const color = C.color as number[];
+    // the rain: all night, except in the colour behind the page
+    this.rainBed(0, C.tear as number, 1);
+    this.rainBed(C.splash as number, C.fadeOut as number, 1);
+    this.rainBed(C.up as number, C.tear as number, 0.9);
+    (C.thunder as number[]).forEach((t, i) => this.thunder(t, i ? 1.1 : 0.9));
+    // a neon sign buzzing somewhere on the cover
+    this.on(0.05, (a) => this.osc(a, 120, C.flip, 0.012, 'sawtooth', { a: 0.4, swell: true, lp: 1400, wet: 0.3, pan: 0.5 }));
+    // the sticker, slapped on
+    this.on(C.sticker, (a) => {
+      this.noise(a, 0.06, 'bandpass', 1300, 700, 0.3, { q: 0.9, a: 0.001 });
+      this.thud(a, 150, 70, 0.14, 0.4);
+      this.noise(a + 0.05, 0.25, 'bandpass', 3000, 2000, 0.05, { q: 2, a: 0.01 });
+    });
+    this.whoosh(C.sticker, 0.1, 0.18);
+    // the narrator's captions, typed as he speaks; the caption of the first panel
+    for (const v of NOIR_VOICE) {
+      if (v.id === 'n11') continue;
+      const ln = NOIR_LINES.find((l) => l.id === v.id)!;
+      const cps = Math.max(24, ln.caption.length / (v.dur * 0.8));
+      this.typing(v.at - 0.05, Math.min(ln.caption.length, Math.floor(cps * (v.dur + 0.4))), cps, 0.035);
+    }
+    this.typing(panels[0]! + 0.1, 35, 26, 0.03);
+    // the cover opens; the camera moves from panel to panel; the page turns
+    this.pageTurn(C.flip, 0.5);
+    panels.slice(1).forEach((p) => this.whoosh(p + 0.2, 0.05, 0.3));
+    this.pageTurn(C.turn, 0.5);
+    // the photograph torn in two; the eyes open in the dark
+    this.rip(panels[2]! + 0.7, 0.3, 1.2);
+    this.on(panels[3]! + 0.25, (a) => {
+      this.thud(a, 60, 34, 0.9, 0.35);
+      this.say(a + 0.05, (v: V) => v.xBreath(), 0.9);
+    });
+    // the guardians, slammed down one by one, each in its own voice
+    const VOICES: [(v: V) => void, number][] = [
+      [(v) => v.motherWhispers(3), 2.2],
+      [(v) => v.kingBellow(), 0.5],
+      [(v) => v.queenToll(1, 1), 0.45],
+      [(v) => v.wyrmScreech(0.8), 0.4],
+      [(v) => v.mimicLaugh(), 0.8],
+    ];
+    gd.forEach((g, i) => {
+      this.whoosh(g, 0.09, 0.18);
+      this.slam(g, 0.9);
+      this.on(g + 0.08, (a) => this.say(a, VOICES[i]![0], VOICES[i]![1]));
+    });
+    // he looks up: the rain in his face, his heart; the crack of light; the page tears open
+    const up = C.up as number;
+    const crack = C.crack as number;
+    const tear = C.tear as number;
+    this.on(up + 0.1, (a) => this.noise(a, 1.8, 'bandpass', 600, 5000, 0.08, { rise: true, q: 0.8, wet: 0.3 }));
+    [0, 0.85, 1.6].forEach((d) => this.on(up + 0.3 + d, (a) => this.heart(a, 0.35)));
+    this.on(crack, (a) => {
+      this.noise(a, 0.5, 'bandpass', 2000, 6000, 0.08, { q: 3, a: 0.01 });
+      for (let k = 0; k < 10; k++) this.osc(a + k * 0.05, 300 + 900 * this.rnd(), 0.04, 0.02, 'square', { a: 0.002, lp: 4000, pan: this.rnd() - 0.5 });
+      this.riser(a, tear - crack, 0.15, 300, 9000, [110, 880]);
+    });
+    this.rip(tear - 0.15, 0.55, 1.6);
+    this.on(tear, (a) => {
+      this.impact(a, 1.3);
+      this.ring(a + 0.3, 3950, 1.6, 0.025);
+    });
+    this.whoosh(tear + 0.1, 0.16, 0.4);
+    // the colour: the panels fly in, the Collector's machinery, the Mash
+    this.whoosh(color[0]!, 0.12, 0.35);
+    this.on(color[0]! + 0.2, (a) => {
+      this.clang(a, 0.4);
+      this.say(a + 0.15, (v: V) => v.collectorChuckle(), 1.2);
+    });
+    this.whoosh(color[1]!, 0.12, 0.35);
+    this.on(color[1]! + 0.2, (a) => this.say(a, (v: V) => v.mashRoar(), 0.8));
+    // X: the blow, his growl; FOUND YOU, in his own voice
+    const sp = C.splash as number;
+    this.on(sp, (a) => {
+      this.impact(a, 1.2);
+      this.say(a + 0.3, (v: V) => v.xGrowl(0.8), 0.7);
+    });
+    this.on(C.found as number, (a) => {
+      this.impact(a, 1.1);
+      this.say(a + 0.05, (v: V) => v.xSpeak('Found you.'), 1.1);
+    });
+    // the back cover: the sticker again; a bell on the typewriter
+    this.on(C.end + 0.4, (a) => {
+      this.noise(a, 0.06, 'bandpass', 1300, 700, 0.3, { q: 0.9, a: 0.001 });
+      this.thud(a, 150, 70, 0.14, 0.45);
+    });
+    this.whoosh(C.end + 0.4, 0.1, 0.18);
+    this.on(C.end + 1.3, (a) => this.ping(a, 2093, 0.035));
   }
 
   lullaby() {
