@@ -15,13 +15,6 @@ let ready = false;
 let pauseGame: (() => void) | null = null;
 let resumeGame: (() => void) | null = null;
 
-// the game is loading from the moment this module runs
-try {
-  sdk()?.game?.loadingStart?.();
-} catch {
-  /* no SDK */
-}
-
 export function onLifecycle(onPause: () => void, onResume: () => void) {
   // (the game pauses itself when the page is hidden; these are kept for the ads)
   pauseGame = onPause;
@@ -42,11 +35,22 @@ export async function storageInit(): Promise<void> {
       console.warn('[sdk] CrazyGames SDK did not start', e);
     }
   }
+  if (!ready) return;
+  // (the SDK takes no calls before its init: the load is reported from here to the first frame of the home page)
   try {
-    if (ready) sdk()?.game?.loadingStop?.();
+    sdk()?.game?.loadingStart?.();
   } catch {
     /* ignore */
   }
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      try {
+        sdk()?.game?.loadingStop?.();
+      } catch {
+        /* ignore */
+      }
+    }),
+  );
 }
 
 function data(): Any | null {
