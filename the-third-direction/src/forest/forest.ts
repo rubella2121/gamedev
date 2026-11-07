@@ -324,6 +324,7 @@ export class Forest implements Hub {
   secret(x: number, y: number) {
     this.secrets++;
     this.ctx.stats.bonus = Math.min(3, this.secrets);
+    this.ctx.progress?.('forest');
     this.audio.warm();
     burst(this.parts, x, y - 8, 24, [C.red, C.blush, C.blobLight], 50, 1, 30);
     this.player.maxHearts = this.maxHearts;
@@ -695,6 +696,34 @@ export class Forest implements Hub {
   /** shorten the crack so the boom lands on the beat */
   trailerCrack(ct: number) {
     if (this.mode === 'crack') this.ct = Math.max(this.ct, ct);
+  }
+
+  /** what a saved run needs from the forest: the guardians that are down, the secrets found, whether the moth is with you */
+  runState() {
+    return { zones: this.zones.filter((z) => z.cleared).map((z) => z.id as string), secrets: this.secrets, moth: this.moth.has };
+  }
+
+  /**
+   * A saved run, put back: the guardians that were down are down (and X wears what they gave him), the secrets count for their
+   * hearts, the moth is with you. You start at the crossroads; with all five down the road to the Edge is open.
+   */
+  restoreRun(s: { zones: string[]; secrets: number; moth: boolean }) {
+    if (this.mode === 'opening') this.skipOpening();
+    for (const z of this.zones) {
+      if (!s.zones.includes(z.id)) continue;
+      z.complete();
+      const f = FEATURE[z.id];
+      if (f) this.features[f] = true;
+    }
+    this.secrets = Math.max(0, Math.min(3, Math.floor(s.secrets) || 0));
+    this.ctx.stats.bonus = this.secrets;
+    this.warp('hub');
+    this.player.maxHearts = this.maxHearts;
+    this.player.hearts = this.player.maxHearts;
+    if (s.moth || this.zones.some((z) => z.id === 'meadow' && z.cleared)) this.moth = { has: true, x: this.player.x + 12, y: this.player.y - 10 };
+    this.glimpseI = Math.min(5, this.zones.filter((q) => q.cleared).length);
+    if (this.zones.every((z) => z.cleared)) this.openSeal(true);
+    this.mode = 'play';
   }
 
   /** Debug: go straight into a guardian's arena. */
@@ -1303,6 +1332,7 @@ export class Forest implements Hub {
       this.input.setMoveEnabled(true);
       pl.invuln = 1;
       this.checkpoint(pl.x, pl.y);
+      this.ctx.progress?.('forest');
       const fallen = this.zones.filter((q) => q.cleared).length;
       if (fallen > 0) say(this.ui, STORY.hearts[Math.min(fallen, STORY.hearts.length) - 1]!);
       // each time a guardian falls, X's claw grazes you and the forest tears open for a moment on the world behind it: a little

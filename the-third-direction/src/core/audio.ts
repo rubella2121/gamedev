@@ -12,6 +12,9 @@ export class Sfx {
   private master!: GainNode;
   /** the trailer's score plays on a bus of its own, so the game's sounds can be muted without muting it */
   private scoreBus!: GainNode;
+  /** the very last stage: silence asked for by the site the game is played on (its own mute button), above the player's volume */
+  private site?: GainNode;
+  private siteMuted = false;
   private scoreVoice: Voice | null = null;
   private noise!: AudioBuffer;
   private windGain!: GainNode;
@@ -47,7 +50,9 @@ export class Sfx {
     this.master = ctx.createGain();
     this.master.gain.value = this.masterLevel;
     this.master.connect(comp);
-    comp.connect(ctx.destination);
+    this.site = ctx.createGain();
+    this.site.gain.value = this.siteMuted ? 0 : 1;
+    comp.connect(this.site).connect(ctx.destination);
     this.scoreBus = ctx.createGain();
     this.scoreBus.gain.value = 0.9;
     this.scoreBus.connect(comp);
@@ -115,6 +120,12 @@ export class Sfx {
     p.cancelScheduledValues(now);
     p.setValueAtTime(p.value, now);
     p.linearRampToValueAtTime(v, now + Math.max(0.01, t));
+  }
+
+  /** the site's mute button: on top of the player's own sound switch, which it leaves as it was */
+  setSiteMuted(m: boolean) {
+    this.siteMuted = m;
+    if (this.ctx && this.site) this.ramp(this.site.gain, m ? 0 : 1, 0.15);
   }
 
   setMaster(v: number, t = 0.2) {

@@ -8,6 +8,9 @@ import { CREDIT } from './sdk';
 
 export interface HomeOptions {
   onPlay: () => void;
+  /** a saved run to pick up: where it got to, and how to go back to it */
+  continueLabel?: string;
+  onContinue?: () => void;
   /** jump straight to a boss's fight: 0 = X, 1 = The Collector, 2 = The Mash */
   onShowcase: (boss: number) => void;
   /** jump into one of the new scenes: the Edge (X in the forest, the portal, the fall), the five glimpses, the Fourth, or the ending */
@@ -775,6 +778,16 @@ export class UI {
       o.onPlay();
     });
     wrap.append(play);
+    // a run that was left half-way: pick it up where it was saved
+    let cont: HTMLElement | null = null;
+    if (o.onContinue) {
+      cont = mk('cont', '', 'button');
+      cont.innerHTML = `${icon(ICON.play)}<span>Continue</span><i>${o.continueLabel ?? ''}</i>`;
+      cont.addEventListener('click', () => {
+        el.classList.add('hide');
+        o.onContinue!();
+      });
+    }
 
     // three cards, one per difficulty: hearts are what you get, the last line is what it is for (or your best time)
     const ids: DiffId[] = ['gentle', 'normal', 'nightmare'];
@@ -817,7 +830,7 @@ export class UI {
     pill('How to play', ICON.help, () => this.showHowTo());
 
     const foot = mk('foot', CREDIT);
-    home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, diffs, blurb, row, foot);
+    home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, ...(cont ? [cont] : []), diffs, blurb, row, foot);
     el.append(home);
     el.classList.remove('hide');
     this.runFx(el, logo, amb, 0.8);

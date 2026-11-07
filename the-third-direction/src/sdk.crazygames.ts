@@ -36,6 +36,7 @@ export async function storageInit(): Promise<void> {
     }
   }
   if (!ready) return;
+  listenMute();
   // (the SDK takes no calls before its init: the load is reported from here to the first frame of the home page)
   try {
     sdk()?.game?.loadingStart?.();
@@ -141,6 +142,24 @@ export function gameplay(on: boolean) {
     const g = sdk()?.game;
     if (on) g?.gameplayStart?.();
     else g?.gameplayStop?.();
+  } catch {
+    /* ignore */
+  }
+}
+
+let siteMute: ((muted: boolean) => void) | null = null;
+/** CrazyGames' mute button (their SDK's muteAudio setting): applied once the SDK is up, and whenever it changes */
+export function onSiteMute(fn: (muted: boolean) => void) {
+  siteMute = fn;
+  if (ready) listenMute();
+}
+
+function listenMute() {
+  const g = sdk()?.game;
+  if (!g || !siteMute) return;
+  try {
+    siteMute(!!g.settings?.muteAudio);
+    g.addSettingsChangeListener?.((s: Any) => siteMute?.(!!s?.muteAudio));
   } catch {
     /* ignore */
   }
