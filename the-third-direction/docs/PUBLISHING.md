@@ -86,12 +86,40 @@ and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so 
   `node tools/screens/frame.mjs` from the lines in `tools/screens/picks.json`.
 
 ## Web game sites (ad revenue share)
-Check each site's current developer docs before building for it; requirements change.
-- **CrazyGames:** apply on their developer portal. They ask you to add their SDK (ads, game start / stop events) and test it
-  in their preview tool. Ads go only between fights or after a death, never during play.
-- **Poki:** apply through their developer form; they choose which games they take, and they usually want the game only on
-  their site (web exclusivity). Check that before putting the game on other portals.
-- **Newgrounds:** upload the same zip; no SDK needed to start. Ad revenue share is small but the audience likes games like this.
+Check each site's current developer docs before uploading; their requirements change.
 
-A portal build would get its own SDK module (`src/sdk.crazygames.ts` or similar) and config, the same way as the web build,
-so the RUN and itch.io builds stay as they are.
+### CrazyGames (the main earner)
+```bash
+npm run build:crazygames
+```
+This makes `dist-crazygames/` and `the-third-direction-crazygames.zip` (about 0.5 MB, well under their 50 MB limit and the 20 MB
+limit for their mobile homepage). `vite.crazygames.config.ts` swaps `src/sdk.ts` for `src/sdk.crazygames.ts`, which uses their
+HTML5 SDK v3 (the page loads it from `sdk.crazygames.com`):
+- **Loading:** `loadingStart` when the game starts loading, `loadingStop` once the SDK is ready and the home page can show.
+- **Gameplay:** `gameplayStart` / `gameplayStop` whenever a run starts, pauses, ends or goes back to the menu
+  (`Game.syncGameplay`).
+- **Ads:** a midgame ad only at natural breaks: **Play**, **Play again**, and a boss picked in **Fight a boss**
+  (`Game.afterBreak`). Never in a fight. The game is paused and silent while the ad plays and goes on when it ends, fails or
+  is not filled (and after 40 s at most). The sound is started inside the tap first, because phones allow it nowhere else.
+- **Saves:** their data module, so saves follow a signed-in player, with localStorage as the fallback. **Happy time** on a
+  full clear. No share link (the share button does nothing there).
+- **Without the SDK** (offline, blocked) every call does nothing and the game plays as usual.
+
+In the RUN, itch.io and preview builds, `adBreak()` returns null and `gameplay()` does nothing, so Play starts in the same tap.
+
+**Submitting:** CrazyGames Developer Portal → Submit game → HTML5, upload the zip. Orientation **portrait**, mobile
+**yes** (touch controls are built in). Covers: `brand/crazygames/landscape.jpg` (1920 × 1080), `portrait.jpg` (800 × 1200),
+`square.jpg` (800 × 800), made by `node tools/brand/render.mjs cglandscape cgportrait cgsquare`; if the portal asks for other
+sizes, change them there. They also ask for a short gameplay video: the trailer or one of the shorts works.
+A new game starts in **Basic Launch** (a test with real players); if it does well they offer **Full Launch**, which is where the
+SDK and the ad revenue matter. This build already has the SDK in, so nothing needs to change then.
+
+### Newgrounds
+Upload `the-third-direction-web.zip` (the itch.io build) as an HTML5 game; no SDK is needed. Set the size to **390 × 844**
+(portrait), tick mobile friendly if offered, and use `brand/cover.png` as the icon (crop it in their uploader). The audience
+there likes boss rushes and pixel art; the money is small, the players and comments are worth it.
+
+### Poki
+They choose which games they take: apply through their developer form first. They usually want the game only on their site
+(web exclusivity), so check that before putting it on CrazyGames as well. If they say yes, a Poki build is made the same way
+as the CrazyGames one (a `src/sdk.poki.ts` and its own config).

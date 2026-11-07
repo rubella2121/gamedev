@@ -7,7 +7,7 @@ import { Sfx } from './core/audio';
 import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { onLifecycle, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
+import { adBreak, gameplay, onLifecycle, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
 import { Trailer } from './cinematic/trailer';
 import { makeScore } from './cinematic/scoreHook';
 import { UI } from './ui';
@@ -187,9 +187,9 @@ export class Game {
 
   private showHome() {
     this.ui.showStart({
-      onPlay: () => this.begin(),
+      onPlay: () => this.afterBreak(() => this.begin()),
       onIntro: () => this.playTrailer(),
-      onShowcase: (boss) => this.showcase(boss),
+      onShowcase: (boss) => this.afterBreak(() => this.showcase(boss)),
       onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : id === 'fourth' ? this.playFourth() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
@@ -309,6 +309,23 @@ export class Game {
     this.paused = p;
     if (this.audio.ctx) void (p ? this.audio.ctx.suspend() : this.audio.ctx.resume());
     this.last = 0;
+    this.syncGameplay();
+  }
+
+  /**
+   * Go on after a natural break, where a site with ads may show one. The sound is started here, inside the tap (a phone allows
+   * it nowhere else); with no ad to wait for, `go` runs at once, in the same tap.
+   */
+  private afterBreak(go: () => void) {
+    this.audio.start();
+    const ad = adBreak();
+    if (ad) void ad.then(go);
+    else go();
+  }
+
+  /** tell the site whether the player is playing now (a run under way and not paused) */
+  private syncGameplay() {
+    gameplay(!this.paused && this.canPause());
   }
 
   /** while you are playing (the forest, a 3D fight, the ending), not on the home page or the end card */
@@ -351,6 +368,7 @@ export class Game {
     this.act1.briefNext = true;
     this.ui.moon(false);
     this.state = 'act1';
+    this.syncGameplay();
   }
 
   /** into 3D: a real run gets the film (the fall, the cage); the showcase and the debug jumps get the quick boom */
@@ -363,6 +381,7 @@ export class Game {
   private onEnd() {
     this.state = 'end';
     track('game_complete');
+    this.syncGameplay();
     const s = this.summary();
     // the showcase skips the story, so its time is never recorded or ranked
     const newBest = !this.showcaseRun && recordTime(D.id, this.elapsed);
@@ -461,6 +480,7 @@ export class Game {
     this.act1.render();
     this.ui.fade(0, 0);
     this.beginBoom(boss);
+    this.syncGameplay();
   }
 
   debugFight(phase = 0, boss = 0) {
@@ -472,7 +492,7 @@ export class Game {
   restart() {
     this.ui.narrateClear();
     this.ui.hideEnd();
-    this.begin();
+    this.afterBreak(() => this.begin());
   }
 
   /** Back to the home page (used by the end card). */
@@ -499,6 +519,7 @@ export class Game {
     this.input.setCameraEnabled(false);
     this.audio.silence(0.4);
     this.state = 'menu';
+    this.syncGameplay();
     this.act1.start();
     this.act1.previewMode = true;
     this.ui.skip(false);

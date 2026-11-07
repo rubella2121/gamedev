@@ -91,3 +91,14 @@ export async function submitClearTime(seconds: number, deaths: number): Promise<
     return null;
   }
 }
+
+/**
+ * A natural break (Play, Play again, a boss picked): a site with ads may show one here. Null when there is none to wait for,
+ * so the game goes on in the same tap (a phone only lets sound start inside the tap itself); otherwise resolves when it can go on.
+ */
+export function adBreak(): Promise<void> | null {
+  return null;
+}
+
+/** whether the player is playing now (not on a menu, not paused); a site that measures play is told */
+export function gameplay(_on: boolean) {}

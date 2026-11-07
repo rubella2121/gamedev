@@ -54,6 +54,8 @@ script inline) for pasting into a claude.ai Artifact. It is a playtest copy: no 
 
 `npm run build:web` makes the itch.io / web-site version (`dist-web/` and `the-third-direction-web.zip`: no RUN SDK, saves in localStorage);
 see [`docs/PUBLISHING.md`](./docs/PUBLISHING.md) for uploading it and the store page text.
+`npm run build:crazygames` makes the CrazyGames version (`the-third-direction-crazygames.zip`: their SDK v3 for loading, gameplay and
+midgame ads at Play / Play again only; see the same guide).
 
 Add `?debug` to the URL to expose `window.__tt` (the game object) for testing.
 

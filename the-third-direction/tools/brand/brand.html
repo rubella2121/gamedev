@@ -266,6 +266,25 @@ async function crest(g, W, family, layers = { glow: true, art: true }) {
     return bottom;
 }
 
+/** the gold tear between the flat and the deep world, down the picture along `seam(y)` */
+function tearLine(g, seam, H, step) {
+  g.save();
+  g.shadowColor = 'rgba(247,213,110,1)';
+  g.shadowBlur = 30;
+  g.strokeStyle = '#ffe9a6';
+  g.lineWidth = 4;
+  g.beginPath(); g.moveTo(seam(0), 0);
+  for (let y = 0; y <= H; y += step) g.lineTo(seam(y) + (y % (2 * step) ? 10 : -10), y);
+  g.stroke();
+  g.restore();
+}
+
+function vignette(g, W, H) {
+  const vg = g.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.35, W * 0.5, H * 0.5, Math.max(W, H) * 0.8);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.6)');
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+}
+
 /** a sprite from sprites/ (tools/brand/sprites.mjs), at a whole-number zoom so its pixels stay square and sharp */
 function sprite(im, k, flip = false) {
   const c = document.createElement('canvas');
@@ -428,6 +447,71 @@ const PIECES = {
     logo(g, 315, 560, 500, { emblem: false });
     return c;
   },
+
+  /* ---- the CrazyGames covers: landscape (16:9), portrait (2:3) and square, the same split as the itch.io cover */
+
+  async cglandscape() {
+    const W = 1920, H = 1080;
+    const [c, g] = canvas(W, H);
+    const [flat, deep] = await Promise.all([load('img/flat.jpg'), load('img/deep.jpg')]);
+    const seam = (y) => 900 + (y / H) * 80;
+    g.fillStyle = INK; g.fillRect(0, 0, W, H);
+    cover(g, deep, 860, 0, W - 860, H, 1.0, 0.5, 0.38, 0.5, 0.45);
+    g.save();
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(seam(0), 0);
+    for (let y = 0; y <= H; y += 27) g.lineTo(seam(y) + (y % 54 ? 10 : -10), y);
+    g.lineTo(0, H); g.closePath(); g.clip();
+    cover(g, flat, 0, 0, 980, H, 0.95, 0.5, 0.2, 0.5, 0.26);
+    const dk = g.createLinearGradient(0, H * 0.35, 0, H);
+    dk.addColorStop(0, 'rgba(5,6,12,0)'); dk.addColorStop(0.45, 'rgba(5,6,12,0.75)'); dk.addColorStop(1, 'rgba(5,6,12,0.92)');
+    g.fillStyle = dk; g.fillRect(0, 0, W, H);
+    g.restore();
+    tearLine(g, seam, H, 27);
+    vignette(g, W, H);
+    dust(g, W, H, 120, 3);
+    logo(g, 450, 560, 640, { emblem: false });
+    return c;
+  },
+  async cgportrait() {
+    const W = 800, H = 1200;
+    const [c, g] = canvas(W, H);
+    const [flat, deep] = await Promise.all([load('img/flat.jpg'), load('img/deep.jpg')]);
+    const seam = 640;
+    g.fillStyle = INK; g.fillRect(0, 0, W, H);
+    g.save(); g.beginPath(); g.rect(0, 0, W, seam); g.clip();
+    cover(g, deep, 0, 0, W, seam, 0.78, 0.5, 0.36, 0.5, 0.5);
+    g.restore();
+    g.save(); g.beginPath(); g.rect(0, seam, W, H - seam); g.clip();
+    cover(g, flat, 0, seam, W, H - seam, 0.8, 0.5, 0.24, 0.5, 0.3);
+    const dk = g.createLinearGradient(0, seam, 0, H);
+    dk.addColorStop(0, 'rgba(5,6,12,0.35)'); dk.addColorStop(0.5, 'rgba(5,6,12,0.8)'); dk.addColorStop(1, 'rgba(5,6,12,0.94)');
+    g.fillStyle = dk; g.fillRect(0, seam, W, H - seam);
+    g.restore();
+    g.save();
+    g.shadowColor = 'rgba(247,213,110,1)'; g.shadowBlur = 26;
+    g.strokeStyle = '#ffe9a6'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(0, seam);
+    for (let x = 0; x <= W; x += 25) g.lineTo(x, seam + ((x / 25) % 2 ? 9 : -9));
+    g.stroke();
+    g.restore();
+    vignette(g, W, H);
+    dust(g, W, H, 60, 5);
+    logo(g, W / 2, 760, 560, { emblem: false });
+    return c;
+  },
+  async cgsquare() {
+    const W = 800, H = 800;
+    const [c, g] = canvas(W, H);
+    const crest = await load('../../brand/logo.png');
+    const bg = g.createRadialGradient(W / 2, H * 0.48, 40, W / 2, H * 0.5, W * 0.75);
+    bg.addColorStop(0, '#16304a'); bg.addColorStop(0.55, '#0a1424'); bg.addColorStop(1, INK);
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    dust(g, W, H, 80, 9);
+    const w = 790, h = w * (crest.height / crest.width);
+    g.drawImage(crest, (W - w) / 2, (H - h) / 2 + 10, w, h);
+    return c;
+  },
+
   async banner() {
     // itch.io page banner (960 wide), made at twice that
     const W = 1920, H = 640;
