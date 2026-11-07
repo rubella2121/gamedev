@@ -626,7 +626,7 @@ const Space: React.FC<{ t: number; ready: boolean }> = ({ t, ready }) => {
           })
         : null}
       {/* X, enormous, looming in from the side with his eyes on the rocket */}
-      <Img src={staticFile("launch/x-hd.png")} style={{ position: "absolute", left: 1080 - 900 * xIn, top: 120, width: 900, height: 900 * (1042 / 582), filter: "brightness(0.9) drop-shadow(0 0 60px rgba(255,30,60,0.55))", opacity: xIn * 0.85 }} />
+      <Img src={staticFile("launch/x-hd.png")} style={{ position: "absolute", left: 1080 - 900 * xIn, top: 360, width: 900, height: 900 * (1042 / 582), filter: "brightness(0.9) drop-shadow(0 0 60px rgba(255,30,60,0.55))", opacity: xIn * 0.85 }} />
       {/* the bosses tumbling past */}
       {FLYERS.map((f, i) => {
         const a = (u - f.at) / 1.4;
