@@ -102,3 +102,6 @@ export function adBreak(): Promise<void> | null {
 
 /** whether the player is playing now (not on a menu, not paused); a site that measures play is told */
 export function gameplay(_on: boolean) {}
+
+/** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
+export function onSiteMute(_fn: (muted: boolean) => void) {}

@@ -28,6 +28,11 @@ near one, it rests on your head when you stand still, trembles when you are one 
 goes home to the moon (it is the moon's child). The logic is in [`src/core/mothbond.ts`](./src/core/mothbond.ts).
 The story is told in captions in three voices: the blob's thoughts, Mother and Father, and the world itself. Every line, in order, is in [`docs/STORY.md`](./docs/STORY.md).
 
+**Continue:** a run is saved whenever a guardian falls or a secret is found, and whenever a 3D fight starts (`Game.saveRun`,
+through `Ctx.progress`). The home page then shows **Continue** ("2 of 5 guardians down", "the Collector"): the forest comes back
+as it was (`Forest.restoreRun`: guardians down, X's features, secrets for bonus hearts, the moth), or the run goes straight into
+the 3D fight it reached, with the same difficulty, deaths and clock, so the time still counts. Finishing the game clears it.
+
 Not done yet: tuning from real playtests (difficulty, timings, audio mix), real-phone performance checks, and RUN host testing
 (the game has only been run in a plain browser and a headless one, never inside the RUN app).
 

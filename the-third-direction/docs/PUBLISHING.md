@@ -101,6 +101,9 @@ HTML5 SDK v3 (the page loads it from `sdk.crazygames.com`):
 - **Ads:** a midgame ad only at natural breaks: **Play**, **Play again**, and a boss picked in **Fight a boss**
   (`Game.afterBreak`). Never in a fight. The game is paused and silent while the ad plays and goes on when it ends, fails or
   is not filled (and after 40 s at most). The sound is started inside the tap first, because phones allow it nowhere else.
+- **Mute:** their mute button (the SDK's `muteAudio` setting and its change listener) silences the game at the very end of
+  its audio chain (`Sfx.setSiteMuted`), on top of the player's own sound switch, which it leaves as it was. Tick "supports
+  CrazyGames muting audio through SDK" when uploading.
 - **Saves:** their data module, so saves follow a signed-in player, with localStorage as the fallback. **Happy time** on a
   full clear. No share link (the share button does nothing there).
 - **Without the SDK** (offline, blocked) every call does nothing and the game plays as usual.

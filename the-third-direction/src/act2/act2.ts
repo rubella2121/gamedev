@@ -502,6 +502,7 @@ export class Act2 {
     this.falls.reset();
     this.quietStart = startOver;
     this.boss = this.inDim ? this.fourth : this.bosses[this.bi]!;
+    this.ctx.progress?.(this.inDim ? 3 : this.bi);
     this.hud = false;
     this.control = false;
     this.features.show(!this.inDim);

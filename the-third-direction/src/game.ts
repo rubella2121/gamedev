@@ -4,10 +4,10 @@ import { Act2 } from './act2/act2';
 import { Forest } from './forest/forest';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
-import { bestTime, D, loadDifficulty, recordTime, setDifficulty } from './core/difficulty';
+import { bestTime, D, type DiffId, loadDifficulty, PRESETS, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { adBreak, gameplay, onLifecycle, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
+import { adBreak, gameplay, onLifecycle, onSiteMute, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
 import { Trailer } from './cinematic/trailer';
 import { makeScore } from './cinematic/scoreHook';
 import { UI } from './ui';
@@ -16,6 +16,22 @@ type State = 'splash' | 'trailer' | 'menu' | 'act1' | 'boom' | 'arena' | 'ending
 
 /** set once the intro has been seen (or skipped), so it only plays by itself the first time */
 const INTRO_KEY = 'tt.intro';
+/** the run in progress, so a player who leaves can pick it up again (see saveRun) */
+const RUN_KEY = 'tt.run';
+
+/** a run, saved where it can be picked up from: the forest (guardians down, secrets, the moth) or a 3D fight (0..2, 3 = the last) */
+interface RunSave {
+  v: 1;
+  diff: DiffId;
+  act: 1 | 2;
+  boss: number;
+  zones: string[];
+  secrets: number;
+  moth: boolean;
+  deaths: number;
+  elapsed: number;
+}
+const BOSS_NAMES = ['X, the Hollow', 'the Collector', 'the Mash', 'the last fight'];
 
 export class Game {
   readonly ui: UI;
@@ -67,7 +83,8 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
 
-    const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats };
+    const progress = (at: 'forest' | number) => this.saveRun(at);
+    const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress };
     this.act1 = new Forest(ctx);
     this.tex2d = new THREE.CanvasTexture(this.act1.p.canvas);
     this.tex2d.minFilter = this.tex2d.magFilter = THREE.NearestFilter;
@@ -77,7 +94,7 @@ export class Game {
     this.scene2d.add(quad);
     this.cam2d.position.z = 5;
 
-    this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats });
+    this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress });
     this.act2.onEnd = () => this.onEnd();
     this.ui.onPause = () => this.pause();
     window.addEventListener('keydown', (e) => {
@@ -122,6 +139,7 @@ export class Game {
       () => this.setPaused(true),
       () => this.setPaused(false),
     );
+    onSiteMute((m) => this.audio.setSiteMuted(m));
     document.addEventListener('visibilitychange', () => this.setPaused(document.hidden));
     requestAnimationFrame((t) => this.frame(t));
   }
@@ -186,8 +204,11 @@ export class Game {
   }
 
   private showHome() {
+    const run = this.loadRun();
     this.ui.showStart({
       onPlay: () => this.afterBreak(() => this.begin()),
+      continueLabel: run ? (run.act === 1 ? `${run.zones.length} of 5 guardians down` : BOSS_NAMES[run.boss] ?? '') : undefined,
+      onContinue: run ? () => this.afterBreak(() => this.continueRun(run)) : undefined,
       onIntro: () => this.playTrailer(),
       onShowcase: (boss) => this.afterBreak(() => this.showcase(boss)),
       onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : id === 'fourth' ? this.playFourth() : this.playGlimpses()),
@@ -381,6 +402,8 @@ export class Game {
   private onEnd() {
     this.state = 'end';
     track('game_complete');
+    // the run is over: nothing left to pick up
+    if (!this.showcaseRun) storageSet(RUN_KEY, '');
     this.syncGameplay();
     const s = this.summary();
     // the showcase skips the story, so its time is never recorded or ranked
@@ -464,6 +487,74 @@ export class Game {
     this.act1.warp('edge');
     this.act1.render();
     this.beginBoom(0, cinematic);
+  }
+
+  /**
+   * Save the run where it can be picked up: called by the forest when a guardian falls or a secret is found, and by the 3D
+   * half when a fight starts. Only a real run is saved (not the showcase, the scenes, the trailer or the home page's forest).
+   */
+  private saveRun(at: 'forest' | number) {
+    if (this.showcaseRun || this.act1.previewMode) return;
+    if (this.state !== 'act1' && this.state !== 'boom' && this.state !== 'arena' && this.state !== 'ending') return;
+    const f = this.act1.runState();
+    const s: RunSave = {
+      v: 1,
+      diff: D.id,
+      act: at === 'forest' ? 1 : 2,
+      boss: at === 'forest' ? 0 : at,
+      zones: f.zones,
+      secrets: f.secrets,
+      moth: f.moth,
+      deaths: this.stats.deaths,
+      elapsed: Math.round(this.elapsed),
+    };
+    storageSet(RUN_KEY, JSON.stringify(s));
+  }
+
+  /** the saved run, if there is one worth continuing (a forest with nothing done yet is just a new run) */
+  private loadRun(): RunSave | null {
+    try {
+      const raw = storageGet(RUN_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw) as RunSave;
+      if (s.v !== 1 || !(s.diff in PRESETS) || !Array.isArray(s.zones)) return null;
+      if (s.act === 1 && s.zones.length === 0 && !s.secrets) return null;
+      if (s.act === 2 && !(s.boss >= 0 && s.boss <= 3)) return null;
+      return s;
+    } catch {
+      return null;
+    }
+  }
+
+  /** pick a saved run up: same difficulty, deaths and clock; the forest as it was, or straight into the 3D fight it reached */
+  private continueRun(s: RunSave) {
+    setDifficulty(s.diff);
+    track('continue');
+    if (s.act === 1) {
+      this.begin();
+      this.act1.briefNext = false;
+      this.act1.restoreRun(s);
+    } else {
+      this.audio.start();
+      this.showcaseRun = false;
+      this.reel = null;
+      this.act1.previewMode = false;
+      this.act1.start();
+      this.act1.skipOpening();
+      this.act1.restoreRun(s);
+      this.act1.prepareShowcase();
+      this.act1.render();
+      this.ui.fade(0, 0);
+      this.ui.moon(false);
+      this.beginBoom(Math.min(s.boss, this.act2.lastBoss));
+      if (s.boss > this.act2.lastBoss) {
+        this.act2.skipToFourth();
+        this.state = 'arena';
+      }
+      this.syncGameplay();
+    }
+    this.stats.deaths = s.deaths;
+    this.runStart = performance.now() - s.elapsed * 1000;
   }
 
   /** Quick Showcase: jump straight to the boom and the boss fight. */
