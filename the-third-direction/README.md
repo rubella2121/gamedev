@@ -141,6 +141,17 @@ Mother's bow, a pair of eyes in the dark and the hero's name card; the header of
   the Play button ends (`Forest.briefNext`), never in the trailer, the preview behind the home page or the boss showcase. While you are out on the roads a goal line under the five
   dots says "beat the five guardians · n of 5", then "the road is open · follow the red arrow". The move and pulse hints stay until you have
   moved or pulsed. Hints are only taken down by whoever put them up (`ui.hintIs`): a zone used to wipe every hint each frame.
+- The tutorial (`src/forest/tutorial.ts`): after that card, the first time anyone plays, the controls are taught by doing them, in the glade where
+  the blob wakes. Collect three lights (move), light two stone lamps (pulse), hit two shades with a Light Lance (aim assist helps, as in a
+  fight), dash twice, burst a Nova (the orbs are filled for it), then two cards (hearts and healing; the arrow, the goal line and the 3D
+  camera). A panel at the top says what to do in the words for the device in hand (touch or keys), counts it and ticks; the button
+  breathes when it is the thing to use, a ghost joystick shows a phone where to drag, gold chevrons mark what to light and red ones what to
+  hit. Lance, dash and Nova are otherwise only in the guardian fights: the tutorial lets the button do them in the glade. It can be skipped,
+  keeps the blob in the glade, is remembered with `tt.tutorial`, never shows on Continue, and its time is given back to the run clock.
+  Test builds skip it unless you add `&tutorial`.
+- Moth Meadow's sleeping flowers are pale buds breathing out z's (`drawSleepyBud`), so they stand out from the Mimic Blooms; near one, a dotted
+  ring shows where to stand and fills as you keep still ("stand still to wake it"). Inside a zone the compass arrow points at the zone's next
+  thing to find when it has one (`Zone.guide`): the meadow's cage, then the nearest sleeping flower, then the Lightseed.
 - Dev tools (they never ship): `npm run gallery` builds the model lab, the voice lab, the score lab, and the concept-art gallery (`tools/`);
   `node tools/thumbnail.mjs` makes `public/thumbnail.jpg` (after `npm run build:standalone` and `npm run gallery`);
   `node tools/score-render.mjs out/` renders the trailer score offline and writes `score.wav`, a spectrogram with the cue times and

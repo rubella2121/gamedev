@@ -3,7 +3,7 @@ import { drawMimic, drawMoth, drawRootCage, type MimicState } from '../../core/a
 import { C } from '../../core/palette';
 import { D } from '../../core/difficulty';
 import { clamp, dist, hash2 } from '../../core/util';
-import { drawBlossom, drawLightSeed } from '../art3';
+import { drawBlossom, drawLightSeed, drawSleepyBud } from '../art3';
 import { arenaDef } from '../land';
 import { MimicQueen } from '../guardians/mimicqueen';
 import type { Drawable, Hub, Lance, Nova, Patch, Rect, Zone } from '../types';
@@ -42,6 +42,9 @@ const PATCHES: Patch[] = [
 ];
 const HOLD_TIME = 1.4;
 const STILL_TIME = 2.4;
+/** how close counts as "beside" a sleeping flower (the dotted ring around it shows it) */
+const BESIDE = 34;
+const STILL_HINT = 'stand still to wake it';
 
 /**
  * Moth Meadow. A Mournmoth is trapped in roots: hold to free it. Its light shows which flowers bite
@@ -93,7 +96,30 @@ export class MeadowZone implements Zone {
   }
 
   ground() {
-    this.guardian?.ground();
+    if (this.guardian) {
+      this.guardian.ground();
+      return;
+    }
+    if (!this.freed || this.cleared) return;
+    // a dotted ring of moonlight on the ground around each sleeping flower you are near: stand inside it; it fills as you keep still
+    const hub = this.hub;
+    const p = hub.p;
+    const pl = hub.player;
+    DORMANT.forEach((f, i) => {
+      if (this.open[i] || dist(pl.x, pl.y, f.x, f.y) > 95 || !onScreen(hub, f.x, f.y)) return;
+      const sx = f.x - hub.camX;
+      const sy = f.y - hub.camY;
+      const u = clamp(this.still[i]! / STILL_TIME, 0, 1);
+      const inside = dist(pl.x, pl.y, f.x, f.y) < BESIDE;
+      const n = 30;
+      for (let k = 0; k < n; k++) {
+        const a = -Math.PI / 2 + (k / n) * Math.PI * 2;
+        const lit = k / n < u;
+        p.alpha(lit ? 1 : (inside ? 0.7 : 0.45) * (0.75 + 0.25 * Math.sin(hub.time * 3 + k * 0.6)));
+        p.rect(Math.round(sx + Math.cos(a) * BESIDE) - (lit ? 1 : 0), Math.round(sy + Math.sin(a) * BESIDE * 0.72), lit ? 2 : 1, lit ? 2 : 1, lit ? C.moonCore : C.moon);
+      }
+      p.alpha(1);
+    });
   }
 
   colliders(): Rect[] {
@@ -171,10 +197,28 @@ export class MeadowZone implements Zone {
 
   objective(): string | null {
     if (this.cleared || this.guardian) return null;
-    if (!this.freed) return 'find the caged moth · hold the button beside it to free it';
+    if (!this.freed) return 'follow the arrow to the caged moth · hold the button beside it';
     const n = this.open.filter(Boolean).length;
-    if (n < this.open.length) return `stand still beside each sleeping flower while the moth hovers · ${n} of ${this.open.length}`;
+    if (n < this.open.length) return `wake the sleeping flowers (zzz) · stand still in each ring · ${n} of ${this.open.length}`;
     return 'walk into the lightseed';
+  }
+
+  /** where the little arrow beside the blob points while you are in the meadow: the cage, then the nearest sleeping flower, then the Lightseed */
+  guide(): { x: number; y: number } | null {
+    if (this.cleared || this.guardian) return null;
+    if (!this.freed) return CAGE;
+    const pl = this.hub.player;
+    let best: { x: number; y: number } | null = null;
+    let bd = Infinity;
+    for (let i = 0; i < DORMANT.length; i++) {
+      if (this.open[i]) continue;
+      const d = dist(pl.x, pl.y, DORMANT[i]!.x, DORMANT[i]!.y);
+      if (d < bd) {
+        bd = d;
+        best = DORMANT[i]!;
+      }
+    }
+    return best ?? SEED;
   }
 
   complete() {
@@ -304,7 +348,7 @@ export class MeadowZone implements Zone {
       let all = true;
       DORMANT.forEach((f, i) => {
         if (!this.open[i]) {
-          if (calm && dist(pl.x, pl.y, f.x, f.y) < 34 && pl.dead <= 0) {
+          if (calm && dist(pl.x, pl.y, f.x, f.y) < BESIDE && pl.dead <= 0) {
             this.still[i] = Math.min(STILL_TIME, this.still[i]! + dt);
             if (this.still[i]! >= STILL_TIME) {
               this.open[i] = true;
@@ -315,6 +359,10 @@ export class MeadowZone implements Zone {
         }
         if (!this.open[i]) all = false;
       });
+      // beside a sleeping flower: say what to do (and take only our own line down again)
+      const beside = DORMANT.some((f, i) => !this.open[i] && dist(pl.x, pl.y, f.x, f.y) < BESIDE) && pl.dead <= 0;
+      if (beside) hub.ui.hint(STILL_HINT);
+      else if (hub.ui.hintIs(STILL_HINT)) hub.ui.hint(null);
       // --- the moon blossoms that only the moth shows
       if (!this.moonDone) {
         MOON.forEach((m, i) => {
@@ -369,8 +417,9 @@ export class MeadowZone implements Zone {
     }
     DORMANT.forEach((f, i) => {
       if (!onScreen(hub, f.x, f.y)) return;
-      const lit = this.open[i] ? 1 : clamp(this.still[i]! / STILL_TIME, 0, 1) * 0.6;
-      list.push({ y: f.y, fn: () => drawBlossom(p, f.x - cx, f.y - cy, t, lit, i, C.moon) });
+      // asleep: a pale bud breathing out z's (so it stands out from the Mimic Blooms); awake: the open blossom
+      if (this.open[i]) list.push({ y: f.y, fn: () => drawBlossom(p, f.x - cx, f.y - cy, t, 1, i, C.moon) });
+      else list.push({ y: f.y, fn: () => drawSleepyBud(p, f.x - cx, f.y - cy, t, i, clamp(this.still[i]! / STILL_TIME, 0, 1)) });
     });
     if (onScreen(hub, SEED.x, SEED.y, 50)) {
       const awake = this.open.every(Boolean) ? 1 : this.open.filter(Boolean).length / 10;

@@ -265,6 +265,11 @@ export class Input {
     }
   }
 
+  /** the tutorial points at the button: it glows and breathes */
+  highlight(on: boolean) {
+    this.btn.classList.toggle('tutbtn', on);
+  }
+
   /** The ring around the action button while a charged attack builds: u in 0..1, stage 0 = nothing yet, 1 = lance ready, 2 = nova ready. */
   setCharge(u: number, stage: 0 | 1 | 2) {
     this.btn.style.setProperty('--ch', String(Math.max(0, Math.min(1, u))));

@@ -110,6 +110,11 @@ export class Game {
       else this.renderer.compile(scene, camera);
     };
     this.act1.onBoom = () => this.beginBoom(0, true);
+    // the tutorial is not part of the run: the clock gives its time back
+    this.act1.onTutorial = (secs, skipped) => {
+      this.runStart += secs * 1000;
+      track(skipped ? 'tutorial_skipped' : 'tutorial_done');
+    };
     // (the forest's glimpses of the 3D world are drawn through the tear itself now: see drawForest)
     this.act1.onTeaserFlash = null;
     this.scene2d.add(this.portal.mesh);

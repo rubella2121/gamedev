@@ -392,3 +392,48 @@ body {
 .hstep b, .hzone b { display: block; font-size: calc(var(--u) * 2.6); letter-spacing: 0.2em; text-transform: uppercase; color: #9ff4ee; margin-bottom: calc(var(--u) * 0.6); }
 .hstep span, .hzone span { display: block; font-size: calc(var(--u) * 2.7); line-height: 1.45; color: rgba(232, 255, 251, 0.85); }
 .goal { padding: 0 calc(var(--u) * 12); }
+
+/* the tutorial (src/forest/tutorial.ts): a panel at the top that says what to do and counts it */
+.tut {
+  position: absolute; left: calc(var(--u) * 5); right: calc(var(--u) * 5); top: calc(var(--u) * 19.5 + env(safe-area-inset-top, 0px)); z-index: 12;
+  display: flex; flex-direction: column; gap: calc(var(--u) * 1.4); padding: calc(var(--u) * 2.2) calc(var(--u) * 3) calc(var(--u) * 2);
+  background: linear-gradient(180deg, rgba(8, 18, 28, 0.9), rgba(4, 10, 16, 0.86)); border: 1px solid rgba(159, 244, 238, 0.32);
+  border-radius: calc(var(--u) * 2.4); box-shadow: 0 calc(var(--u) * 1.4) calc(var(--u) * 6) rgba(0, 0, 0, 0.55), inset 0 0 calc(var(--u) * 4) rgba(159, 244, 238, 0.06);
+  pointer-events: none; transition: opacity 400ms, transform 400ms, border-color 300ms, box-shadow 300ms;
+}
+.tut.enter { animation: tutin 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes tutin { 0% { opacity: 0; transform: translateY(calc(var(--u) * -2)) scale(0.97); } 100% { opacity: 1; transform: none; } }
+.tut.gone { opacity: 0; transform: translateY(calc(var(--u) * -2)); }
+.tut .tpips { display: flex; gap: calc(var(--u) * 1); justify-content: center; }
+.tut .tpips i { width: calc(var(--u) * 1.4); height: calc(var(--u) * 1.4); border-radius: 50%; border: 1px solid rgba(159, 244, 238, 0.45); }
+.tut .tpips i.past { background: rgba(159, 244, 238, 0.55); }
+.tut .tpips i.now { background: #ffe9a0; border-color: #ffe9a0; box-shadow: 0 0 calc(var(--u) * 1.4) rgba(255, 233, 160, 0.9); }
+.tut .tmain { display: flex; align-items: center; gap: calc(var(--u) * 3); }
+.tut .tico { flex: none; width: calc(var(--u) * 8.4); height: calc(var(--u) * 8.4); padding: calc(var(--u) * 1.2); border-radius: 50%; background: rgba(159, 244, 238, 0.08); border: 1px solid rgba(159, 244, 238, 0.28); }
+.tut .ttx { display: flex; flex-direction: column; gap: calc(var(--u) * 0.9); }
+.tut .ttx b { font-size: calc(var(--u) * 3.5); letter-spacing: 0.16em; text-transform: uppercase; color: #ffe9a0; font-weight: 400; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(255, 214, 110, 0.5), 0 1px 0 #000; }
+.tut .ttx span { font-size: calc(var(--u) * 2.85); line-height: 1.38; color: #e8fffb; text-shadow: 0 1px 0 #000; }
+.tut .tfoot { display: flex; align-items: center; gap: calc(var(--u) * 2.4); min-height: calc(var(--u) * 4.4); }
+.tut .tcount { font-style: normal; font-size: calc(var(--u) * 3.6); letter-spacing: 0.14em; color: #9ff4ee; text-shadow: 0 0 calc(var(--u) * 2) rgba(159, 244, 238, 0.5); }
+.tut .tcheck { display: none; font-style: normal; font-size: calc(var(--u) * 3.8); letter-spacing: 0.12em; text-transform: uppercase; color: #b6ffcf; text-shadow: 0 0 calc(var(--u) * 2.4) rgba(120, 255, 170, 0.8); }
+.tut.done { border-color: rgba(140, 255, 180, 0.7); box-shadow: 0 0 calc(var(--u) * 5) rgba(120, 255, 170, 0.35), 0 calc(var(--u) * 1.4) calc(var(--u) * 6) rgba(0, 0, 0, 0.55); }
+.tut.done .tcheck { display: block; animation: tutpop 380ms cubic-bezier(0.2, 0.9, 0.3, 1.6); }
+.tut.done .tcount { display: none; }
+@keyframes tutpop { 0% { transform: scale(0.4); opacity: 0; } 100% { transform: none; opacity: 1; } }
+.tut button { font: inherit; pointer-events: auto; cursor: pointer; border-radius: calc(var(--u) * 0.9); }
+.tut .tnext { margin-left: auto; font-size: calc(var(--u) * 3.2); letter-spacing: 0.18em; text-transform: uppercase; color: #2a0f18; background: #f2d36b; border: 0; padding: calc(var(--u) * 2) calc(var(--u) * 5.4); box-shadow: 0 0 calc(var(--u) * 3) rgba(242, 211, 107, 0.55); }
+.tut .tskip { font-size: calc(var(--u) * 2.5); letter-spacing: 0.16em; text-transform: uppercase; color: rgba(232, 255, 251, 0.6); background: transparent; border: 1px solid rgba(232, 255, 251, 0.22); padding: calc(var(--u) * 1.6) calc(var(--u) * 2.6); }
+.tut .tnext[style*="none"] + .tskip { margin-left: auto; }
+/* the button is what to use: a ring breathes around it */
+.abtn::after { content: ''; position: absolute; inset: -16%; border-radius: 50%; border: 2px solid #ffe9a0; opacity: 0; pointer-events: none; }
+.abtn.tutbtn.show::after { animation: tutring 1.3s ease-out infinite; }
+@keyframes tutring { 0% { opacity: 0.9; transform: scale(0.86); } 100% { opacity: 0; transform: scale(1.3); } }
+/* where to drag, on a phone: a ghost of the joystick with its knob going round */
+.tutjoy { position: absolute; z-index: 6; left: 22%; bottom: 24%; width: calc(var(--u) * 17); height: calc(var(--u) * 17); margin: calc(var(--u) * -8.5); border-radius: 50%; border: 2px dashed rgba(159, 244, 238, 0.55); background: rgba(10, 30, 40, 0.22); pointer-events: none; animation: tutfade 1.6s ease-in-out infinite alternate; }
+.tutjoy i { position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21%; border-radius: 50%; background: rgba(159, 244, 238, 0.6); animation: tutknob 2.2s ease-in-out infinite; }
+.tutjoy b { position: absolute; left: 50%; top: 108%; transform: translateX(-50%); font-weight: 400; font-size: calc(var(--u) * 2.8); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(232, 255, 251, 0.8); text-shadow: 0 1px 0 #000; }
+@keyframes tutknob { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(60%, -40%); } 50% { transform: translate(0, -70%); } 75% { transform: translate(-60%, -40%); } }
+@keyframes tutfade { from { opacity: 0.55; } to { opacity: 1; } }
+.hearts.tutglow, .lightmeter.tutglow, .dashmeter.tutglow { animation: tutglow 1s ease-in-out infinite; }
+@keyframes tutglow { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); } 50% { transform: scale(1.12); filter: drop-shadow(0 0 calc(var(--u) * 1.6) #ffe9a0); } }
+.cinematic .tut, .cinematic .tutjoy { display: none !important; }
