@@ -2,7 +2,7 @@
 # The store preview videos (CrazyGames shows them when a player hovers over the cover): 16.8 s of gameplay, no text, no sound.
 # Five 2D guardian fights, the cage at the Edge, then X, the Collector and the Mash in 3D. Made from the trailer's captured clips
 # (../trailer-video/public/clips, see trailer-video/scripts/make.sh clips).
-#   tools/brand/previews.sh   ->  brand/crazygames/preview-portrait.mp4 (1080x1920) and preview-landscape.mp4 (1920x1080)
+#   tools/brand/previews.sh   ->  brand/crazygames/preview-portrait.mp4 (2:3, 1080x1620: CrazyGames' shape) and preview-landscape.mp4 (1920x1080)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 CLIPS=../trailer-video/public/clips
@@ -20,9 +20,11 @@ for sg in $SEGS; do
   echo "file 's$i.mp4'" >> "$WORK/list.txt"
   i=$((i + 1))
 done
-ffmpeg -v error -y -f concat -safe 0 -i "$WORK/list.txt" -c:v libx264 -crf 21 -preset slow -pix_fmt yuv420p -movflags +faststart -an "$OUT/preview-portrait.mp4"
-# landscape: the portrait picture in the middle, over a blurred, darker copy of itself
-ffmpeg -v error -y -i "$OUT/preview-portrait.mp4" -filter_complex \
+ffmpeg -v error -y -f concat -safe 0 -i "$WORK/list.txt" -c:v libx264 -crf 16 -pix_fmt yuv420p -an "$WORK/tall.mp4"
+# portrait: the phone picture (9:16) cut to 2:3, a little off the top and the bottom
+ffmpeg -v error -y -i "$WORK/tall.mp4" -vf "crop=1080:1620:0:150" -c:v libx264 -crf 21 -preset slow -pix_fmt yuv420p -movflags +faststart -an "$OUT/preview-portrait.mp4"
+# landscape: the phone picture in the middle, over a blurred, darker copy of itself
+ffmpeg -v error -y -i "$WORK/tall.mp4" -filter_complex \
   "[0]split=2[a][b];[a]scale=1920:-2,crop=1920:1080,boxblur=28:2,eq=brightness=-0.18:saturation=1.1[bg];[b]scale=-2:1080[fg];[bg][fg]overlay=(W-w)/2:0" \
   -c:v libx264 -crf 21 -preset slow -pix_fmt yuv420p -movflags +faststart -an "$OUT/preview-landscape.mp4"
 echo "wrote $OUT/preview-portrait.mp4 and $OUT/preview-landscape.mp4"
