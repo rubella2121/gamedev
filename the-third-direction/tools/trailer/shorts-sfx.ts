@@ -11,6 +11,7 @@
  *
  *   node tools/trailer/score-render.mjs <{"id": ..., "length": ...}.json> <out.wav> tools/trailer/shorts-sfx.ts __renderShortSfx
  */
+import LAUNCH_VOICE from '../../../trailer-video/src/data/lines-launch.voice.json';
 import shorts from '../../../trailer-video/src/data/shorts.json';
 import { Base, renderScore } from './sfx';
 
@@ -238,6 +239,7 @@ class ShortSfx extends Base {
     if (this.id === 'tarot') this.tarot();
     if (this.id === 'lineup') this.lineup();
     if (this.id === 'popup') this.popup();
+    if (this.id === 'launch') this.launch();
   }
 
   theFourth() {
@@ -1314,6 +1316,148 @@ class ShortSfx extends Base {
       this.noise(a, 0.1, 'lowpass', 2600, 300, 0.22, { a: 0.002 });
     });
     this.on(C.end + 1.2, (a) => this.ping(a, 1760, 0.04));
+  }
+
+  /** the radio: the Quindar tones either side of a line (2525 Hz to talk, 2475 Hz to let go), and the hiss of the loop */
+  quindar(t: number, dur: number) {
+    this.on(t - 0.28, (a) => this.osc(a, 2525, 0.24, 0.035, 'sine', { a: 0.004, wet: 0.08 }));
+    this.on(t, (a) => this.noise(a, dur, 'bandpass', 2600, 2400, 0.012, { q: 0.6, a: 0.03, wet: 0.05 }));
+    this.on(t + dur + 0.05, (a) => this.osc(a, 2475, 0.24, 0.03, 'sine', { a: 0.004, wet: 0.08 }));
+  }
+  /** a monitor coming on: the click, the tube's whine, a bleep */
+  crtOn(t: number, i: number) {
+    this.on(t, (a) => {
+      this.noise(a, 0.015, 'highpass', 3000, 3000, 0.08, { a: 0.0005, pan: i % 2 ? 0.45 : -0.45 });
+      this.thud(a, 160, 90, 0.06, 0.05);
+      this.osc(a + 0.02, 7800 + 120 * i, 0.5, 0.004, 'sine', { a: 0.05, pan: i % 2 ? 0.45 : -0.45 });
+      this.osc(a + 0.05, 1200 + 90 * i, 0.06, 0.018, 'square', { a: 0.002, lp: 3000, pan: i % 2 ? 0.45 : -0.45 });
+    });
+  }
+
+  launch() {
+    const C = this.C;
+    const gos = C.gos as number[];
+    const cnt = C.count as number[];
+    const ctl = C.control as number;
+    // the night on the pad: crickets, the searchlights' hum
+    this.night(0, ctl, 0.8);
+    this.on(0.05, (a) => this.osc(a, 120, ctl - 0.2, 0.01, 'sawtooth', { a: 0.6, swell: true, lp: 500, wet: 0.3 }));
+    // the radio, around every line but the numbers
+    for (const v of LAUNCH_VOICE) if (!['c4', 'c5', 'c6'].includes(v.id)) this.quindar(v.at, v.dur);
+    // NOW / ON / CRAZYGAMES
+    this.whoosh(C.now, 0.12, 0.25);
+    this.on(C.now, (a) => this.impact(a, 0.55));
+    this.whoosh(C.now + 0.3, 0.06, 0.16);
+    this.on(C.now + 0.3, (a) => this.thud(a, 140, 70, 0.12, 0.2));
+    this.whoosh(C.crazy, 0.16, 0.3);
+    this.on(C.crazy, (a) => {
+      this.impact(a, 1.25);
+      this.ring(a + 0.2, 3950, 1.6, 0.03);
+      this.ring(a + 0.2, 3977, 1.5, 0.018);
+    });
+    // mission control: the room powers up, every monitor comes on, the room's hum and its computers
+    this.on(ctl - 0.25, (a) => {
+      this.noise(a, 0.3, 'bandpass', 300, 3000, 0.08, { rise: true, q: 1 });
+      this.thud(a + 0.25, 90, 45, 0.3, 0.35);
+    });
+    this.on(ctl, (a) => this.osc(a, 60, cnt[0]! - ctl - 0.3, 0.02, 'sawtooth', { a: 0.4, swell: true, lp: 300, wet: 0.2 }));
+    for (let i = 0; i < 8; i++) this.crtOn(ctl + 0.15 + 0.11 * i, i);
+    for (let k = 0; k < 22; k++) {
+      const t = ctl + 0.5 + k * 0.37 + 0.05 * Math.sin(k * 3.1);
+      if (t > C.goForLaunch) break;
+      this.on(t, (a) => this.osc(a, [1760, 2093, 1568, 2349][k % 4]!, 0.04, 0.006, 'sine', { a: 0.002, pan: Math.sin(k * 1.9) * 0.7, wet: 0.2 }));
+    }
+    // X's station: nothing but static, until he answers
+    const xOn = ctl + 0.15 + 0.11 * 7;
+    this.on(xOn, (a) => this.noise(a, gos[7]! - 0.35 - xOn, 'highpass', 3000, 2500, 0.022, { a: 0.05, pan: 0.45 }));
+    // every station answers GO: the stamp, the green light's chirp, and the boss itself
+    const VOICES: [(v: V) => void, number][] = [
+      [(v) => v.motherLaugh(), 0.55],
+      [(v) => v.kingSnort(2), 0.7],
+      [(v) => v.queenToll(1.2, 0.8), 0.35],
+      [(v) => v.wyrmScreech(0.6), 0.32],
+      [(v) => v.mimicLaugh(), 0.5],
+      [(v) => v.collectorChuckle(), 0.9],
+      [(v) => v.mashRoar(), 0.5],
+    ];
+    gos.slice(0, 7).forEach((g, i) => {
+      this.stampHit(g, 0.55);
+      this.on(g, (a) => {
+        this.osc(a + 0.02, 880 * 2 ** (i / 12), 0.06, 0.03, 'square', { a: 0.002, lp: 4000, pan: i % 2 ? 0.45 : -0.45 });
+        this.osc(a + 0.09, 1320 * 2 ** (i / 12), 0.09, 0.03, 'square', { a: 0.002, lp: 4000, pan: i % 2 ? 0.45 : -0.45 });
+      });
+      this.on(g + 0.1, (a) => this.say(a, VOICES[i]![0], VOICES[i]![1]));
+    });
+    // X: his eyes open in the static, and he answers
+    this.on(gos[7]! - 0.35, (a) => this.glitch(a, 6, 0.3, 0.12));
+    this.on(gos[7]!, (a) => {
+      this.impact(a, 0.9);
+      this.say(a + 0.05, (v: V) => v.xGrowl(1), 0.85);
+    });
+    // GO FOR LAUNCH
+    this.on(C.goForLaunch, (a) => {
+      this.impact(a, 0.8);
+      for (let k = 0; k < 3; k++) this.osc(a + k * 0.09, [1320, 1760, 2637][k]!, 0.12, 0.03, 'square', { a: 0.002, lp: 5000, wet: 0.3 });
+    });
+    // the CRT going off as we cut to the pad
+    this.on(cnt[0]! - 0.35, (a) => this.osc(a, 3000, 0.3, 0.03, 'sine', { to: 200, a: 0.005 }));
+    // the count: a tone on each number, the steam venting, the clamps letting go
+    cnt.forEach((c) => {
+      this.on(c, (a) => {
+        this.osc(a, 1000, 0.18, 0.05, 'sine', { a: 0.003, wet: 0.2 });
+        this.impact(a, 0.55);
+      });
+      this.whoosh(c, 0.08, 0.2);
+    });
+    this.on(cnt[0]! - 0.1, (a) => this.noise(a, C.ignition - cnt[0]! + 0.3, 'highpass', 2200, 1600, 0.05, { swell: true, a: 1.4, wet: 0.3 }));
+    this.on(cnt[2]! + 0.55, (a) => this.clang(a, 0.22));
+    // ignition: the engines catch and roar; liftoff; the climb, the air screaming past, faster
+    const ign = C.ignition as number;
+    const lo = C.liftoff as number;
+    const sh = C.shatter as number;
+    this.on(ign, (a) => {
+      this.thud(a, 70, 30, 1.0, 0.5);
+      this.noise(a, sh - ign, 'lowpass', 160, 520, 0.42, { swell: false, a: 0.6, wet: 0.2 });
+      this.noise(a, sh - ign, 'bandpass', 900, 1500, 0.08, { a: 0.8, q: 0.6, wet: 0.2 });
+    });
+    for (let k = 0; ; k++) {
+      const t = ign + 0.2 + k * 0.045;
+      if (t > sh - 0.05) break;
+      this.on(t, (a) => this.noise(a, 0.03, 'lowpass', 1800, 600, 0.06 + 0.04 * this.rnd(), { a: 0.002, pan: this.rnd() * 1.2 - 0.6 }));
+    }
+    this.on(lo, (a) => {
+      this.impact(a, 1.3);
+      this.noise(a, 1.2, 'lowpass', 3000, 200, 0.3, { a: 0.003, wet: 0.4 });
+    });
+    this.on(lo + 0.6, (a) => this.noise(a, sh - lo - 0.6, 'bandpass', 300, 3200, 0.1, { rise: true, q: 0.7, wet: 0.2 }));
+    this.on(sh - 1.3, (a) => this.riser(a, 1.3, 0.14, 300, 8000, [110, 880]));
+    // the sky breaks: glass, the blow, and the roar cut off by the quiet of space
+    this.shatter(sh);
+    this.glassCrack(sh, 1.2);
+    this.on(sh + 0.05, (a) => {
+      this.ring(a + 0.4, 3900, 2.4, 0.03);
+      this.osc(a + 0.3, 55, 4.5, 0.06, 'sine', { a: 1.5, swell: true, wet: 0.5 });
+    });
+    // the bosses tumbling past (and two of them saying so); X looming; the portal
+    [0.5, 1.1, 1.7, 2.3, 2.9, 3.5, 4.1].forEach((at, i) => this.on(sh + at + 0.9, (a) => this.noise(a, 0.45, 'bandpass', 600, 4200, 0.09, { rise: true, q: 1.4, pan: i % 2 ? 0.6 : -0.6 })));
+    this.on(sh + 1.1 + 0.5, (a) => this.say(a, (v: V) => v.queenToll(1, 0.6), 0.25));
+    this.on(sh + 4.1 + 0.6, (a) => this.say(a, (v: V) => v.mashRoar(), 0.4));
+    this.on(sh + 3.2, (a) => this.say(a, (v: V) => v.xBreath(), 0.8));
+    const po = C.portal as number;
+    const wh = C.white as number;
+    this.on(po, (a) => {
+      this.riser(a, wh - po, 0.15, 200, 9000, [110, 880]);
+      this.noise(a, wh - po, 'lowpass', 120, 600, 0.12, { swell: true, a: (wh - po) * 0.9, wet: 0.5 });
+    });
+    this.on(wh, (a) => {
+      this.impact(a, 1.4);
+      this.ring(a + 0.3, 3950, 2.0, 0.035);
+    });
+    // the end card: the button lands
+    this.on(C.end + 1.3, (a) => {
+      this.ping(a, 1760, 0.05);
+      this.thud(a, 160, 90, 0.08, 0.12);
+    });
   }
 
   lullaby() {

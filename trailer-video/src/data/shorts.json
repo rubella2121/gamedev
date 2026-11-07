@@ -243,6 +243,25 @@
       "fadeOut": 37.5,
       "lines": "lines-popup.json",
       "mix": {"orch": 1.5, "sfx": 0.6}
+    },
+    "launch": {
+      "title": "Launch day",
+      "length": 34.0,
+      "now": 0.5,
+      "crazy": 1.1,
+      "control": 3.4,
+      "gos": [6.9, 7.52, 8.14, 8.76, 9.38, 10.0, 10.62, 11.5],
+      "goForLaunch": 12.2,
+      "count": [13.7, 14.7, 15.7],
+      "ignition": 16.6,
+      "liftoff": 17.8,
+      "shatter": 21.2,
+      "portal": 26.6,
+      "white": 28.6,
+      "end": 28.8,
+      "fadeOut": 33.5,
+      "lines": "lines-launch.json",
+      "mix": {"orch": 1.2, "sfx": 0.7}
     }
   }
 }

@@ -1,0 +1,10 @@
+[
+  {"id": "c1", "voice": "am_michael", "speeds": [0.95, 1.0], "at": 0.35, "style": "radio", "gain": 1.0, "text": "This is mission control.", "caption": "This is mission control."},
+  {"id": "c2", "voice": "am_michael", "speeds": [0.95, 1.0], "at": 3.4, "style": "radio", "gain": 1.0, "text": "All stations...|go, no-go for launch.", "caption": "All stations\u2026 go / no-go for launch."},
+  {"id": "c3", "voice": "am_michael", "speeds": [0.95, 1.0], "at": 12.2, "style": "radio", "gain": 1.0, "text": "We are go for launch.", "caption": "We are GO for launch."},
+  {"id": "c4", "voice": "am_michael", "speeds": [0.9, 0.95], "at": 13.7, "style": "radio", "gain": 1.1, "text": "Three.", "caption": "3"},
+  {"id": "c5", "voice": "am_michael", "speeds": [0.9, 0.95], "at": 14.7, "style": "radio", "gain": 1.1, "text": "Two.", "caption": "2"},
+  {"id": "c6", "voice": "am_michael", "speeds": [0.9, 0.95], "at": 15.7, "style": "radio", "gain": 1.1, "text": "One.", "caption": "1"},
+  {"id": "c7", "voice": "am_michael", "speeds": [0.95, 1.0], "at": 16.6, "style": "radio", "gain": 1.15, "text": "Ignition...|and liftoff!", "caption": "Ignition\u2026 and LIFTOFF!"},
+  {"id": "c8", "voice": "am_michael", "speeds": [0.92, 0.97], "at": 29.2, "style": "radio", "gain": 1.0, "text": "The Third Direction.|Now on Crazy Games.", "caption": "The Third Direction. Now on CrazyGames."}
+]

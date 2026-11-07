@@ -15,6 +15,9 @@
               strings climbing for X, the shout chorus under the stamps, her lullaby on the vibraphone, the big ending
   popup       a storybook's orchestra (harp, celesta, flute, soft strings) and her lullaby; a march for the guardians, the
               whole orchestra as X rises out of the book, the lullaby in A major for the last page
+  launch      launch day: a blow for NOW and the whole orchestra for CRAZYGAMES; a clock under the poll and a stab a step
+              higher for each GO, the dark for X's; the count, the engines, her lullaby in A major on the horns at liftoff, the
+              sky breaking, space on the whole orchestra, the portal, white, the end in A major
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
@@ -1000,6 +1003,204 @@ def popup(P):
     cut(fade + 0.55)
 
 
+def launch(P):
+    """launch day: a hush on the pad, a blow for NOW and the whole orchestra in A major for CRAZYGAMES; a clock ticking under
+    the poll and a stab a step higher for every GO, the dark for X's; three blows for the count, the rumble of the engines, and
+    at liftoff her lullaby in A major on the horns over the battle's drums, climbing into the sky that breaks; space wide open,
+    the theme on everyone, a swell into the portal, white, and the end in A major"""
+    now, crazy, ctl, gos, gfl, cnt, ign, lo, sh, po, wh, e, fade = (P['now'], P['crazy'], P['control'], P['gos'],
+                                                                  P['goForLaunch'], P['count'], P['ignition'], P['liftoff'],
+                                                                  P['shatter'], P['portal'], P['white'], P['end'], P['fadeOut'])
+    beat = gos[1] - gos[0]
+
+    def blaze(t, root=33, dur=1.4, big=1.0):
+        """the whole orchestra on one chord of A major (mega is the minor one)"""
+        v = int(127 * big)
+        chord(BRASS, t, dur, [root + 12, root + 19, root + 24, root + 28], v)
+        chord(TROM, t, dur, [root + 12, root + 19], v)
+        note(TUBA, t, dur, root, v)
+        note(BASS, t, dur * 1.2, root, v)
+        chord(CHOIR, t, dur * 1.3, [root + 24, root + 28, root + 31, root + 36], v)
+        chord(STR, t, dur, [root + 24, root + 31, root + 36, root + 40], v)
+        chord(HIT, t, 0.5, [root + 24, root + 28, root + 31], v)
+        note(TIMP, t, 0.8, root + 12, 127)
+        note(TAIKO, t, 0.6, 48, 127)
+        drum(t, 36, 127)
+        drum(t, 49, int(118 * big))
+        drum(t, 57, int(105 * big))
+
+    # ---- the pad at night: a low A, the strings shimmering high, a roll into the title
+    note(BASS, 0.0, crazy, 33, 72)
+    chord(PAD, 0.0, crazy, [45, 52, 57], 62)
+    swell(PAD, 0.0, crazy, 30, 96)
+    chord(TREM, 0.0, crazy, [81, 88], 44)
+    swell(TREM, 0.0, crazy, 20, 100)
+    chord(HIT, now, 0.4, [57, 64, 69], 98)
+    note(TAIKO, now, 0.5, 48, 112)
+    drum(now, 49, 92)
+    roll(TIMP, now + 0.1, crazy - 0.03, 45, 50, 118)
+    cut(crazy - 0.02)
+    # ---- CRAZYGAMES: the whole orchestra, and the chord left ringing under the radio
+    blaze(crazy, dur=1.6)
+    drum(crazy, 52, 120)
+    chord(STR, crazy + 0.6, ctl - crazy, [57, 61, 64, 69], 70)
+    swell(STR, crazy + 0.6, ctl, 100, 50)
+    chord(CHOIR, crazy + 0.8, ctl - crazy - 0.6, [57, 64, 69], 66)
+    swell(CHOIR, crazy + 0.8, ctl, 90, 30)
+    note(BASS, crazy + 1.2, ctl - crazy - 0.9, 33, 66)
+    # ---- mission control: a clock ticking in the strings, a pulse on the cellos, the poll
+    grid = [gos[0] - beat * k for k in range(1, 8)][::-1]
+    grid = [g for g in grid if g >= ctl + 0.25] + list(gos[:7])
+    roots = [45, 47, 49, 50, 52, 54, 56]
+    for k, g in enumerate(grid):
+        last = gos[6] + beat
+        if g >= last:
+            break
+        i = max(-1, sum(1 for x in gos[:7] if x <= g + 1e-6) - 1)
+        r = roots[i] if i >= 0 else 45
+        for h in range(4):
+            note(STR, g + h * beat / 4, beat * 0.2, r + 24 + [0, 7, 12, 7][h], 82 + 4 * max(0, i))
+        note(CELLO, g, beat * 0.45, r - 12, 98 + 3 * max(0, i))
+        note(BASS, g, beat * 0.9, r - 12, 92 + 3 * max(0, i))
+        note(TAIKO, g, 0.3, 48, 70 + 4 * max(0, i))
+        if k % 2 == 0:
+            note(TIMP, g, 0.3, 45, 84 + 4 * max(0, i))
+    chord(PAD, ctl + 0.25, gos[6] + beat - ctl - 0.25, [57, 64], 76)
+    chord(TREM, ctl + 0.25, gos[0] - ctl - 0.25, [69, 76], 60)
+    swell(TREM, ctl + 0.25, gos[0], 40, 110)
+    # every GO a step higher: a brass stab, a taiko, the choir holding the new chord
+    for i, g in enumerate(gos[:7]):
+        r = roots[i]
+        chord(BRASS, g, 0.32, [r, r + 7, r + 12], 96 + 4 * i)
+        chord(TROM, g, 0.32, [r - 12, r - 5], 92 + 4 * i)
+        chord(HIT, g, 0.3, [r + 12, r + 19, r + 24], 84 + 4 * i)
+        note(TAIKO, g, 0.4, 48, 100 + 3 * i)
+        nxt = gos[i + 1]
+        chord(CHOIR, g, nxt - g, [r + 12, r + 19, r + 24], 58 + 5 * i)
+    # X answers: the clock stops, a semitone too high and too low, the bottom of the orchestra
+    x = gos[7]
+    cut(x - 0.03)
+    chord(BRASS, x, 1.0, [34, 41, 46], 124)
+    note(TUBA, x, 1.1, 34, 124)
+    chord(TROM, x, 1.0, [41, 46], 120)
+    chord(CHOIR, x, gfl - x - 0.05, [46, 49, 53], 104)
+    chord(TREM, x + 0.1, gfl - x - 0.15, [57, 58, 64, 65], 70)
+    swell(TREM, x + 0.1, gfl, 50, 120)
+    note(TIMP, x, 0.8, 46, 127)
+    drum(x, 49, 110)
+    roll(TIMP, gfl - 0.55, gfl - 0.03, 45, 70, 124)
+    cut(gfl - 0.02)
+    # GO FOR LAUNCH: A major, the strings and the timpani carrying it into the count
+    blaze(gfl, dur=1.0, big=0.92)
+    chord(STR, gfl + 0.4, cnt[0] - gfl - 0.35, [57, 61, 64, 69], 84)
+    chord(CHOIR, gfl + 0.4, cnt[0] - gfl - 0.35, [57, 61, 64], 76)
+    swell(STR, gfl + 0.4, cnt[0], 90, 118)
+    note(BASS, gfl + 0.4, cnt[0] - gfl - 0.35, 33, 84)
+    roll(TIMP, cnt[0] - 0.7, cnt[0] - 0.03, 45, 60, 118)
+    cut(cnt[0] - 0.02)
+    # ---- three, two, one: a blow on each, the strings climbing a semitone at a time underneath
+    for k, c in enumerate(cnt):
+        r = [40, 42, 44][k]
+        chord(BRASS, c, 0.7, [r, r + 7, r + 12], 116 + 4 * k)
+        note(TUBA, c, 0.8, r - 12, 120)
+        chord(HIT, c, 0.35, [r + 12, r + 19, r + 24], 100 + 6 * k)
+        note(TIMP, c, 0.7, 45, 127)
+        note(TAIKO, c, 0.5, 48, 124)
+        drum(c, 36, 124)
+        drum(c, 49 if k == 2 else 57, 100)
+        nxt = cnt[k + 1] if k < 2 else ign
+        for j in range(int((nxt - c - 0.1) / 0.12)):
+            note(STR, c + 0.1 + j * 0.12, 0.11, 64 + 2 * k + (j // 3), 64 + 3 * j + 8 * k)
+        chord(CHOIR, c, nxt - c, [r + 12, r + 19], 70 + 10 * k)
+    # ---- ignition: the engines rumbling up, the choir and the drums swelling into liftoff
+    cut(ign - 0.02)
+    note(BASS, ign, lo - ign, 33, 110)
+    note(TUBA, ign, lo - ign, 33, 100)
+    swell(TUBA, ign, lo, 40, 124)
+    chord(CHOIR, ign, lo - ign, [45, 52, 57, 64], 96)
+    swell(CHOIR, ign, lo, 40, 127)
+    chord(TREM, ign, lo - ign, [57, 64, 69, 76], 80)
+    swell(TREM, ign, lo, 30, 124)
+    roll(TIMP, ign, lo - 0.03, 45, 50, 127)
+    roll(DRUMS, lo - 0.6, lo - 0.03, 38, 70, 124, 0.04)
+    cut(lo - 0.02)
+    # ---- LIFTOFF: the blow, then the battle's drums and her lullaby in A major, a call to the sky
+    blaze(lo, dur=1.8)
+    drum(lo, 52, 124)
+    t = lo + 0.4
+    groove(t, sh - 0.6, 33, [57, 61, 64], k=0.95, heavy=True)
+    for m, g in zip([69, 73, 76, 74, 73, 69, 68, 64], [0.4, 0.4, 0.6, 0.4, 0.4, 0.6, 0.4, 0.4]):
+        if t >= sh - 0.75:
+            break
+        note(HORN, t, g * 0.95, m - 12, 122)
+        note(BRASS, t, g * 0.95, m - 12, 110)
+        note(STR, t, g * 0.95, m + 12, 100)
+        t += g
+    # the sky comes down to meet them: everything climbing, a roll into the glass
+    for s_ in range(6):
+        tt = sh - 0.6 + s_ * 0.1
+        note(STR, tt, 0.09, 69 + 2 * s_, 100 + 4 * s_)
+        note(BRASS, tt, 0.09, 45 + 2 * s_, 100 + 4 * s_)
+    roll(TIMP, sh - 0.6, sh - 0.03, 45, 90, 127)
+    roll(DRUMS, sh - 0.6, sh - 0.03, 38, 90, 127, 0.04)
+    cut(sh - 0.02)
+    # ---- the sky breaks: glass on the celesta, and space opens on the whole orchestra
+    chord(CELESTA, sh, 1.4, [88, 89, 93, 94], 112)
+    blaze(sh, dur=2.0)
+    drum(sh, 52, 127)
+    roll(TIMP, sh + 0.1, sh + 0.9, 45, 124, 70)
+    t0 = sh + 0.4
+    prog = [(33, [57, 61, 64]), (38, [57, 62, 66]), (42, [57, 61, 66])]
+    for b, (r, ch) in enumerate(prog):
+        bt = t0 + b * BAR
+        if bt >= po - 0.05:
+            break
+        groove(bt, min(bt + BAR, po - 0.02), r, ch, k=1.0, heavy=True)
+        chord(STR, bt, BAR, [p + 12 for p in ch], 96)
+        chord(PAD, bt, BAR, ch, 80)
+    # the theme on everyone: her lullaby in A major, long notes
+    for m, at, d in ((69, 0, 2), (73, 2, 1), (76, 3, 3), (74, 6, 2), (73, 8, 1), (69, 9, 3)):
+        tt = t0 + at * B
+        if tt >= po - 0.1:
+            break
+        dd = min(d * B * 0.97, po - 0.02 - tt)
+        note(HORN, tt, dd, m - 12, 124)
+        note(BRASS, tt, dd, m, 104)
+        note(CHOIR, tt, dd, m, 112)
+        note(TROM, tt, dd, m - 24, 100)
+    cut(po - 0.02)
+    # ---- the portal: E held under everything, the strings and the choir rising into white
+    note(BASS, po, wh - po, 28, 96)
+    note(TUBA, po, wh - po, 40, 90)
+    chord(CHOIR, po, wh - po, [52, 56, 59, 64], 80)
+    swell(CHOIR, po, wh, 50, 127)
+    chord(TREM, po, wh - po, [76, 80, 83, 88], 70)
+    swell(TREM, po, wh, 30, 124)
+    for k in range(int((wh - po) / 0.09)):
+        note(CELESTA, po + k * 0.09, 0.5, [76, 80, 83, 88, 92, 95, 100][k % 7], 60 + k)
+    n = 12
+    for k in range(n):
+        at = po + (wh - po - 0.2) * k / n
+        note(STR, at, (wh - po) / n * 1.05, 64 + k, 80 + 3 * k)
+    roll(TIMP, wh - 1.2, wh - 0.03, 40, 60, 127)
+    roll(DRUMS, wh - 0.8, wh - 0.03, 49, 40, 116, 0.05)
+    cut(wh - 0.02)
+    # ---- white; the end: A major, ringing; the celesta's sparkle; quiet enough for the last line
+    blaze(wh, dur=2.4)
+    drum(wh, 52, 124)
+    roll(TIMP, wh + 0.1, wh + 1.2, 45, 120, 60)
+    chord(STR, wh + 0.8, fade - wh, [57, 61, 64, 69, 73], 78)
+    chord(CHOIR, wh + 0.8, fade - wh, [57, 61, 64, 69], 72)
+    chord(PAD, wh + 0.8, fade - wh, [45, 52, 57, 61], 74)
+    note(BASS, wh + 0.8, fade - wh, 33, 74)
+    note(HORN, wh + 1.0, fade - wh, 57, 64)
+    for k, m in enumerate((88, 85, 81, 76, 81, 85, 88, 93)):
+        note(CELESTA, e + 0.6 + 0.5 * k, 1.4, m, 58)
+    for ch in (STR, CHOIR, PAD, BASS, HORN, CELESTA):
+        swell(ch, fade, fade + 0.5, 110, 0, 12)
+    cut(fade + 0.55)
+
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -1020,6 +1221,7 @@ SCORES = {
     'tarot': (tarot, {BOX: 6, HORN: 40, CELLO: 45}),
     'lineup': (lineup, {BOX: 0, CELESTA: 11, HORN: 59, BASS: 32, TREM: 44}),
     'popup': (popup, {BOX: 46, HORN: 73, TROM: 71, HIT: 46}),
+    'launch': (launch, {HIT: 55}),
 }
 
 if __name__ == '__main__':

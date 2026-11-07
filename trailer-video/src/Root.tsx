@@ -8,6 +8,7 @@ import { Cartridge } from "./shorts/Cartridge";
 import { Festival } from "./shorts/Festival";
 import { Fighter } from "./shorts/Fighter";
 import { Live } from "./shorts/Live";
+import { Launch } from "./shorts/Launch";
 import { Lineup } from "./shorts/Lineup";
 import { Lofi } from "./shorts/Lofi";
 import { Lullaby } from "./shorts/Lullaby";
@@ -38,6 +39,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["tarot", Tarot],
   ["lineup", Lineup],
   ["popup", Popup],
+  ["launch", Launch],
 ];
 
 export const RemotionRoot: React.FC = () => {
