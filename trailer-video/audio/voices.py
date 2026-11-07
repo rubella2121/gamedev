@@ -10,6 +10,7 @@ place the voice is heard in, made with a convolution room:
   breathy  "Don't look up": half spoken, half breathed (the take's own breath, from its vocal tract, mixed under it)
   whisper  the thing above, at the very end: only breath, and a second, darker throat under it
   doc      a wildlife film's narrator in his booth: close, dry, warm, a breath of room
+  radio    mission control on a headset: the top and bottom of the voice cut, squeezed, a little crushed
 For every line the slowest take that still ends before the next line is used.
 """
 import glob
@@ -66,6 +67,8 @@ STYLE = {
     'breathy': ('highpass=f=90,' + EQ + ',equalizer=f=8000:t=q:w=1.5:g=2', ROOM, 0.12),
     'whisper': ('highpass=f=120,equalizer=f=900:t=q:w=1:g=2,equalizer=f=5000:t=q:w=1.4:g=2.5', HALL, 0.45),
     'doc': ('highpass=f=70,equalizer=f=140:t=q:w=1:g=2,' + EQ, ROOM, 0.05),
+    'radio': ('highpass=f=330,lowpass=f=3300,equalizer=f=1500:t=q:w=1:g=5,acompressor=threshold=-30dB:ratio=6:attack=3:release=80:makeup=4,'
+              'acrusher=bits=11:mix=0.22', ROOM, 0.02),
 }
 
 
