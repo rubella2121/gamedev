@@ -15,7 +15,7 @@ PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
 STEPS=${*:-voices music clips render promos promo-render shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup popup launch"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup popup launch noir"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 
@@ -32,6 +32,9 @@ if has voices; then
   # launch day: mission control, on the radio
   $PY audio/lines.py "$KOKORO" "$WORK/takes-launch" src/data/lines-launch.json
   $PY audio/voices.py "$WORK/takes-launch" "$WORK/voice" src/data/lines-launch.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['launch']['length'])")"
+  # the noir comic: its hardboiled narrator
+  $PY audio/lines.py "$KOKORO" "$WORK/takes-noir" src/data/lines-noir.json
+  $PY audio/voices.py "$WORK/takes-noir" "$WORK/voice" src/data/lines-noir.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['noir']['length'])")"
 fi
 if has music; then
   echo "== orchestra"
@@ -69,6 +72,12 @@ if has clips; then
   ffmpeg -v error -y -ss 1.0 -i public/clips/edge-stars.mp4 -frames:v 1 \
     -filter_complex "[0]crop=1080:1000:0:0,lutrgb=r=val*1.35:g=val*1.35:b=val*1.35,split[a][b];[b]vflip,crop=1080:920:0:0[c];[a][c]vstack" \
     -q:v 3 public/launch/skypane.jpg
+  # the noir comic: the footage inked (brightened, posterised to four greys, its edges drawn in, only the reds kept)
+  INK="eq=gamma=1.8:contrast=1.2,colorhold=color=0xff3030:similarity=0.22:blend=0.05,eq=saturation=2.6,split[a][b];[a]lutyuv=y='if(lt(val,26),4,if(lt(val,70),42,if(lt(val,140),158,246)))'[p];[b]hue=s=0,gblur=sigma=1.0,edgedetect=low=0.05:high=0.14,negate,format=yuv420p[e];[p][e]blend=c0_mode=multiply:c1_mode=normal:c2_mode=normal"
+  ink() { ffmpeg -v error -y ${2:+-ss "$2" -t 4.5} -i "public/clips/$1.mp4" -filter_complex "[0]$INK" -an -c:v libx264 -crf 20 -preset fast -pix_fmt yuv420p "public/clips/noir-$1.mp4"; }
+  ink wild-moon; ink x-gaze; ink f-gloom 13.33; ink f-thicket 6.67; ink f-marsh 2.67; ink f-bones 3.53; ink f-meadow 9.0
+  mkdir -p public/noir
+  cp public/launch/*.png public/noir/
 fi
 if has render; then
   echo "== render"

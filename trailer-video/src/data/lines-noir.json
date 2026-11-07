@@ -1,0 +1,13 @@
+[
+  {"id": "n1", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 0.9, "style": "noir", "gain": 1.0, "text": "The forest never sleeps.", "caption": "The forest never sleeps."},
+  {"id": "n2", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 4.6, "style": "noir", "gain": 1.0, "text": "Name's Blob.|Small. Round.|Glows in the dark.", "caption": "Name's Blob. Small. Round. Glows in the dark."},
+  {"id": "n3", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 8.7, "style": "noir", "gain": 1.0, "text": "Then somebody took my family.", "caption": "Then somebody took my family."},
+  {"id": "n4", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 10.6, "style": "noir", "gain": 1.0, "text": "Somebody big.", "caption": "Somebody big."},
+  {"id": "n5", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 12.6, "style": "noir", "gain": 1.0, "text": "Five guardians.|Five alibis.", "caption": "Five guardians. Five alibis."},
+  {"id": "n6", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 18.2, "style": "noir", "gain": 1.0, "text": "Every one of them...|lying.", "caption": "Every one of them\u2026 lying."},
+  {"id": "n7", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 20.5, "style": "noir", "gain": 1.0, "text": "So I did what nobody does.|I looked up.", "caption": "So I did what nobody does. I looked up."},
+  {"id": "n8", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 23.8, "style": "noir", "gain": 1.0, "text": "Turns out...|the world was never flat.", "caption": "Turns out\u2026 the world was never flat."},
+  {"id": "n9", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 27.1, "style": "noir", "gain": 1.0, "text": "And the one in charge had three eyes.", "caption": "And the one in charge had three eyes."},
+  {"id": "n10", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 29.4, "style": "noir", "gain": 1.0, "text": "All of them...|on me.", "caption": "All of them\u2026 on me."},
+  {"id": "n11", "voice": "am_fenrir", "speeds": [0.9, 0.95, 1.0, 1.05], "at": 32.6, "style": "noir", "gain": 1.0, "text": "The Third Direction.|Now on Crazy Games.", "caption": "The Third Direction. Now on CrazyGames."}
+]

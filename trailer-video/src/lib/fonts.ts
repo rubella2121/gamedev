@@ -4,9 +4,11 @@ import "@fontsource/cinzel/900.css";
 import "@fontsource/cormorant-garamond/600-italic.css";
 import "@fontsource/inter/600.css";
 import "@fontsource/inter/800.css";
+import "@fontsource/bangers/400.css";
 import "@fontsource/bebas-neue/400.css";
 import "@fontsource/permanent-marker/400.css";
 import "@fontsource/press-start-2p/400.css";
+import "@fontsource/special-elite/400.css";
 import "@fontsource/vt323/400.css";
 import { useEffect, useState } from "react";
 import { continueRender, delayRender } from "remotion";
@@ -18,6 +20,9 @@ export const PIXEL = '"Press Start 2P"';
 export const TERM = "VT323";
 export const POSTER = "Bebas Neue";
 export const MARKER = "Permanent Marker";
+/** a comic's lettering (its sound effects) and a typewriter (a noir narrator's captions) */
+export const COMIC = "Bangers";
+export const TYPE = '"Special Elite"';
 
 /**
  * Wait for the type before the first frame is taken (a frame drawn in a fallback font would flicker), and only then draw the
@@ -28,7 +33,7 @@ export const useFonts = () => {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const faces = [`400 40px ${SERIF}`, `700 40px ${SERIF}`, `900 40px ${SERIF}`, `italic 600 40px "${ITALIC}"`, `600 40px ${SANS}`, `800 40px ${SANS}`];
-    faces.push(...[PIXEL, TERM, POSTER, MARKER].map((f) => `400 40px ${f.startsWith('"') ? f : `"${f}"`}`));
+    faces.push(...[PIXEL, TERM, POSTER, MARKER, COMIC, TYPE].map((f) => `400 40px ${f.startsWith('"') ? f : `"${f}"`}`));
     const done = () => {
       setReady(true);
       continueRender(handle);
