@@ -111,7 +111,7 @@ In the RUN, itch.io and preview builds, `adBreak()` returns null and `gameplay()
 **yes** (touch controls are built in). Covers: `brand/crazygames/landscape.jpg` (1920 × 1080), `portrait.jpg` (800 × 1200),
 `square.jpg` (800 × 800), made by `node tools/brand/render.mjs cglandscape cgportrait cgsquare`; if the portal asks for other
 sizes, change them there. They also want two preview videos (MP4, at most 20 s), shown when a player hovers over the cover:
-`brand/crazygames/preview-landscape.mp4` and `preview-portrait.mp4` (16.8 s of gameplay, no text), made by `tools/brand/previews.sh`.
+`brand/crazygames/preview-landscape.mp4` (1920 × 1080) and `preview-portrait.mp4` (1080 × 1620: they want 2:3, not 9:16) (16.8 s of gameplay, no text), made by `tools/brand/previews.sh`.
 A new game starts in **Basic Launch** (a test with real players); if it does well they offer **Full Launch**, which is where the
 SDK and the ad revenue matter. This build already has the SDK in, so nothing needs to change then.
 
