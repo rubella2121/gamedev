@@ -110,7 +110,8 @@ In the RUN, itch.io and preview builds, `adBreak()` returns null and `gameplay()
 **Submitting:** CrazyGames Developer Portal → Submit game → HTML5, upload the zip. Orientation **portrait**, mobile
 **yes** (touch controls are built in). Covers: `brand/crazygames/landscape.jpg` (1920 × 1080), `portrait.jpg` (800 × 1200),
 `square.jpg` (800 × 800), made by `node tools/brand/render.mjs cglandscape cgportrait cgsquare`; if the portal asks for other
-sizes, change them there. They also ask for a short gameplay video: the trailer or one of the shorts works.
+sizes, change them there. They also want two preview videos (MP4, at most 20 s), shown when a player hovers over the cover:
+`brand/crazygames/preview-landscape.mp4` and `preview-portrait.mp4` (16.8 s of gameplay, no text), made by `tools/brand/previews.sh`.
 A new game starts in **Basic Launch** (a test with real players); if it does well they offer **Full Launch**, which is where the
 SDK and the ad revenue matter. This build already has the SDK in, so nothing needs to change then.
 
