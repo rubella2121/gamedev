@@ -446,12 +446,24 @@ const Page2: React.FC<{ t: number; ready: boolean; frame: number }> = ({ t, read
           const g = S.guardians[i]!;
           const G = GUARDIANS[i]!;
           const d = t - g;
-          if (d < -0.05) return <svg key={i} width={W} height={H} style={{ position: "absolute", left: 0, top: 0 }}><polygon points={row.pts.map((p) => p.join(",")).join(" ")} fill="none" stroke="rgba(11,11,13,0.18)" strokeWidth={4} strokeDasharray="14 12" /></svg>;
           const k = easeOut(d / 0.16);
           const side = i % 2 ? 1 : -1;
           const [bx, by, bw, bh] = row.box;
+          // until it is slammed down, an unknown suspect: a black panel and a question mark
+          const unknown =
+            d < 0.16 ? (
+              <svg width={W} height={H} style={{ position: "absolute", left: 0, top: 0 }}>
+                <polygon points={row.pts.map((p) => p.join(",")).join(" ")} fill="#161619" stroke={INK} strokeWidth={9} strokeLinejoin="round" />
+                <text x={bx + bw / 2} y={by + bh / 2} textAnchor="middle" dominantBaseline="central" fontFamily={COMIC} fontSize={230} fill="#2e2e34" opacity={0.6 + 0.4 * Math.sin(t * 3 + i)}>
+                  ?
+                </text>
+              </svg>
+            ) : null;
+          if (d < -0.05) return <React.Fragment key={i}>{unknown}</React.Fragment>;
           return (
-            <div key={i} style={{ position: "absolute", inset: 0, transform: `translateX(${(side * 1100 * (1 - k)).toFixed(1)}px) rotate(${(side * 4 * (1 - k)).toFixed(2)}deg)` }}>
+            <React.Fragment key={i}>
+              {unknown}
+              <div style={{ position: "absolute", inset: 0, transform: `translateX(${(side * 1100 * (1 - k)).toFixed(1)}px) rotate(${(side * 4 * (1 - k)).toFixed(2)}deg)` }}>
               <div style={{ position: "absolute", inset: 0, clipPath: `polygon(${row.pts.map(([x, y]) => `${x}px ${y}px`).join(",")})`, background: INK }}>
                 <Clip clip={G.clip} at={g - 0.1} from={0} dur={S.up + 2.0 - g} box={[bx, by, bw, bh]} z={G.z} c={G.c} rate={G.rate} pixel filter="contrast(1.05)" />
                 <Dots o={0.12} />
@@ -464,7 +476,8 @@ const Page2: React.FC<{ t: number; ready: boolean; frame: number }> = ({ t, read
                   {G.name}
                 </div>
               ) : null}
-            </div>
+              </div>
+            </React.Fragment>
           );
         })}
         {ready
