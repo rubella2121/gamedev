@@ -3,6 +3,8 @@ import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 /** Thin, failure-proof wrappers around the RUN SDK so the game also runs outside the RUN app. */
 /** the credit line under the title and on the end card */
 export const CREDIT = 'RUN October Jam · Monster Mash';
+/** a new player lands straight in the game (no splash, intro or home page): the portals that ask for it set this */
+export const INSTANT = false;
 
 export function onLifecycle(onPause: () => void, onResume: () => void) {
   try {

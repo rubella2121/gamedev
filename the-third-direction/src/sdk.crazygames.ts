@@ -6,6 +6,11 @@
  * to localStorage. If the SDK is not there (testing, or blocked), every call quietly does nothing and the game plays as usual.
  */
 export const CREDIT = 'a boss rush in three directions';
+/**
+ * CrazyGames wants a new player in gameplay at once (one click at most): someone who has never played starts a run as the page
+ * opens, in the glade, the story told in captions over it and then the tutorial. A returning player gets the home page.
+ */
+export const INSTANT = true;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;

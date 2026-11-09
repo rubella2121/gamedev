@@ -107,6 +107,13 @@ HTML5 SDK v3 (the page loads it from `sdk.crazygames.com`):
 - **Saves:** their data module, so saves follow a signed-in player, with localStorage as the fallback. **Happy time** on a
   full clear. No share link (the share button does nothing there).
 - **Without the SDK** (offline, blocked) every call does nothing and the game plays as usual.
+- **Instant play** (`INSTANT` in the SDK module): CrazyGames wants a new player in gameplay at once (one click at most). Someone who
+  has never played starts a run as the page opens: no splash, no intro film, no home page, no opening scene. The hero's name and the
+  story come as captions over the glade while the blob can already move, then the tutorial. The sound starts with the first tap or key
+  (browsers allow it nowhere else). A returning player (tutorial done, or a run saved) gets the home page. `?instant` tries it on any build.
+- **Desktop:** most of their players are on a computer, in landscape. Around the tall frame of the game the page shows the guardians and
+  the 3D bosses (`brand/crazygames/desktop-bg.jpg`, cut from the itch.io background, scaled to the height so the art always meets the
+  frame) instead of black bars.
 
 In the RUN, itch.io and preview builds, `adBreak()` returns null and `gameplay()` does nothing, so Play starts in the same tap.
 
@@ -115,6 +122,10 @@ In the RUN, itch.io and preview builds, `adBreak()` returns null and `gameplay()
 `square.jpg` (800 × 800), made by `node tools/brand/render.mjs cglandscape cgportrait cgsquare`; if the portal asks for other
 sizes, change them there. They also want two preview videos (MP4, at most 20 s), shown when a player hovers over the cover:
 `brand/crazygames/preview-landscape.mp4` (1920 × 1080) and `preview-portrait.mp4` (1080 × 1620: they want 2:3, not 9:16) (16.8 s of gameplay, no text), made by `tools/brand/previews.sh`.
+The first submission was turned down for overall quality (new players waited through a splash, the film, the home page and the
+opening before they could move, and the frame stood in black bars on a desktop). Their FAQ allows a resubmission after meaningful
+improvements; the second one added instant play, the desktop art, the tutorial and the Moth Meadow fixes.
+
 A new game starts in **Basic Launch** (a test with real players); if it does well they offer **Full Launch**, which is where the
 SDK and the ad revenue matter. This build already has the SDK in, so nothing needs to change then.
 

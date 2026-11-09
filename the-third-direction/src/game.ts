@@ -7,7 +7,7 @@ import { Sfx } from './core/audio';
 import { bestTime, D, type DiffId, loadDifficulty, PRESETS, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { adBreak, gameplay, onLifecycle, onSiteMute, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
+import { adBreak, gameplay, INSTANT, onLifecycle, onSiteMute, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
 import { Trailer } from './cinematic/trailer';
 import { makeScore } from './cinematic/scoreHook';
 import { UI } from './ui';
@@ -16,6 +16,8 @@ type State = 'splash' | 'trailer' | 'menu' | 'act1' | 'boom' | 'arena' | 'ending
 
 /** set once the intro has been seen (or skipped), so it only plays by itself the first time */
 const INTRO_KEY = 'tt.intro';
+/** the tutorial was played (or skipped): see Forest */
+const TUT_KEY = 'tt.tutorial';
 /** the run in progress, so a player who leaves can pick it up again (see saveRun) */
 const RUN_KEY = 'tt.run';
 
@@ -136,6 +138,12 @@ export class Game {
       if (this.state !== 'menu') return;
       // test builds (?debug) go straight to the home page; add &intro to see the first-visit flow
       const q = new URLSearchParams(location.search);
+      // a portal that wants new players in the game at once: someone who has never played starts a run now; anyone else, the home page
+      if ((INSTANT && !q.has('debug')) || q.has('instant')) {
+        if (!storageGet(TUT_KEY) && !this.loadRun()) this.instantPlay();
+        else this.showHome();
+        return;
+      }
       if (storageGet(INTRO_KEY) || (q.has('debug') && !q.has('intro'))) this.showHome();
       else this.showSplash();
     });
@@ -147,6 +155,24 @@ export class Game {
     onSiteMute((m) => this.audio.setSiteMuted(m));
     document.addEventListener('visibilitychange', () => this.setPaused(document.hidden));
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  /**
+   * Straight into a run (the portals that ask for it): no splash, no intro, no home page, no opening scene. The story is told in
+   * captions over the glade while the blob can already move, then the tutorial. The sound cannot start before the player touches
+   * the page (browsers allow it nowhere else): the first tap or key starts it.
+   */
+  private instantPlay() {
+    storageSet(INTRO_KEY, '1');
+    const unlock = () => {
+      this.audio.start();
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+    };
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    this.begin();
+    this.act1.instantStart();
   }
 
   /** "tap to begin": the first visit. The tap also unlocks the sound for the trailer. */
