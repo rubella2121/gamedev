@@ -154,6 +154,9 @@ export class Forest implements Hub {
   /** the tutorial, while it is on (right after the opening, the first time someone plays) */
   private tut: Tutorial | null = null;
   private tutAt = { x: 0, y: 0 };
+  /** a run that began with no opening scene (instantStart): the story is told in captions, and the tutorial starts this many seconds in */
+  private instant = false;
+  private tutIn = -1;
   onSection: ((name: string) => void) | null = null;
   onTeaserFlash: (() => void) | null = null;
 
@@ -526,6 +529,8 @@ export class Forest implements Hub {
     this.mood.reset();
     this.mothGuide = null;
     this.tut = null;
+    this.tutIn = -1;
+    this.instant = false;
     this.ui.tutorial(null);
     this.input.highlight(false);
     this.zones.forEach((z) => z.reset());
@@ -581,6 +586,16 @@ export class Forest implements Hub {
     const show = real && !storageGet(BRIEF_KEY) && !(q.has('debug') && !q.has('intro'));
     const teach = (real && !storageGet(TUT_KEY) && !q.has('debug')) || (this.briefNext && q.has('tutorial'));
     this.briefNext = false;
+    if (this.instant) {
+      // no card to tap away: the blob can move at once, the story comes in captions, and the tutorial follows them
+      storageSet(BRIEF_KEY, '1');
+      this.input.setMoveEnabled(true);
+      this.ui.card({ small: STORY.hero.sub, big: STORY.hero.name }, 2600);
+      STORY.brief.forEach((line, i) => window.setTimeout(() => this.mode === 'play' && this.instant && this.ui.narrate(line, 2300, 'world'), 2400 + i * 2500));
+      if (teach) this.tutIn = 2.4 + STORY.brief.length * 2.5 + 0.3;
+      else this.startMoveHint();
+      return;
+    }
     const go = () => {
       this.input.setMoveEnabled(true);
       if (teach) this.startTutorial();
@@ -593,6 +608,12 @@ export class Forest implements Hub {
         go();
       });
     } else go();
+  }
+
+  /** a run with no opening scene (a portal that wants new players in the game at once, see INSTANT in the sdk) */
+  instantStart() {
+    this.instant = true;
+    this.skipOpening();
   }
 
   /** the tutorial, in the clearing where the blob woke */
@@ -1281,6 +1302,10 @@ export class Forest implements Hub {
     }
     if (fighting || this.tut) this.updateFightFx(dt);
     this.tut?.update(dt);
+    if (this.tutIn > 0) {
+      this.tutIn -= dt;
+      if (this.tutIn <= 0 && !this.tut && !this.arena) this.startTutorial();
+    }
 
     // --- camera
     let tx = clamp(pl.x - W / 2 + pl.lookX * 24, 0, WORLD_W - W);

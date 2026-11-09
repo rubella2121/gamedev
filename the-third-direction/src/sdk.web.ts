@@ -4,6 +4,8 @@
  * There is no leaderboard; sharing uses the browser's share sheet or the clipboard.
  */
 export const CREDIT = 'a boss rush in three directions';
+/** a new player lands straight in the game (no splash, intro or home page): the portals that ask for it set this */
+export const INSTANT = false;
 
 export function onLifecycle(onPause: () => void, onResume: () => void) {
   document.addEventListener('visibilitychange', () => (document.hidden ? onPause() : onResume()));

@@ -1,6 +1,8 @@
 /** No-op stand-in for src/sdk.ts, used by the standalone (non-RUN) preview build. */
 /** the credit line under the title and on the end card */
 export const CREDIT = 'RUN October Jam · Monster Mash';
+/** a new player lands straight in the game (no splash, intro or home page): the portals that ask for it set this */
+export const INSTANT = false;
 
 export function onLifecycle(_onPause: () => void, _onResume: () => void) {}
 /**
