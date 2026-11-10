@@ -129,6 +129,22 @@ improvements; the second one added instant play, the desktop art, the tutorial a
 A new game starts in **Basic Launch** (a test with real players); if it does well they offer **Full Launch**, which is where the
 SDK and the ad revenue matter. This build already has the SDK in, so nothing needs to change then.
 
+### GameDistribution (ads across hundreds of sites)
+```bash
+GD_GAME_ID=<the game id from their control panel> npm run build:gamedistribution
+```
+This makes `dist-gamedistribution/` and `the-third-direction-gamedistribution.zip`. `vite.gamedistribution.config.ts` swaps in
+`src/sdk.gamedistribution.ts` and puts their HTML5 SDK in the page (`html5.api.gamedistribution.com/main.min.js`, with
+`window.GD_OPTIONS`: the id, and an `onEvent` that hands every event to the game). The build refuses to run without a 32-character id.
+- **Ads** only at the natural breaks, always after a tap (Play, Continue, Play again, a boss picked; never in a fight): a pre-roll
+  the first time, mid-rolls after, as often as their SDK allows. The game is paused and silent from SDK_GAME_PAUSE to SDK_GAME_START
+  (and goes on if the ad fails, or after 40 s at most).
+- **Saves** in localStorage; no share link. On a desktop the page shows the CrazyGames desktop art around the frame.
+- **Without the SDK** every call does nothing and Play starts in the same tap.
+
+**Uploading:** gamedistribution.com → developer sign-up → create the game (HTML5) to get its **Game ID** → build with it → upload the
+zip. Their portal activates the integration once the pre-roll has been watched to the end in the upload page's preview.
+
 ### Newgrounds
 Upload `the-third-direction-web.zip` (the itch.io build) as an HTML5 game; no SDK is needed. Set the size to **390 × 844**
 (portrait), tick mobile friendly if offered, and use `brand/cover.png` as the icon (crop it in their uploader). The audience
