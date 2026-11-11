@@ -99,6 +99,9 @@ veins), The Third Axis (minimal: the mark), Shatter (the flat world as breaking 
 (pixel art), Kaleidoscope (a mandala of the guardians), Survey Map (the forest as a contour chart), Pop Art (halftone prints),
 Signal Lost (glitch), Rising (isometric columns), Aurora (five curtains of light).
 
+Three more are not in the pack (made on request, abstract and pink: Pink Silk, Rose Aura, Pink Dusk). `node tools/brand/wallpapers.mjs
+--extras` draws them into `brand/wallpapers/extras` for a 4K phone (2160 x 3840).
+
 **On itch.io:** Edit game → Uploads → add `the-third-direction-wallpapers.zip` (do not tick "played in the browser"; name it
 "Wallpaper pack (4K + phone)"). The page then shows a Download button, and the donation prompt with it.
 
