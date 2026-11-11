@@ -13,6 +13,7 @@
     "build:web": "tsc && vite build --config vite.web.config.ts && cd dist-web && rm -f ../the-third-direction-web.zip && zip -qr ../the-third-direction-web.zip .",
     "build:crazygames": "tsc && vite build --config vite.crazygames.config.ts && cd dist-crazygames && rm -f ../the-third-direction-crazygames.zip && zip -qr ../the-third-direction-crazygames.zip .",
     "build:gamedistribution": "tsc && vite build --config vite.gamedistribution.config.ts && cd dist-gamedistribution && rm -f ../the-third-direction-gamedistribution.zip && zip -qr ../the-third-direction-gamedistribution.zip .",
+    "build:y8": "tsc && vite build --config vite.y8.config.ts && cd dist-y8 && rm -f ../the-third-direction-y8.zip && zip -qr ../the-third-direction-y8.zip .",
     "gallery": "tsc && vite build --config vite.gallery.config.ts",
     "concepts": "npm run gallery && node tools/render-concepts.mjs",
     "build:artifact": "tsc && vite build --config vite.artifact.config.ts && node tools/make-artifact.mjs"

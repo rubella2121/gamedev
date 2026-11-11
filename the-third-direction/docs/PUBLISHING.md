@@ -164,6 +164,19 @@ This makes `dist-gamedistribution/` and `the-third-direction-gamedistribution.zi
 **Uploading:** gamedistribution.com → developer sign-up → create the game (HTML5) to get its **Game ID** → build with it → upload the
 zip. Their portal activates the integration once the pre-roll has been watched to the end in the upload page's preview.
 
+### Y8 (a self-serve upload with its own players)
+```bash
+npm run build:y8
+```
+This makes `dist-y8/` and `the-third-direction-y8.zip`. `vite.y8.config.ts` swaps in `src/sdk.y8.ts`: no SDK and nothing loaded
+from outside the zip (Y8 runs its own ads around the frame), saves in localStorage, and **instant play** as on CrazyGames (a new
+player starts a run as the page opens; a returning one gets the home page). The share button shares the run with the Y8 page it
+was played on, never a link to another site. On a desktop the page shows the CrazyGames desktop art around the frame.
+
+**Uploading:** sign in to y8.com, use its upload page, choose HTML5 and upload the zip. Give it a **landscape frame (960 × 540)**
+so desktop players see the art around the game, tick mobile if offered, and use `brand/cover.png` as the thumbnail. Check their
+form for the current rules before submitting (sizes and review steps change).
+
 ### Newgrounds
 Upload `the-third-direction-web.zip` (the itch.io build) as an HTML5 game; no SDK is needed. Set the size to **390 × 844**
 (portrait), tick mobile friendly if offered, and use `brand/cover.png` as the icon (crop it in their uploader). The audience
