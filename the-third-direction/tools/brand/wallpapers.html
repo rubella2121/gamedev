@@ -1267,12 +1267,153 @@ WP['aurora'] = async (W, H) => {
   return c;
 };
 
+/* ------------------------------------------------------------------------------------------------ extras: pink */
+/** Not in the pack: wallpapers made on request (`node tools/brand/wallpapers.mjs --extras`, a 4K phone: 2160 x 3840). */
+const XP = {};
+/** smoother noise than the kit's (its slopes are lit here, so the joins of the lattice must not show), and a dither */
+const SOFT = `
+uniform float S;
+float qn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * f * (f * (f * 6. - 15.) + 10.);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+float sf(vec2 p){ float a = .5, s = 0.; mat2 m = mat2(.8, -.6, .6, .8);
+  for (int i = 0; i < 3; i++) { s += a * qn(p); p = m * p * 1.9 + 7.3; a *= .5; } return s / .875; }
+float hq(vec2 p){ vec3 a = fract(vec3(p.xyx) * .1031); a += dot(a, a.yzx + 33.33); return fract((a.x + a.y) * a.z); }
+// film grain (G: how much) that also hides the steps of an 8-bit gradient
+vec3 grn(vec3 c, float G){ float n = hq(Q + S * 17.) + hq(Q * 1.37 + 91.3 + S) - 1.; return c + n * (G * (.35 + .65 * (1. - abs(2. * dot(c, vec3(.3, .5, .2)) - 1.))) + 1. / 255.); }
+`;
+
+/** Pink Silk: satin in folds, lit from the upper left; magenta in the valleys, blush on the ridges, a drift to coral and lilac */
+XP['pink-silk'] = async (W, H) => {
+  const [c, x] = cv(W, H);
+  const s = shade(W, H, SOFT + `
+float hgt(vec2 p){
+  vec2 w = vec2(sf(p * .55 + S), sf(p * .55 + S + 31.4)) - .5;
+  vec2 q = p + 1.9 * w;
+  float w2 = sf(q * .7 + 12.) - .5;
+  float a = q.x * 1.05 + q.y * 1.75 + 5.5 * w2;
+  float h = .5 + .5 * sin(a * 2.5);
+  h = h * .70 + .30 * (.5 + .5 * sin(a * 5.6 + 3.2 * sf(q * 1.1 + 50.)));
+  return h;
+}
+void main(){
+  float k = 2.1 / min(R.x, R.y);
+  vec2 p = Q * k;
+  float e = 2. * k;
+  float h = hgt(p), hx = hgt(p + vec2(e, 0)), hy = hgt(p + vec2(0, e));
+  vec3 n = normalize(vec3(-(hx - h) / e, -(hy - h) / e, 3.0));
+  vec3 L = normalize(vec3(-.5, -.62, .6));
+  float d = clamp(dot(n, L) * .5 + .5, 0., 1.);
+  vec3 Hh = normalize(L + vec3(0, 0, 1));
+  float nh = clamp(dot(n, Hh), 0., 1.);
+  float t = sf(p * .3 + 90.);
+  float v = Q.y / R.y;
+  float warm = smoothstep(.25, .8, t * .7 + v * .55);
+  float lil = smoothstep(.5, .9, sf(p * .28 + 140.));
+  vec3 deep = mix(vec3(.36, .01, .25), vec3(.24, .04, .36), t);
+  vec3 mid = mix(vec3(.96, .13, .50), vec3(1., .26, .48), warm);
+  mid = mix(mid, vec3(.74, .30, .90), lil * .7);
+  vec3 hi = mix(vec3(1., .66, .82), vec3(1., .72, .72), warm);
+  hi = mix(hi, vec3(.93, .74, 1.), lil * .6);
+  vec3 col = mix(deep, mid, smoothstep(.20, .62, d));
+  col = mix(col, hi, smoothstep(.60, .97, d) * .62);
+  col += hi * pow(nh, 10.) * .10 + vec3(1., .94, .97) * pow(nh, 70.) * .30;
+  col *= .80 + .20 * h;
+  o = vec4(grn(col, .035), 1.);
+}`, { S: 3.7 });
+  x.drawImage(s, 0, 0);
+  bloom(x, s, Math.min(W, H) * 0.02, 0.12, 0.8);
+  finish(c, x, { grain: 0, vig: 0.3, seed: 51 });
+  return c;
+};
+
+/** Rose Aura: a soft light in the middle of the screen, and seven colours melting into each other around it; grainy */
+XP['rose-aura'] = async (W, H) => {
+  const [c, x] = cv(W, H);
+  const s = shade(W, H, SOFT + `
+vec3 col = vec3(0.); float tw = 0.;
+void pt(vec2 q, vec2 at, vec3 c, float r){ float d = length(q - at); float k = exp(-d * d / (r * r)); col += c * k; tw += k; }
+void main(){
+  vec2 p = (Q - .5 * R) / min(R.x, R.y);
+  // the colours are pulled about twice: long slow bends, then smaller eddies, so no edge between two of them is straight
+  vec2 w = vec2(sf(p * .8 + S), sf(p * .8 + S + 40.)) - .5;
+  vec2 q = p + .95 * w;
+  vec2 w2 = vec2(sf(q * 1.7 + S + 80.), sf(q * 1.7 + S + 120.)) - .5;
+  q += .34 * w2;
+  float a = R.y / R.x; float ay = max(a, 1.) * .5, ax = max(1. / a, 1.) * .5;
+  pt(q, vec2(-.80 * ax, -1.00 * ay), vec3(.40, .16, .84), .34);
+  pt(q, vec2(.75 * ax, -.86 * ay), vec3(1., .16, .55), .36);
+  pt(q, vec2(-.10 * ax, -.52 * ay), vec3(1., .56, .74), .30);
+  pt(q, vec2(.95 * ax, -.22 * ay), vec3(1., .66, .48), .32);
+  pt(q, vec2(-.95 * ax, -.10 * ay), vec3(.92, .08, .44), .34);
+  pt(q, vec2(.05 * ax, .08 * ay), vec3(1., .80, .84), .26);
+  pt(q, vec2(.70 * ax, .40 * ay), vec3(.76, .46, 1.), .32);
+  pt(q, vec2(-.65 * ax, .48 * ay), vec3(1., .40, .52), .32);
+  pt(q, vec2(.10 * ax, .86 * ay), vec3(1., .22, .66), .34);
+  pt(q, vec2(-.90 * ax, 1.02 * ay), vec3(.50, .14, .70), .36);
+  pt(q, vec2(.95 * ax, 1.02 * ay), vec3(1., .58, .50), .34);
+  col /= tw;
+  // the aura: a pale heart in the middle of the screen, and a faint ring of light around it
+  vec2 m = p + .16 * w;
+  float r = length(m);
+  col = mix(col, vec3(1., .86, .88), exp(-r * r / .11) * .62);
+  col = mix(col, vec3(1., .97, .93), exp(-r * r / .016) * .72);
+  col += vec3(1., .62, .80) * exp(-pow((r - .50) / .07, 2.)) * .10;
+  col = clamp(col, 0., 1.);
+  col = mix(vec3(dot(col, vec3(.3, .5, .2))), col, 1.12);
+  o = vec4(grn(col, .075), 1.);
+}`, { S: 8.2 });
+  x.drawImage(s, 0, 0);
+  finish(c, x, { grain: 0, vig: 0.2, seed: 52 });
+  return c;
+};
+
+/** Pink Dusk: the sky after sunset, plum at the top to peach at the bottom, clouds lit from below, the first stars */
+XP['pink-dusk'] = async (W, H) => {
+  const [c, x] = cv(W, H);
+  const s = shade(W, H, SOFT + `
+// (the last term is the fine wisps on the edges, which only a large picture shows)
+float dens(vec2 p){ vec2 w = vec2(fbm(p * .45 + S), fbm(p * .45 + S + 9.)); vec2 q = p + 1.5 * w; return fbm(q) + (fbm(q * 7. + 3.) - .5) * .075; }
+void main(){
+  vec2 uv = Q / R; float y = uv.y;
+  vec3 sky = mix(vec3(.13, .06, .30), vec3(.52, .13, .55), smoothstep(0., .34, y));
+  sky = mix(sky, vec3(.98, .30, .60), smoothstep(.22, .58, y));
+  sky = mix(sky, vec3(1., .52, .58), smoothstep(.5, .8, y));
+  sky = mix(sky, vec3(1., .68, .62), smoothstep(.76, 1., y));
+  float k = 1.5 / min(R.x, R.y);
+  vec2 p = vec2(Q.x * k, Q.y * k * 2.3);
+  float f = dens(p);
+  float cov = mix(.60, .41, smoothstep(.12, .60, y));
+  cov = mix(cov, .60, smoothstep(.78, 1., y));
+  float cl = smoothstep(cov, cov + .20, f);
+  float f2 = dens(p + vec2(.03, .16));
+  float lit = clamp((f - f2) * 5.5 + .42, 0., 1.);
+  float low = smoothstep(.15, .9, y);
+  vec3 sh = mix(vec3(.36, .15, .50), vec3(.70, .26, .52), low);
+  vec3 lt = mix(vec3(.98, .46, .72), vec3(1., .58, .62), low);
+  vec3 cc = mix(sh, lt, smoothstep(.2, .75, lit));
+  cc = mix(cc, vec3(1., .80, .80), smoothstep(.74, 1., lit) * (.25 + .2 * low));
+  // stars, where the sky is dark and clear
+  vec2 g = Q / (min(R.x, R.y) / 150.); vec2 id = floor(g); vec2 fr = fract(g) - .5;
+  vec2 hh = h22(id); float st = smoothstep(.985, 1., hh.x) * smoothstep(.16 + .1 * hh.y, 0., length(fr - (hh - .5) * .5));
+  sky += vec3(1., .92, .96) * st * (1. - smoothstep(.1, .45, y)) * (1. - cl) * 1.2;
+  vec3 col = mix(sky, cc, cl * .94);
+  // the last light on the horizon
+  col += vec3(1., .6, .5) * exp(-pow((1. - y) * 4.2, 2.)) * .10;
+  o = vec4(grn(col, .04), 1.);
+}`, { S: 5.4 });
+  x.drawImage(s, 0, 0);
+  bloom(x, s, Math.min(W, H) * 0.03, 0.10, 0.78);
+  finish(c, x, { grain: 0, vig: 0.3, seed: 53 });
+  return c;
+};
+
 /* ------------------------------------------------------------------------------------------------ */
 window.names = () => Object.keys(WP);
+window.extras = () => Object.keys(XP);
 window.render = async (name, W, H) => {
   await document.fonts.load('700 40px "Big Shoulders"');
   await document.fonts.load('40px "Boldonse"');
-  const c = await WP[name](W, H);
+  const c = await (WP[name] ?? XP[name])(W, H);
   return c.toDataURL('image/jpeg', 0.93);
 };
 </script>
