@@ -44,7 +44,7 @@ export const CUTS: Cut[] = [
 
 /** the words on black: (from, to, lines) */
 const CARDS: [number, number, string[]][] = [
-  [c1 + 0.2, p1 - 0.1, ["THE RUN OCTOBER JAM", "PRESENTS"]],
+  [c1 + 0.2, p1 - 0.1, ["THE FLAT FOREST", "PRESENTS"]],
   [c2 + 0.15, p2 - 0.1, ["EVERY NIGHT,"]],
   [c3 + 0.15, p3 - 0.1, ["SHE SANG HIM", "THE SAME SONG."]],
   [c4 + 0.15, S.hush - 0.05, ["AND GAVE HIM", "ONE RULE."]],
@@ -193,9 +193,9 @@ const Laurels: React.FC<{ t: number }> = ({ t }) => {
       <div style={{ position: "absolute", left: 0, top: cy - 100, width: W, textAlign: "center", fontFamily: "Cinzel", color: CREAM, opacity: smooth((u - 0.2) / 0.4) }}>
         <div style={{ fontWeight: 400, fontSize: 22, letterSpacing: "0.24em", paddingLeft: "0.24em" }}>OFFICIAL SELECTION</div>
         <div style={{ fontWeight: 700, fontSize: 44, letterSpacing: "0.08em", marginTop: 18, lineHeight: 1.1 }}>
-          RUN
+          THE FLAT FOREST
           <br />
-          OCTOBER JAM
+          FILM FESTIVAL
         </div>
         <div style={{ fontWeight: 400, fontSize: 28, letterSpacing: "0.3em", paddingLeft: "0.3em", marginTop: 14 }}>2026</div>
       </div>
@@ -229,8 +229,8 @@ const Title: React.FC<{ t: number }> = ({ t }) => {
         <div style={{ marginTop: 60, fontFamily: "Cinzel", fontWeight: 700, fontSize: 84, letterSpacing: `${(0.08 + 0.12 * (1 - easeOut(u / 2.2))).toFixed(3)}em`, color: CREAM, whiteSpace: "nowrap", textShadow: "0 0 30px rgba(255,220,170,0.25)" }}>THE THIRD</div>
         <div style={{ fontFamily: "Cinzel", fontWeight: 700, fontSize: 84, letterSpacing: `${(0.08 + 0.12 * (1 - easeOut(u / 2.2))).toFixed(3)}em`, color: CREAM, whiteSpace: "nowrap", textShadow: "0 0 30px rgba(255,220,170,0.25)" }}>DIRECTION</div>
         <div style={{ marginTop: 56, height: 1, width: (W * 0.4 * easeOut((u - 0.8) / 0.8)) | 0, backgroundColor: CREAM, opacity: 0.6 }} />
-        <div style={{ marginTop: 44, fontFamily: "Inter", fontWeight: 600, fontSize: 30, letterSpacing: "0.36em", paddingLeft: "0.36em", color: CREAM, opacity: smooth((u - 1.2) / 0.5) }}>NOW PLAYING · FREE ON RUN</div>
-        <div style={{ marginTop: 26, fontFamily: "Inter", fontWeight: 600, fontSize: 28, letterSpacing: "0.3em", paddingLeft: "0.3em", color: "#ff9aac", opacity: smooth((u - 1.7) / 0.5) }}>♥ VOTE IN THE OCTOBER JAM</div>
+        <div style={{ marginTop: 44, fontFamily: "Inter", fontWeight: 600, fontSize: 30, letterSpacing: "0.36em", paddingLeft: "0.36em", color: CREAM, opacity: smooth((u - 1.2) / 0.5) }}>NOW PLAYING · FREE ON ITCH.IO</div>
+        <div style={{ marginTop: 26, fontFamily: "Inter", fontWeight: 600, fontSize: 28, letterSpacing: "0.3em", paddingLeft: "0.3em", color: "#ff9aac", opacity: smooth((u - 1.7) / 0.5) }}>♥ LINK IN BIO · NO DOWNLOAD</div>
       </div>
     </AbsoluteFill>
   );

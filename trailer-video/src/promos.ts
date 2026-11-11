@@ -1,7 +1,7 @@
 /**
  * The promos: four short vertical cuts of the game for Reels, TikTok and Shorts, each with its own hook in the first second,
  * its own score and sound design (audio/promo.py, ../the-third-direction/tools/trailer/promo-sfx.ts), and the same end card:
- * play it free on RUN, vote for it in the October Jam. Like the trailer, every shot, word and hit is timed to a cue sheet
+ * play it free on itch.io, in the browser. Like the trailer, every shot, word and hit is timed to a cue sheet
  * (data/promos.json) that the music is written to, so they land on the same frames.
  *
  * None of them shows the Fourth: it stays a mystery.

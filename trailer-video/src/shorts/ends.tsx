@@ -1,6 +1,6 @@
 /**
- * The shorts' end cards: each in its short's own look, all saying the same thing - play it free on RUN, vote for it in the
- * October Jam - in the middle of the frame, clear of what a phone lays over a reel.
+ * The shorts' end cards: each in its short's own look, all saying the same thing - play it free on itch.io (link in
+ * bio), in the browser - in the middle of the frame, clear of what a phone lays over a reel.
  */
 import React from "react";
 import { AbsoluteFill, useCurrentFrame } from "remotion";
@@ -79,14 +79,14 @@ export const EndFourth: React.FC<{ at: number; fade: number; colour: string }> =
             whiteSpace: "nowrap",
           }}
         >
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
         <div style={{ ...pop(vote), marginTop: 44, display: "flex", alignItems: "center", gap: 22 }}>
           <Heart t={vote - 0.3} size={64} colour={RED} />
-          <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 60, color: "#fff", textShadow: `0 0 22px rgba(255,74,90,0.75), 0 4px 0 rgba(0,0,0,0.8)`, whiteSpace: "nowrap" }}>VOTE FOR US</div>
+          <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 60, color: "#fff", textShadow: `0 0 22px rgba(255,74,90,0.75), 0 4px 0 rgba(0,0,0,0.8)`, whiteSpace: "nowrap" }}>LINK IN BIO</div>
         </div>
         <div style={{ marginTop: 18, fontFamily: "Inter", fontWeight: 600, fontSize: 28, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#cdbfff", opacity: smooth((vote - 0.25) / 0.4) }}>
-          RUN · OCTOBER JAM
+          FREE · IN YOUR BROWSER
         </div>
       </AbsoluteFill>
     </AbsoluteFill>
@@ -95,7 +95,7 @@ export const EndFourth: React.FC<{ at: number; fade: number; colour: string }> =
 
 /* ------------------------------------------------------------------------------------------------ the arcade */
 
-/** an arcade's attract screen: the name in pixels, play and vote, and PRESS START blinking */
+/** an arcade's attract screen: the name in pixels, play and the link, and PRESS START blinking */
 export const EndArcade: React.FC<{ at: number; fade: number }> = ({ at, fade }) => {
   const t = useCurrentFrame() / FPS;
   const T = t - at;
@@ -116,13 +116,13 @@ export const EndArcade: React.FC<{ at: number; fade: number }> = ({ at, fade }) 
         DIRECTION
       </div>
       <div style={{ ...pop(T - 1.3), marginTop: 70, fontFamily: PIXEL, fontSize: 30, color: "#fff", padding: "22px 30px", border: `5px solid ${GOLD}`, boxShadow: `0 0 20px ${GOLD}, inset 0 0 14px rgba(255,215,122,0.4)`, backgroundColor: "#140c02" }}>
-        PLAY FREE ON RUN
+        PLAY FREE ON ITCH.IO
       </div>
       <div style={{ ...pop(T - 1.7), marginTop: 46, display: "flex", alignItems: "center", gap: 20 }}>
         <Heart t={T - 2} size={54} colour={RED} />
-        <div style={{ fontFamily: PIXEL, fontSize: 40, color: "#fff", textShadow: glow(RED) }}>VOTE FOR US</div>
+        <div style={{ fontFamily: PIXEL, fontSize: 40, color: "#fff", textShadow: glow(RED) }}>LINK IN BIO</div>
       </div>
-      <div style={{ marginTop: 22, fontFamily: PIXEL, fontSize: 18, color: "#9ff4ee", opacity: smooth((T - 2.0) / 0.3), letterSpacing: "0.1em" }}>RUN · OCTOBER JAM</div>
+      <div style={{ marginTop: 22, fontFamily: PIXEL, fontSize: 18, color: "#9ff4ee", opacity: smooth((T - 2.0) / 0.3), letterSpacing: "0.1em" }}>FREE · IN YOUR BROWSER</div>
       <div style={{ marginTop: 60, fontFamily: PIXEL, fontSize: 30, color: "#fff", opacity: T > 2.2 && blink ? 1 : 0, textShadow: glow("#fff") }}>PRESS START</div>
     </AbsoluteFill>
   );
@@ -130,7 +130,7 @@ export const EndArcade: React.FC<{ at: number; fade: number }> = ({ at, fade }) 
 
 /* ------------------------------------------------------------------------------------------------ the secrets */
 
-/** clean: the name with a marker line under it, "find them all", and VOTE FOR US circled in red */
+/** clean: the name with a marker line under it, "find them all", and LINK IN BIO circled in red */
 export const EndSecrets: React.FC<{ at: number; fade: number }> = ({ at, fade }) => {
   const t = useCurrentFrame() / FPS;
   const T = t - at;
@@ -152,13 +152,13 @@ export const EndSecrets: React.FC<{ at: number; fade: number }> = ({ at, fade })
       </AbsoluteFill>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: H * 0.6 }}>
         <div style={{ ...pop(T - 1.4), fontFamily: "Inter", fontWeight: 800, fontSize: 42, letterSpacing: "0.16em", color: "#111", backgroundColor: GOLD, padding: "20px 40px", borderRadius: 14, whiteSpace: "nowrap" }}>
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
         <div style={{ ...pop(T - 1.8), marginTop: 70, display: "flex", alignItems: "center", gap: 20 }}>
           <Heart t={T - 2.1} size={60} colour={RED} />
-          <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 64, color: "#fff", whiteSpace: "nowrap", textShadow: "0 5px 0 rgba(0,0,0,0.6)" }}>VOTE FOR US</div>
+          <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 64, color: "#fff", whiteSpace: "nowrap", textShadow: "0 5px 0 rgba(0,0,0,0.6)" }}>LINK IN BIO</div>
         </div>
-        <div style={{ marginTop: 24, fontFamily: "Inter", fontWeight: 600, fontSize: 28, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#bfeee9", opacity: smooth((T - 2.1) / 0.4) }}>RUN · OCTOBER JAM</div>
+        <div style={{ marginTop: 24, fontFamily: "Inter", fontWeight: 600, fontSize: 28, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#bfeee9", opacity: smooth((T - 2.1) / 0.4) }}>FREE · IN YOUR BROWSER</div>
       </AbsoluteFill>
       <Ring at={at + 2.15} end={fade + 0.7} x={W / 2} y={H * 0.6 + 140 + 37} rx={300} ry={92} colour="#ff3b3b" />
     </AbsoluteFill>
@@ -167,7 +167,7 @@ export const EndSecrets: React.FC<{ at: number; fade: number }> = ({ at, fade })
 
 /* ------------------------------------------------------------------------------------------------ the phonk */
 
-/** a poster: the name stacked huge, white with a red edge; play and vote on red bars */
+/** a poster: the name stacked huge, white with a red edge; play and the link on red bars */
 export const EndPhonk: React.FC<{ at: number; fade: number }> = ({ at, fade }) => {
   const t = useCurrentFrame() / FPS;
   const T = t - at;
@@ -203,8 +203,8 @@ export const EndPhonk: React.FC<{ at: number; fade: number }> = ({ at, fade }) =
       {word("THIRD", 1, 260)}
       {word("DIRECTION", 2, 200)}
       <div style={{ height: 40 }} />
-      {bar("PLAY FREE ON RUN", T - 1.0, 74)}
-      {bar("♥ VOTE FOR US · OCTOBER JAM", T - 1.4, 58)}
+      {bar("PLAY FREE ON ITCH.IO", T - 1.0, 74)}
+      {bar("♥ LINK IN BIO · NO DOWNLOAD", T - 1.4, 58)}
     </AbsoluteFill>
   );
 };
