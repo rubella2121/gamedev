@@ -12,7 +12,8 @@ dist-web/
 the-third-direction-web.zip
 dist-crazygames/
 the-third-direction-crazygames.zip
-dist-gamedistribution/
+dist-gamedistribution
+dist-y8/
 the-third-direction-gamedistribution.zip
 
 # the wallpaper pack (made by tools/brand/wallpapers.mjs; large) and the big boss renders it is drawn from
@@ -21,3 +22,4 @@ brand/wallpapers/phone/
 brand/wallpapers/preview/
 the-third-direction-wallpapers.zip
 tools/brand/sprites/*-4k.png
+the-third-direction-y8.zip
