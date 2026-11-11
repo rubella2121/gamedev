@@ -29,7 +29,8 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('pageerror', e.message));
 await page.goto(`http://localhost:${server.address().port}/sprites.html`);
 await page.waitForFunction(() => window.__sprites, null, { timeout: 60000 });
-const all = await page.evaluate(() => window.__sprites.render());
+// (names on the command line: only those, e.g. the wallpaper pack's large ones: x-4k collector-4k mash-4k)
+const all = await page.evaluate((names) => window.__sprites.render(names), process.argv.slice(2));
 for (const [k, url] of Object.entries(all)) {
   fs.writeFileSync(path.join(out, `${k}.png`), Buffer.from(url.split(',')[1], 'base64'));
   console.log('wrote', `tools/brand/sprites/${k}.png`);

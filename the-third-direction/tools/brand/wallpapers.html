@@ -1,0 +1,1279 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>The Third Direction: wallpapers</title>
+<!--
+  The wallpaper pack (the free download on the itch.io page). Every wallpaper is drawn here, by code: WebGL fragment shaders
+  for the light and the texture (nebulae, fluids, halftones, glitches), a 2D canvas for the composition, and the game's own
+  sprites (sprites/: the pixel bosses, and the 3D bosses rendered large by `node tools/brand/sprites.mjs x-4k x-bust-4k
+  collector-4k mash-4k`). Each one is laid out for any size: a 4K desktop (3840 x 2160) and a phone (1440 x 3120).
+  `window.render(name, W, H)` returns a JPEG data URL; `node tools/brand/wallpapers.mjs` saves them all into brand/wallpapers/.
+-->
+<style>
+  @font-face { font-family: 'Boldonse'; src: url(fonts/Boldonse-Regular.ttf); }
+  @font-face { font-family: 'Big Shoulders'; src: url(fonts/BigShoulders-Bold.ttf); font-weight: 700; }
+  body { margin: 0; background: #111; }
+</style>
+<body>
+<script>
+/* ------------------------------------------------------------------------------------------------ the kit */
+const IM = {};
+const loadImg = (key, src) =>
+  IM[key]
+    ? Promise.resolve(IM[key])
+    : new Promise((ok, no) => {
+        const i = new Image();
+        i.onload = () => ok((IM[key] = i));
+        i.onerror = () => no(new Error('missing ' + src));
+        i.src = src;
+      });
+const spr = (n) => loadImg(n, `sprites/${n}.png`);
+const shot = (n) => loadImg('shot-' + n, `../../brand/screens/${n}.jpg`);
+function cv(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w);
+  c.height = Math.round(h);
+  return [c, c.getContext('2d')];
+}
+const rnd = (seed) => {
+  let s = seed >>> 0;
+  return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+};
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+
+/** what every shader starts with: y runs down (Q is the pixel, like a canvas), value noise, fbm */
+const PRE = `#version 300 es
+precision highp float;
+uniform vec2 R;
+out vec4 o;
+#define Q vec2(gl_FragCoord.x, R.y - gl_FragCoord.y)
+float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+vec2 h22(vec2 p){ float n = h21(p); return vec2(n, h21(p + n + 17.17)); }
+float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p){ float a = .5, s = 0.; mat2 m = mat2(.8, -.6, .6, .8);
+  for (int i = 0; i < 6; i++) { s += a * vn(p); p = m * p * 2.03 + 11.7; a *= .5; } return s; }
+`;
+
+/**
+ * Run a fragment shader over a w x h canvas and hand back a 2D canvas of the result. `uni`: numbers and arrays (floats,
+ * vec2/3/4); `tex`: images or canvases by sampler name (a name that starts with "n" is sampled without smoothing: pixel art).
+ */
+function shade(w, h, body, uni = {}, tex = {}) {
+  w = Math.round(w);
+  h = Math.round(h);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const g = c.getContext('webgl2', { premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false, alpha: true });
+  const mk = (type, src) => {
+    const s = g.createShader(type);
+    g.shaderSource(s, src);
+    g.compileShader(s);
+    if (!g.getShaderParameter(s, g.COMPILE_STATUS)) throw new Error(g.getShaderInfoLog(s) + '\n' + src.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n'));
+    return s;
+  };
+  const pr = g.createProgram();
+  g.attachShader(pr, mk(g.VERTEX_SHADER, '#version 300 es\nin vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }'));
+  g.attachShader(pr, mk(g.FRAGMENT_SHADER, PRE + body));
+  g.linkProgram(pr);
+  if (!g.getProgramParameter(pr, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(pr));
+  g.useProgram(pr);
+  const b = g.createBuffer();
+  g.bindBuffer(g.ARRAY_BUFFER, b);
+  g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), g.STATIC_DRAW);
+  const loc = g.getAttribLocation(pr, 'p');
+  g.enableVertexAttribArray(loc);
+  g.vertexAttribPointer(loc, 2, g.FLOAT, false, 0, 0);
+  g.uniform2f(g.getUniformLocation(pr, 'R'), w, h);
+  for (const [k, v] of Object.entries(uni)) {
+    const l = g.getUniformLocation(pr, k);
+    if (l === null) continue;
+    if (typeof v === 'number') g.uniform1f(l, v);
+    else if (v.length === 2) g.uniform2fv(l, v);
+    else if (v.length === 3) g.uniform3fv(l, v);
+    else g.uniform4fv(l, v);
+  }
+  let unit = 0;
+  for (const [k, im] of Object.entries(tex)) {
+    const t = g.createTexture();
+    g.activeTexture(g.TEXTURE0 + unit);
+    g.bindTexture(g.TEXTURE_2D, t);
+    g.pixelStorei(g.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGBA, g.RGBA, g.UNSIGNED_BYTE, im);
+    const f = k.startsWith('n') ? g.NEAREST : g.LINEAR;
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, f);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MAG_FILTER, f);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE);
+    g.texParameteri(g.TEXTURE_2D, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE);
+    g.uniform1i(g.getUniformLocation(pr, k), unit++);
+  }
+  g.viewport(0, 0, w, h);
+  g.clearColor(0, 0, 0, 0);
+  g.clear(g.COLOR_BUFFER_BIT);
+  g.drawArrays(g.TRIANGLES, 0, 3);
+  const [out, x] = cv(w, h);
+  x.drawImage(c, 0, 0);
+  g.getExtension('WEBGL_lose_context')?.loseContext();
+  return out;
+}
+
+/** a sprite as a canvas at an exact size (pixel art stays in hard pixels) */
+function sized(im, w, h, pixel = false) {
+  const [c, x] = cv(w, h);
+  x.imageSmoothingEnabled = !pixel;
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(im, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** light that spills: the picture again, blurred, added on top (only what is brighter than `cut` when a cut is given) */
+function bloom(x, src, radius, strength = 0.6, cut = 0) {
+  let s = src;
+  if (cut > 0) {
+    s = shade(src.width, src.height, `uniform sampler2D T; uniform float C; void main(){ vec4 t = texture(T, Q / R); float l = max(t.r, max(t.g, t.b)); o = vec4(t.rgb * smoothstep(C, C + .25, l), t.a); }`, { C: cut }, { T: src });
+  }
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.globalAlpha = strength;
+  x.filter = `blur(${radius}px)`;
+  x.drawImage(s, 0, 0);
+  x.restore();
+}
+
+/** film grain and a vignette over the finished picture */
+function finish(c, x, { grain = 0.05, vig = 0.5, seed = 1 } = {}) {
+  const W = c.width;
+  const H = c.height;
+  const g = shade(W, H, `uniform float S; void main(){ float n = h21(Q + S * 91.7); o = vec4(vec3(n), 1.); }`, { S: seed });
+  x.save();
+  x.globalCompositeOperation = 'overlay';
+  x.globalAlpha = grain * 2;
+  x.drawImage(g, 0, 0);
+  x.restore();
+  const v = x.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.56);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, `rgba(0,0,0,${vig})`);
+  x.fillStyle = v;
+  x.fillRect(0, 0, W, H);
+}
+
+/** a four-pointed glint */
+function glint(x, px, py, r, col = '255,240,200', a = 1) {
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  const g = x.createRadialGradient(px, py, 0, px, py, r * 0.5);
+  g.addColorStop(0, `rgba(${col},${a})`);
+  g.addColorStop(1, `rgba(${col},0)`);
+  x.fillStyle = g;
+  x.fillRect(px - r, py - r, 2 * r, 2 * r);
+  for (const [sx, sy] of [[1, 0.035], [0.035, 1]]) {
+    x.save();
+    x.translate(px, py);
+    x.scale(sx, sy);
+    const k = x.createRadialGradient(0, 0, 0, 0, 0, r);
+    k.addColorStop(0, `rgba(${col},${a})`);
+    k.addColorStop(1, `rgba(${col},0)`);
+    x.fillStyle = k;
+    x.beginPath();
+    x.arc(0, 0, r, 0, 7);
+    x.fill();
+    x.restore();
+  }
+  x.restore();
+}
+
+const WP = {};
+
+/* ------------------------------------------------------------------------------------------------ 01 the crimson king */
+/**
+ * X, the Hollow, as a king in a crimson void: his body black cloth dusted with gold, the spikes and horns of his head a
+ * crown of gold, his three eyes burning, a red nebula and its stars behind him.
+ */
+WP['crimson-king'] = async (W, H) => {
+  const im = await spr('x-bust-4k');
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  // where he stands: a bust that fills a desktop, and sits in the middle of a phone with the void above and below
+  const fh = tall ? (W * 1.62) / (im.width / im.height) : H * 0.97;
+  const fw = fh * (im.width / im.height);
+  const fx = W / 2 - fw / 2;
+  const fy = tall ? H * 0.2 : H * 0.065;
+  const head = [W / 2, fy + fh * 0.3];
+  const bg = shade(W, H, `
+    uniform float U; uniform vec2 C;
+    void main(){
+      vec2 p = (Q - .5 * R) / min(R.x, R.y);
+      vec2 w = vec2(fbm(p * 1.7 + 3.1), fbm(p * 1.7 - 7.7));
+      float f = fbm(p * 1.25 + w * 1.9);
+      float d = fbm(p * 3.4 - w * 2.2 + 5.);
+      vec3 deep = vec3(.115, .0, .008), mid = vec3(.55, .0, .022), hot = vec3(.86, .035, .03);
+      vec3 c = mix(deep, mid, smoothstep(.28, .62, f));
+      c = mix(c, hot, smoothstep(.56, .86, f) * .75);
+      c *= .62 + .62 * smoothstep(.25, .75, d);
+      vec2 q = (Q - C) / min(R.x, R.y);
+      c += vec3(.62, .03, .02) * exp(-dot(q, q) * 3.2) * .9;
+      c += vec3(.25, .0, .0) * exp(-dot(q, q) * .7);
+      // stars: fine dust and a few bright ones
+      for (int k = 0; k < 2; k++) {
+        float cell = (k == 0 ? 9. : 26.) * U;
+        vec2 g = Q / cell, id = floor(g);
+        float r = h21(id + float(k) * 31.);
+        if (r > (k == 0 ? .93 : .965)) {
+          vec2 pos = (h22(id + 3.) * .7 + .15);
+          float dd = length(fract(g) - pos) * cell / U;
+          float b = fract(r * 77.);
+          c += vec3(1., .78, .66) * smoothstep(k == 0 ? .75 : 1.5, 0., dd) * (.25 + .75 * b) * (k == 0 ? .55 : 1.);
+        }
+      }
+      o = vec4(c, 1.);
+    }`, { U: u, C: head });
+  x.drawImage(bg, 0, 0);
+  // the figure: black cloth dusted with gold, a crown of gold, burning eyes
+  const fig = shade(fw, fh, `
+    uniform sampler2D T; uniform float U, FADE;
+    void main(){
+      vec2 uv = Q / R;
+      vec4 t = texture(T, uv);
+      float a = t.a;
+      vec3 col = t.rgb;
+      float lum = dot(col, vec3(.3, .5, .2));
+      float eye = smoothstep(.22, .5, col.r - max(col.g, col.b) * 1.05);
+      float hl = smoothstep(.035, .17, lum);
+      float weave = .5 + .5 * vn(Q / U * vec2(.9, .2) + fbm(Q / U * .02) * 9.);
+      float dust = smoothstep(.45, .85, vn(Q / U * .4)) * .75 + .3;
+      vec3 gold = vec3(1., .66, .17), hot = vec3(1., .93, .62);
+      vec3 body = vec3(.014, .008, .01) + gold * hl * hl * .5 * weave * dust;
+      // glitter caught in the cloth
+      float sp = step(.972, h21(floor(Q / (U * 1.6)))) * smoothstep(.02, .1, lum);
+      body += hot * sp * (.35 + .65 * h21(floor(Q / (U * 1.6)) + 9.)) * .8;
+      // the crown: everything above the brow (the spikes, the horns, the dome of the skull), and the long thorns down the sides
+      float side = smoothstep(.17, .2, abs(uv.x - .5)) * (1. - smoothstep(.5, .6, uv.y));
+      float crown = max(1. - smoothstep(.27, .33, uv.y), side);
+      float topness = 1. - smoothstep(.02, .34, uv.y);
+      vec3 cg = mix(vec3(.2, .075, .012), gold, smoothstep(.03, .2, lum));
+      cg = mix(cg, hot, smoothstep(.17, .4, lum));
+      cg *= .55 + .9 * topness;
+      // (the dome of the skull is old dark gold: the spikes and the horns are what shine)
+      float dome = 1. - smoothstep(.75, 1.1, length((uv - vec2(.5, .215)) / vec2(.2, .125)));
+      cg *= 1. - .5 * dome;
+      body = mix(body, cg, crown);
+      // light on his edges: gold from above, red from the void behind him
+      float rimG = 0., rimR = 0.;
+      for (int i = 1; i <= 8; i++) {
+        float s = float(i) * 4.5 * U / R.y;
+        rimG += a - texture(T, uv + vec2(.25, -1.) * s).a;
+        rimR += a - texture(T, uv + vec2(-1., .1) * s * 1.6 * R.y / R.x).a + a - texture(T, uv + vec2(1., .1) * s * 1.6 * R.y / R.x).a;
+      }
+      rimG = clamp(rimG / 8., 0., 1.); rimR = clamp(rimR / 10., 0., 1.);
+      body += mix(gold, hot, rimG) * rimG * (.55 + .9 * crown);
+      body += vec3(.9, .06, .03) * rimR * (1. - crown * .6) * .75;
+      // the eyes, and every red stud on his skull: lit from inside
+      vec3 fire = mix(vec3(.75, .2, .02), vec3(1., .62, .12), smoothstep(.2, .5, lum));
+      fire = mix(fire, vec3(1., .92, .6), smoothstep(.5, .75, lum));
+      body = mix(body, fire, eye);
+      a *= 1. - FADE * smoothstep(.66, .98, uv.y);
+      o = vec4(body, a);
+    }`, { U: u, FADE: tall ? 1 : 0.0 }, { T: im });
+  // (a darkness behind him, so the cloth reads against the red)
+  x.save();
+  x.filter = `blur(${40 * u}px)`;
+  x.globalAlpha = 0.55;
+  x.drawImage(shade(fw, fh, `uniform sampler2D T; void main(){ o = vec4(0., 0., 0., texture(T, Q / R).a); }`, {}, { T: fig }), fx, fy + 10 * u);
+  x.restore();
+  x.drawImage(fig, fx, fy);
+  // the gold and the eyes spill light
+  const [glow, gx] = cv(W, H);
+  gx.drawImage(fig, fx, fy);
+  bloom(x, glow, 22 * u, 0.42, 0.5);
+  bloom(x, glow, 80 * u, 0.3, 0.55);
+  // glints on the crown: the tips of the tallest spikes and the horns
+  const G = [[0.423, 0.008, 105], [0.53, 0.012, 80], [0.683, 0.05, 60], [0.306, 0.05, 55], [0.21, 0.072, 90], [0.748, 0.058, 110]];
+  for (const [gu, gv, r] of G) glint(x, fx + gu * fw, fy + gv * fh, r * u * (fw / (1080 * u) / 2), '255,226,160', 0.9);
+  // the void closes over what is below his shoulders
+  const fog = x.createLinearGradient(0, H * (tall ? 0.6 : 0.72), 0, H);
+  fog.addColorStop(0, 'rgba(20,0,2,0)');
+  fog.addColorStop(1, `rgba(12,0,1,${tall ? 0.96 : 0.8})`);
+  x.fillStyle = fog;
+  x.fillRect(0, 0, W, H);
+  // embers drifting in front of him
+  const r = rnd(41);
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 150; i++) {
+    const px = r() * W;
+    const py = r() * H;
+    const s = (0.6 + 2.4 * r() ** 3) * u;
+    const a = 0.25 + 0.6 * r();
+    const g = x.createRadialGradient(px, py, 0, px, py, s * 3);
+    g.addColorStop(0, `rgba(255,200,120,${a})`);
+    g.addColorStop(0.3, `rgba(255,120,40,${a * 0.5})`);
+    g.addColorStop(1, 'rgba(255,60,20,0)');
+    x.fillStyle = g;
+    x.fillRect(px - s * 3, py - s * 3, s * 6, s * 6);
+  }
+  x.restore();
+  finish(c, x, { grain: 0.055, vig: 0.62, seed: 3 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 02 liquid night */
+/** Pure abstract: ink poured into ink. The game's night blues and its cyan, folded over themselves, with veins of gold leaf. */
+WP['liquid-gold'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const [c, x] = cv(W, H);
+  const a = shade(W, H, `
+    uniform float U;
+    void main(){
+      vec2 p = (Q - .5 * R) / min(R.x, R.y) * 1.35 + vec2(.3, -.2);
+      vec2 q = vec2(fbm(p + 1.3), fbm(p + vec2(5.2, 1.3)));
+      vec2 r = vec2(fbm(p + 3.6 * q + vec2(1.7, 9.2)), fbm(p + 3.6 * q + vec2(8.3, 2.8)));
+      float f = fbm(p + 3.8 * r);
+      vec3 ink = vec3(.008, .014, .035), navy = vec3(.02, .075, .19), teal = vec3(.05, .42, .5), cyan = vec3(.62, .96, .93), gold = vec3(1., .78, .3), wine = vec3(.42, .06, .3);
+      vec3 c = mix(ink, navy, smoothstep(.18, .5, f));
+      c = mix(c, teal, smoothstep(.42, .72, f) * smoothstep(.3, .75, q.x + .1));
+      c = mix(c, wine, smoothstep(.52, .86, r.x) * .5);
+      c = mix(c, cyan, smoothstep(.7, .92, f) * .55);
+      c *= .7 + .6 * smoothstep(.2, .8, r.y);
+      // veins of gold: thin level lines of the flow, only where the ink is thick
+      float g = f * 9. + r.y * 3.;
+      float w = max(fwidth(g), 1e-4);
+      float v = abs(fract(g) - .5);
+      float line = smoothstep(w * 1.5 * U, w * .5 * U, v) * smoothstep(.42, .62, r.x) ;
+      c = mix(c, gold, line * .95);
+      // gold leaf: flakes that follow the flow
+      float fl = smoothstep(.8, .86, vn((p + r * .9) * 26.)) * smoothstep(.5, .7, q.y) * smoothstep(.45, .6, r.x);
+      c = mix(c, gold * (.7 + .5 * vn(Q / U * .7)), fl * .85);
+      o = vec4(c, 1.);
+    }`, { U: u });
+  x.drawImage(a, 0, 0);
+  bloom(x, a, 14 * u, 0.5, 0.62);
+  bloom(x, a, 60 * u, 0.25, 0.7);
+  finish(c, x, { grain: 0.05, vig: 0.45, seed: 5 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 03 the third axis */
+/** Minimal: the game's mark, large. Two faint axes on the floor of a flat world, the blob where they meet, and the third: up. */
+WP['third-axis'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  const bg = shade(W, H, `
+    uniform float U; uniform vec2 O;
+    void main(){
+      vec2 uv = Q / R;
+      vec3 c = mix(vec3(.012, .016, .04), vec3(.035, .06, .14), smoothstep(0., 1., uv.y));
+      vec2 q = (Q - O) / min(R.x, R.y);
+      c += vec3(.05, .09, .16) * exp(-dot(q, q) * 2.2);
+      c += vec3(.1, .08, .03) * exp(-(q.x * q.x * 60. + max(0., q.y) * q.y * 4. + max(0., -q.y) * -q.y * .6));
+      vec2 g = Q / (14. * U), id = floor(g);
+      float r = h21(id);
+      if (r > .975 && uv.y < .78) c += vec3(.8, .9, 1.) * smoothstep(1.1, 0., length(fract(g) - h22(id)) * 14.) * fract(r * 53.) * (1. - uv.y);
+      o = vec4(c, 1.);
+    }`, { U: u, O: [W / 2, H * (tall ? 0.66 : 0.7)] });
+  x.drawImage(bg, 0, 0);
+  const O = [W / 2, H * (tall ? 0.66 : 0.7)];
+  const L = Math.min(W, H) * (tall ? 0.62 : 0.78);
+  const ax = [Math.cos(Math.PI / 6), Math.sin(Math.PI / 6) * 0.62];
+  const ay = [-Math.cos(Math.PI / 6), Math.sin(Math.PI / 6) * 0.62];
+  // the floor: a grid of the flat world, fading with distance
+  x.save();
+  x.lineWidth = 1.2 * u;
+  const N = 14;
+  const cell = L / 7;
+  for (let i = -N; i <= N; i++) {
+    for (const [d, e] of [[ax, ay], [ay, ax]]) {
+      const g = x.createLinearGradient(O[0] + d[0] * i * cell - e[0] * N * cell, O[1] + d[1] * i * cell - e[1] * N * cell, O[0] + d[0] * i * cell + e[0] * N * cell, O[1] + d[1] * i * cell + e[1] * N * cell);
+      const a = 0.16 * Math.max(0, 1 - Math.abs(i) / N);
+      g.addColorStop(0, 'rgba(159,244,238,0)');
+      g.addColorStop(0.5, `rgba(159,244,238,${a})`);
+      g.addColorStop(1, 'rgba(159,244,238,0)');
+      x.strokeStyle = g;
+      x.beginPath();
+      x.moveTo(O[0] + d[0] * i * cell - e[0] * N * cell, O[1] + d[1] * i * cell - e[1] * N * cell);
+      x.lineTo(O[0] + d[0] * i * cell + e[0] * N * cell, O[1] + d[1] * i * cell + e[1] * N * cell);
+      x.stroke();
+    }
+  }
+  x.restore();
+  // an axis: a line with ticks, an arrow head and its letter
+  const axis = (dir, len, col, wdt, letter, glow) => {
+    const ex = O[0] + dir[0] * len;
+    const ey = O[1] + dir[1] * len;
+    x.save();
+    x.lineCap = 'round';
+    if (glow) {
+      x.shadowColor = col;
+      x.shadowBlur = 26 * u;
+    }
+    x.strokeStyle = col;
+    x.lineWidth = wdt * u;
+    x.beginPath();
+    x.moveTo(O[0], O[1]);
+    x.lineTo(ex, ey);
+    x.stroke();
+    const n = Math.hypot(dir[0], dir[1]);
+    const dx = dir[0] / n;
+    const dy = dir[1] / n;
+    for (let k = 1; k < 7; k++) {
+      const tx = O[0] + dir[0] * (len * k) / 7;
+      const ty = O[1] + dir[1] * (len * k) / 7;
+      x.lineWidth = wdt * 0.6 * u;
+      x.beginPath();
+      x.moveTo(tx - dy * 7 * u, ty + dx * 7 * u);
+      x.lineTo(tx + dy * 7 * u, ty - dx * 7 * u);
+      x.stroke();
+    }
+    x.lineWidth = wdt * u;
+    x.beginPath();
+    x.moveTo(ex - dx * 22 * u - dy * 11 * u, ey - dy * 22 * u + dx * 11 * u);
+    x.lineTo(ex, ey);
+    x.lineTo(ex - dx * 22 * u + dy * 11 * u, ey - dy * 22 * u - dx * 11 * u);
+    x.stroke();
+    x.shadowBlur = glow ? 18 * u : 0;
+    x.fillStyle = col;
+    x.font = `700 ${(glow ? 46 : 30) * u}px "Big Shoulders"`;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    x.fillText(letter, ex + dx * 44 * u, ey + dy * 44 * u);
+    x.restore();
+  };
+  axis(ax, L * 0.5, 'rgba(159,244,238,0.55)', 2.2, 'X', false);
+  axis(ay, L * 0.5, 'rgba(159,244,238,0.55)', 2.2, 'Y', false);
+  const zl = tall ? H * 0.44 : H * 0.52;
+  axis([0, -1], zl, '#ffe08a', 3.2, 'Z', true);
+  axis([0, -1], zl, '#fff3c8', 1.2, '', true);
+  // the blob where they meet, looking up
+  const blob = await spr('blob');
+  const k = Math.max(2, Math.round(5 * u));
+  x.save();
+  x.fillStyle = 'rgba(0,0,0,0.5)';
+  x.beginPath();
+  x.ellipse(O[0], O[1] + 2 * u, 15 * k, 5 * k, 0, 0, 7);
+  x.fill();
+  const gl = x.createRadialGradient(O[0], O[1] - 8 * k, 0, O[0], O[1] - 8 * k, 46 * k);
+  gl.addColorStop(0, 'rgba(255,214,110,0.32)');
+  gl.addColorStop(1, 'rgba(255,214,110,0)');
+  x.globalCompositeOperation = 'lighter';
+  x.fillStyle = gl;
+  x.fillRect(O[0] - 50 * k, O[1] - 58 * k, 100 * k, 100 * k);
+  x.restore();
+  x.imageSmoothingEnabled = false;
+  x.drawImage(blob, Math.round(O[0] - 13 * k), Math.round(O[1] - 19 * k), 26 * k, 20 * k);
+  // far up the third axis, something is looking back
+  const eyes = await spr('x-eyes');
+  const ek = Math.max(1, Math.round(1.5 * u));
+  x.save();
+  x.globalAlpha = 0.5;
+  x.drawImage(eyes, Math.round(W / 2 - 65 * ek), Math.round(O[1] - zl - (tall ? 250 : 150) * u), 130 * ek, 32 * ek);
+  x.restore();
+  x.save();
+  x.fillStyle = 'rgba(232,255,251,0.34)';
+  x.font = `700 ${22 * u}px "Big Shoulders"`;
+  x.textAlign = 'center';
+  x.letterSpacing = `${14 * u}px`;
+  x.fillText('THE THIRD DIRECTION', W / 2, H - (tall ? 190 : 70) * u);
+  x.restore();
+  finish(c, x, { grain: 0.04, vig: 0.5, seed: 9 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 04 the sky breaks */
+/** The flat pixel world as a pane of glass, struck from behind: its shards fly apart, and through the gap the 3D world and X. */
+WP['shatter'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const flat = await loadImg('flat', 'img/flat.jpg');
+  const deep = await loadImg('x3d', 'img/x3d.jpg');
+  const [c, x] = cv(W, H);
+  const hit = [W * 0.5, H * (tall ? 0.36 : 0.42)];
+  // behind the glass: the world with depth, lit
+  const back = shade(W, H, `
+    uniform sampler2D T; uniform vec2 C;
+    void main(){
+      // (X's head sits where the pane was struck)
+      float hs = min(R.x, R.y) * 1.25;
+      vec2 t = vec2(.5, .47) + (Q - C) / vec2(hs * 1080. / 1920., hs);
+      vec3 c = texture(T, clamp(t, 0., 1.)).rgb;
+      vec2 q = (Q - C) / min(R.x, R.y);
+      c = pow(c, vec3(.85)) * 1.45 * (1. - .55 * smoothstep(.15, .6, length(q)));
+      o = vec4(c, 1.);
+    }`, { C: hit }, { T: deep });
+  x.drawImage(back, 0, 0);
+  // the shards
+  const sh = shade(W, H, `
+    uniform sampler2D nT; uniform vec2 C; uniform float U, CELL;
+    vec2 site(vec2 id){ return (id + .2 + .6 * h22(id)) * CELL; }
+    // which shard of the unbroken pane is this point in, and how far from its edge
+    vec3 vor(vec2 p){ vec2 g = floor(p / CELL); float d1 = 1e9, d2 = 1e9; vec2 best = g;
+      for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 id = g + vec2(i, j); float d = length(p - site(id)); if (d < d1) { d2 = d1; d1 = d; best = id; } else if (d < d2) d2 = d; }
+      return vec3(best, d2 - d1); }
+    void main(){
+      vec2 g0 = floor(Q / CELL);
+      vec4 res = vec4(0.);
+      float bestZ = -1.;
+      for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+        vec2 id = g0 + vec2(i, j);
+        vec2 cc = site(id);
+        float d = length(cc - C) / min(R.x, R.y);
+        float push = exp(-d * 3.5);
+        vec2 off = normalize(cc - C + .001) * push * 210. * U * (.6 + .8 * h21(id + 4.));
+        float ang = (h21(id + 9.) - .5) * 1.5 * push;
+        float sc = 1. - .5 * push;
+        vec2 l = Q - cc - off;
+        l = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * l / sc;
+        vec2 src = cc + l;
+        vec3 v = vor(src);
+        if (v.xy != id) continue;
+        float z = h21(id + 2.);
+        if (z < bestZ) continue;
+        bestZ = z;
+        // the picture printed on the pane (the flat forest), a little lifted where the shard has turned to the light
+        float ar = R.x / R.y, ia = 1080. / 1920.;
+        vec2 t = src / R;
+        if (ar > ia) { float k = ia / ar; t.y = .1 + t.y * k * 1.35; }
+        vec3 col = texture(nT, clamp(t, 0., 1.)).rgb * 1.5;
+        float tilt = (h21(id + 5.) - .3) * push;
+        col += vec3(.75, .85, 1.) * max(0., tilt) * (.35 + .5 * (l.y / CELL + .5));
+        col *= 1. - .5 * max(0., -tilt);
+        // the cut edge of the glass
+        float e = smoothstep(3.2 * U, 0., v.z * sc);
+        col = mix(col, vec3(.85, .95, 1.), e * (.35 + .65 * push));
+        res = vec4(col, 1.);
+      }
+      o = res;
+    }`, { C: hit, U: u, CELL: Math.min(W, H) * 0.19 }, { nT: flat });
+  x.save();
+  x.shadowColor = 'rgba(0,0,0,0.75)';
+  x.shadowBlur = 40 * u;
+  x.shadowOffsetY = 14 * u;
+  x.drawImage(sh, 0, 0);
+  x.restore();
+  // light pouring through the break
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  const g = x.createRadialGradient(hit[0], hit[1], 0, hit[0], hit[1], Math.min(W, H) * 0.55);
+  g.addColorStop(0, 'rgba(255,236,190,0.1)');
+  g.addColorStop(0.35, 'rgba(180,150,255,0.07)');
+  g.addColorStop(1, 'rgba(120,120,255,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, W, H);
+  // splinters
+  const r = rnd(12);
+  for (let i = 0; i < 90; i++) {
+    const a = r() * 6.283;
+    const d = (0.05 + 0.5 * r() ** 1.6) * Math.min(W, H);
+    const px = hit[0] + Math.cos(a) * d;
+    const py = hit[1] + Math.sin(a) * d;
+    const s = (3 + 16 * r()) * u;
+    x.save();
+    x.translate(px, py);
+    x.rotate(r() * 6.283);
+    x.fillStyle = `rgba(220,235,255,${0.25 + 0.5 * r()})`;
+    x.beginPath();
+    x.moveTo(-s, 0);
+    x.lineTo(s * 0.4, -s * 0.35);
+    x.lineTo(s * 0.7, s * 0.5);
+    x.fill();
+    x.restore();
+  }
+  x.restore();
+  finish(c, x, { grain: 0.045, vig: 0.55, seed: 13 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 05 neon */
+const NEON = [
+  ['gloommother', 'GLOOMMOTHER', [0.44, 0.94, 1.0], true],
+  ['king', 'THORNBACK KING', [1.0, 0.69, 0.34], true],
+  ['queen', 'TOLL QUEEN', [0.79, 0.65, 1.0], true],
+  ['wyrm', 'BONE WYRM', [1.0, 0.95, 0.84], true],
+  ['mimic', 'MIMIC QUEEN', [1.0, 0.44, 0.63], true],
+  ['x-4k', 'X, THE HOLLOW', [1.0, 0.19, 0.25], false],
+  ['collector-4k', 'THE COLLECTOR', [1.0, 0.84, 0.42], false],
+  ['mash-4k', 'THE MASH', [0.85, 0.4, 1.0], false],
+];
+/** All eight as neon signs on a dark wall: every boss bent out of glass tube in its own colour, humming. */
+WP['neon-signs'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  const wall = shade(W, H, `
+    uniform float U;
+    void main(){
+      vec2 p = Q / U;
+      // a wall of dark brick
+      vec2 b = p / vec2(120., 44.); b.x += step(1., mod(b.y, 2.)) * .5;
+      vec2 f = fract(b); float m = smoothstep(0., .05, f.x) * smoothstep(0., .1, f.y);
+      float n = fbm(p * .012) * .6 + h21(floor(b)) * .4;
+      vec3 c = vec3(.04, .042, .07) * (.55 + .9 * n) * (.45 + .55 * m);
+      o = vec4(c, 1.);
+    }`, { U: u });
+  x.drawImage(wall, 0, 0);
+  const cols = tall ? 2 : 4;
+  const rows = tall ? 4 : 2;
+  const mx = W * (tall ? 0.05 : 0.04);
+  const top = H * (tall ? 0.13 : 0.07);
+  const cw = (W - 2 * mx) / cols;
+  const ch = (H - top - H * (tall ? 0.1 : 0.05)) / rows;
+  const [tubes, tx] = cv(W, H);
+  for (let i = 0; i < NEON.length; i++) {
+    const [name, label, col, pixel] = NEON[i];
+    const im = await spr(name);
+    const cx = mx + cw * ((i % cols) + 0.5);
+    const cy = top + ch * (Math.floor(i / cols) + 0.44);
+    const s = Math.min((cw * 0.7) / im.width, (ch * 0.62) / im.height);
+    const w = Math.round(im.width * s);
+    const h = Math.round(im.height * s);
+    const pad = Math.round(20 * u);
+    const [src, sx] = cv(w + 2 * pad, h + 2 * pad);
+    sx.imageSmoothingEnabled = !pixel;
+    sx.imageSmoothingQuality = 'high';
+    sx.drawImage(im, pad, pad, w, h);
+    // the tube: the outline of the body, and the strongest lines inside it
+    const tube = shade(src.width, src.height, `
+      uniform sampler2D T; uniform vec3 C; uniform float U, IN;
+      float lum(vec2 uv){ vec4 t = texture(T, uv); return dot(t.rgb, vec3(.3, .5, .2)) * t.a; }
+      void main(){
+        vec2 uv = Q / R; vec2 px = 1. / R;
+        float a = texture(T, uv).a;
+        float mn = 1., mx = 0.;
+        for (int k = 0; k < 12; k++) { float an = float(k) * .5236; float s = texture(T, uv + vec2(cos(an), sin(an)) * px * 3.2 * U).a; mn = min(mn, s); mx = max(mx, s); }
+        float edge = smoothstep(.25, .75, mx - mn);
+        float d = 2.2 * U;
+        float gx = lum(uv + vec2(d, 0.) * px) - lum(uv - vec2(d, 0.) * px);
+        float gy = lum(uv + vec2(0., d) * px) - lum(uv - vec2(0., d) * px);
+        float inner = smoothstep(IN, IN + .2, length(vec2(gx, gy))) * a * .8;
+        float t = max(edge, inner);
+        vec3 col = mix(C, vec3(1.), t * t * .7);
+        o = vec4(col, t);
+      }`, { C: col, U: u, IN: pixel ? 0.42 : 0.1 }, { T: src });
+    tx.drawImage(tube, Math.round(cx - w / 2 - pad), Math.round(cy - h / 2 - pad));
+    // its name, in the same tube
+    tx.save();
+    tx.font = `700 ${(tall ? 46 : 40) * u}px "Big Shoulders"`;
+    tx.textAlign = 'center';
+    tx.letterSpacing = `${7 * u}px`;
+    tx.lineWidth = 2.4 * u;
+    tx.strokeStyle = `rgb(${col.map((v) => Math.round(255 * (0.55 + 0.45 * v))).join(',')})`;
+    tx.strokeText(label, cx, cy + h / 2 + (tall ? 84 : 78) * u);
+    tx.restore();
+  }
+  // the glow on the wall, then the tubes themselves
+  for (const [rad, a] of [[110, 0.5], [44, 0.6], [14, 0.75]]) {
+    x.save();
+    x.globalCompositeOperation = 'lighter';
+    x.globalAlpha = a;
+    x.filter = `blur(${rad * u}px) saturate(1.7)`;
+    x.drawImage(tubes, 0, 0);
+    x.restore();
+  }
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.drawImage(tubes, 0, 0);
+  x.restore();
+  finish(c, x, { grain: 0.05, vig: 0.6, seed: 21 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 06 moonrise */
+/** Pixel art, in the game's own grain: the family on a hill under a dithered moon, the forest's own trees around them. */
+WP['moonrise'] = async (W, H) => {
+  const S = Math.max(1, Math.round((8 * Math.min(W, H)) / 2160));
+  const w = Math.round(W / S);
+  const h = Math.round(H / S);
+  const tall = H > W;
+  const moon = [w * 0.5, h * (tall ? 0.3 : 0.4), Math.min(w, h) * (tall ? 0.36 : 0.33)];
+  const sky = shade(w, h, `
+    uniform vec3 M;
+    float bayer(vec2 p){ int x = int(mod(p.x, 4.)), y = int(mod(p.y, 4.)); int i = x + y * 4;
+      float m[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); return (m[i] + .5) / 16.; }
+    vec3 pal(float v, vec2 p){ vec3 P[6] = vec3[6](vec3(.012, .016, .04), vec3(.03, .05, .11), vec3(.05, .1, .2), vec3(.08, .18, .32), vec3(.13, .3, .46), vec3(.25, .5, .62));
+      v = clamp(v, 0., .999) * 5.; int i = int(floor(v)); return fract(v) > bayer(p) ? P[min(i + 1, 5)] : P[i]; }
+    void main(){
+      vec2 p = floor(Q);
+      float d = length(p - M.xy) / M.z;
+      float v = .08 + .5 * exp(-d * d * .55) + .25 * (p.y / R.y);
+      vec3 c = pal(v, p);
+      float r = h21(p);
+      if (r > .992 && d > 1.15) c = mix(c, vec3(.85, .95, 1.), .4 + .6 * fract(r * 91.));
+      if (d < 1.) {
+        // the moon: pale, with seas, the light coming from the upper left
+        vec2 n = (p - M.xy) / M.z;
+        float sea = fbm(n * 2.6 + 4.);
+        float lit = .78 - .3 * smoothstep(.45, .62, sea) + .22 * dot(n, vec2(-.6, -.7)) - .25 * smoothstep(.7, 1., d);
+        vec3 a = vec3(.52, .66, .78), b = vec3(.93, .97, 1.);
+        c = lit > bayer(p) * .5 + .25 ? b : a;
+        if (lit > .95) c = vec3(1.);
+      }
+      // far ridges
+      float r1 = R.y * .78 - 26. * fbm(vec2(p.x * .012, 3.));
+      float r2 = R.y * .86 - 30. * fbm(vec2(p.x * .02, 9.));
+      if (p.y > r1) c = (mod(p.x + p.y, 2.) < 1. ? vec3(.03, .07, .13) : vec3(.022, .05, .1));
+      if (p.y > r2) c = vec3(.012, .026, .055);
+      o = vec4(c, 1.);
+    }`, { M: moon });
+  const [lo, lx] = cv(w, h);
+  lx.imageSmoothingEnabled = false;
+  lx.drawImage(sky, 0, 0);
+  // the hill they stand on
+  const hillY = Math.round(h * (tall ? 0.8 : 0.82));
+  lx.fillStyle = '#04070d';
+  for (let px = 0; px < w; px++) {
+    const t = (px - w / 2) / (w * (tall ? 0.75 : 0.5));
+    const y = Math.round(hillY + 34 * t * t + 2 * Math.sin(px * 0.31));
+    lx.fillRect(px, y, 1, h - y);
+    if (px % 3 === 0) lx.fillRect(px, y - 1 - ((px * 7) % 3), 1, 2);
+  }
+  // the forest's own trees, black against the sky
+  const dark = (im) => {
+    const [t, g] = cv(im.width, im.height);
+    g.drawImage(im, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = '#04070d';
+    g.fillRect(0, 0, im.width, im.height);
+    return t;
+  };
+  const trees = [dark(await spr('tree-a')), dark(await spr('tree-b')), dark(await spr('tree-c'))];
+  const r = rnd(7);
+  const spots = [];
+  for (let px = -10; px < w; px += 16 + Math.floor(r() * 16)) if (Math.abs(px + 24 - w / 2) > w * (tall ? 0.2 : 0.14)) spots.push(px);
+  for (const px of spots) {
+    const t = trees[Math.floor(r() * 3)];
+    const tt = (px + 24 - w / 2) / (w * (tall ? 0.75 : 0.5));
+    lx.drawImage(t, px, Math.round(hillY + 34 * tt * tt - t.height + 6 + r() * 10));
+  }
+  // the family, three small lights, looking up
+  const fam = [await spr('mother'), await spr('blob'), await spr('father')];
+  const fx = [-34, -8, 16];
+  const glow = lx.createRadialGradient(w / 2, hillY - 10, 0, w / 2, hillY - 10, 46);
+  glow.addColorStop(0, 'rgba(255,214,110,0.3)');
+  glow.addColorStop(1, 'rgba(255,214,110,0)');
+  lx.fillStyle = glow;
+  lx.fillRect(w / 2 - 50, hillY - 60, 100, 100);
+  fam.forEach((im, i) => lx.drawImage(im, Math.round(w / 2 + fx[i]), hillY - im.height + 2 + (i === 1 ? 1 : 0)));
+  // every pixel of it eight screen pixels wide (on a 4K screen)
+  const [c, x] = cv(W, H);
+  x.imageSmoothingEnabled = false;
+  x.drawImage(lo, 0, 0, w * S, h * S);
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 07 kaleidoscope */
+/** Psychedelic: the five guardians through a kaleidoscope. One wedge of them, mirrored twelve times round, into a mandala. */
+WP['kaleidoscope'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  // the wedge that is mirrored: the guardians laid along a line, on colour
+  const CW = 1700;
+  const CH = 700;
+  const [src, sx] = cv(CW, CH);
+  const g = sx.createLinearGradient(0, 0, CW, 0);
+  [[0, '#ff7a3c'], [0.06, '#ff3f9a'], [0.2, '#3a0d7a'], [0.36, '#0d6a8a'], [0.5, '#101a5a'], [0.64, '#b0177a'], [0.8, '#0a2a4a'], [1, '#05060c']].forEach(([t, col]) => g.addColorStop(t, col));
+  sx.fillStyle = g;
+  sx.fillRect(0, 0, CW, CH);
+  const r = rnd(5);
+  for (let i = 0; i < 260; i++) {
+    sx.fillStyle = ['#ffe9a0', '#9ff4ee', '#ff9ad0', '#ffffff'][i % 4];
+    sx.globalAlpha = 0.25 + 0.6 * r();
+    const s = 2 + Math.floor(r() * 5);
+    sx.fillRect(Math.floor(r() * CW), Math.floor(r() * CH), s, s);
+  }
+  sx.globalAlpha = 1;
+  sx.imageSmoothingEnabled = false;
+  const put = async (n, px, py, k, rot = 0) => {
+    const im = await spr(n);
+    sx.save();
+    sx.translate(px, py);
+    sx.rotate(rot);
+    sx.drawImage(im, -Math.round((im.width * k) / 2), -Math.round((im.height * k) / 2), im.width * k, im.height * k);
+    sx.restore();
+  };
+  await put('blob', 150, 70, 3, 0.3);
+  await put('mimic', 380, 120, 2, -0.5);
+  await put('queen', 640, 150, 2, 0.35);
+  await put('wyrm', 900, 90, 2, 0);
+  await put('king', 1010, 300, 2, 0.5);
+  await put('gloommother', 1330, 170, 3, 0.1);
+  await put('x-eyes', 1560, 380, 3, 0.26);
+  await put('moon', 760, 30, 2, 0);
+  const [c, x] = cv(W, H);
+  const k = shade(W, H, `
+    uniform sampler2D nT; uniform float U;
+    void main(){
+      vec2 p = (Q - .5 * R) / min(R.x, R.y);
+      float rr = length(p), a = atan(p.y, p.x);
+      float seg = 6.2831853 / 12.;
+      a = mod(a + seg * .5, seg); a = abs(a - seg * .5);
+      vec2 q = rr * vec2(cos(a), sin(a));
+      vec2 t = vec2(q.x * 1300. / 1700., (40. + q.y * 1300.) / 700.);
+      t.x = abs(fract(t.x * .5) * 2. - 1.);
+      vec3 c = texture(nT, t).rgb;
+      // rings of gold, and the light of the middle
+      float ring = abs(fract(rr * 6.5 + .5) - .5) / 6.5 * min(R.x, R.y);
+      c = mix(c, vec3(1., .86, .5), smoothstep(1.6 * U, .4 * U, ring) * .55);
+      c *= 1.12 - .5 * smoothstep(.5, 1.25, rr);
+      o = vec4(c, 1.);
+    }`, { U: u }, { nT: src });
+  x.drawImage(k, 0, 0);
+  bloom(x, k, 20 * u, 0.35, 0.6);
+  // the blob at the middle of it all, in its own light
+  const bl = await spr('blob');
+  const bk = Math.max(1, Math.round(5 * u));
+  const cg = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 120 * u);
+  cg.addColorStop(0, 'rgba(255,236,170,0.95)');
+  cg.addColorStop(0.45, 'rgba(255,170,90,0.5)');
+  cg.addColorStop(1, 'rgba(255,90,160,0)');
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.fillStyle = cg;
+  x.fillRect(W / 2 - 130 * u, H / 2 - 130 * u, 260 * u, 260 * u);
+  x.restore();
+  x.imageSmoothingEnabled = false;
+  x.drawImage(bl, Math.round(W / 2 - 13 * bk), Math.round(H / 2 - 10 * bk), 26 * bk, 20 * bk);
+  finish(c, x, { grain: 0.05, vig: 0.55, seed: 31 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 08 the map */
+const PLACES = [
+  ['GLOOM HOLLOW', 250, 1230, '111,240,255', 'the gloommother'],
+  ['ROOTMAW THICKET', 250, 860, '255,176,87', 'the thornback king'],
+  ['ECHO MARSH', 1030, 860, '201,166,255', 'the toll queen'],
+  ['BONE WASTES', 1050, 1230, '244,239,224', 'the bone wyrm'],
+  ['MOTH MEADOW', 1030, 1640, '255,138,168', 'the mimic queen'],
+];
+/** Minimal: the forest as a surveyor's chart. Contour lines, the five zones as hills, the roads in gold, and the Edge. */
+WP['survey-map'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const at = (wx, wy) => [W / 2 + ((wx - 640) / 640) * W * (tall ? 0.42 : 0.33), H * 0.52 + ((wy - 1075) / 645) * H * (tall ? 0.31 : 0.36)];
+  const pts = [...PLACES.map((p) => at(p[1], p[2])), at(640, 1290), at(640, 432), at(640, 1720)];
+  const uni = { U: u };
+  pts.forEach((p, i) => (uni['Z' + i] = p));
+  const [c, x] = cv(W, H);
+  const f = shade(W, H, `
+    uniform float U; uniform vec2 Z0, Z1, Z2, Z3, Z4, Z5, Z6, Z7;
+    float hill(vec2 z, float s){ vec2 d = (Q - z) / min(R.x, R.y); return exp(-dot(d, d) * s); }
+    void main(){
+      vec2 p = Q / min(R.x, R.y);
+      float h = fbm(p * 1.5 + 2.) * .75 + fbm(p * 4. + 9.) * .1;
+      h += (hill(Z0, 26.) + hill(Z1, 26.) + hill(Z2, 26.) + hill(Z3, 26.) + hill(Z4, 26.)) * .5 + hill(Z6, 9.) * .75 - hill(Z5, 30.) * .18 - hill(Z7, 30.) * .2;
+      float g = h * 22.;
+      float w = max(fwidth(g), 1e-4);
+      float fr = abs(fract(g) - .5);
+      float line = smoothstep(w * 1.1 * U, w * .3 * U, .5 - fr);
+      float idx = step(.5, mod(floor(g + .5), 5.)) ;
+      vec3 base = mix(vec3(.012, .02, .04), vec3(.03, .085, .11), smoothstep(.3, 1.2, h));
+      vec3 c = base + vec3(.25, .62, .64) * line * mix(.95, .3, idx);
+      // a faint grid of the chart
+      vec2 gr = abs(fract(Q / (120. * U)) - .5) * 120. * U;
+      c += vec3(.3, .5, .6) * smoothstep(1. * U, 0., min(gr.x, gr.y) - 0.) * .0 ;
+      vec2 gq = fract(Q / (120. * U));
+      c += vec3(.5, .8, .85) * step(gq.x, 1.5 / 120.) * .05 + vec3(.5, .8, .85) * step(gq.y, 1.5 / 120.) * .05;
+      o = vec4(c, 1.);
+    }`, uni);
+  x.drawImage(f, 0, 0);
+  const [hub, edge, start] = [pts[5], pts[6], pts[7]];
+  // the roads: gold dots from the glade to the crossroads and out to every zone; red beyond the seal, to the Edge
+  const road = (a, b, col, gap = 15) => {
+    const n = Math.floor(Math.hypot(b[0] - a[0], b[1] - a[1]) / (gap * u));
+    x.fillStyle = col;
+    for (let i = 1; i < n; i++) {
+      x.beginPath();
+      x.arc(a[0] + ((b[0] - a[0]) * i) / n, a[1] + ((b[1] - a[1]) * i) / n, 2.6 * u, 0, 7);
+      x.fill();
+    }
+  };
+  x.save();
+  x.shadowColor = 'rgba(255,214,110,0.8)';
+  x.shadowBlur = 10 * u;
+  road(start, hub, '#ffe08a');
+  for (let i = 0; i < 5; i++) road(hub, pts[i], '#ffe08a');
+  x.shadowColor = 'rgba(255,60,70,0.9)';
+  road(hub, edge, '#ff4a5a');
+  x.restore();
+  // each place: a ring in its own colour, its name, who waits there
+  x.textBaseline = 'middle';
+  const place = (pt, name, sub, rgb, side) => {
+    x.save();
+    x.strokeStyle = `rgb(${rgb})`;
+    x.shadowColor = `rgba(${rgb},0.9)`;
+    x.shadowBlur = 14 * u;
+    x.lineWidth = 2.4 * u;
+    x.beginPath();
+    x.arc(pt[0], pt[1], 13 * u, 0, 7);
+    x.stroke();
+    x.fillStyle = `rgb(${rgb})`;
+    x.beginPath();
+    x.arc(pt[0], pt[1], 4 * u, 0, 7);
+    x.fill();
+    x.shadowBlur = 0;
+    if (side === 0) {
+      // (under the mark, on a dark plate, so it reads over the roads)
+      x.textAlign = 'center';
+      x.font = `700 ${27 * u}px "Big Shoulders"`;
+      x.letterSpacing = `${4 * u}px`;
+      const tw = x.measureText(name).width + 22 * u;
+      x.fillStyle = 'rgba(3,7,14,0.82)';
+      x.fillRect(pt[0] - tw / 2, pt[1] + 22 * u, tw, 64 * u);
+      x.fillStyle = `rgb(${rgb})`;
+      x.fillText(name, pt[0] + 2 * u, pt[1] + 42 * u);
+      x.font = `700 ${16 * u}px "Big Shoulders"`;
+      x.letterSpacing = `${3 * u}px`;
+      x.fillStyle = 'rgba(232,255,251,0.6)';
+      x.fillText(sub.toUpperCase(), pt[0] + 2 * u, pt[1] + 68 * u);
+      x.restore();
+      return;
+    }
+    x.lineWidth = 1.2 * u;
+    x.globalAlpha = 0.7;
+    x.beginPath();
+    x.moveTo(pt[0] + side * 20 * u, pt[1]);
+    x.lineTo(pt[0] + side * 62 * u, pt[1]);
+    x.stroke();
+    x.globalAlpha = 1;
+    x.textAlign = side > 0 ? 'left' : 'right';
+    x.font = `700 ${30 * u}px "Big Shoulders"`;
+    x.letterSpacing = `${5 * u}px`;
+    x.fillText(name, pt[0] + side * 74 * u, pt[1] - 6 * u);
+    x.font = `700 ${17 * u}px "Big Shoulders"`;
+    x.letterSpacing = `${4 * u}px`;
+    x.fillStyle = 'rgba(232,255,251,0.55)';
+    x.fillText(sub.toUpperCase(), pt[0] + side * 74 * u, pt[1] + 22 * u);
+    x.restore();
+  };
+  PLACES.forEach((p, i) => place(pts[i], p[0], p[4], p[3], tall ? 0 : p[1] < 640 ? -1 : 1));
+  place(hub, 'THE CROSSROADS', 'five roads', '255,224,138', tall ? 0 : 1);
+  place(edge, 'THE EDGE', "don't look up", '255,74,90', 1);
+  place(start, 'THE GLADE', 'you are here', '255,224,138', tall ? 0 : 1);
+  // you: the blob, in the glade
+  const blob = await spr('blob');
+  const k = Math.max(1, Math.round(3 * u));
+  x.imageSmoothingEnabled = false;
+  x.drawImage(blob, Math.round(start[0] - 13 * k), Math.round(start[1] - 34 * u - 20 * k), 26 * k, 20 * k);
+  const eyes = await spr('x-eyes');
+  const ek = Math.max(1, Math.round(1.5 * u));
+  x.drawImage(eyes, Math.round(edge[0] - 65 * ek), Math.round(edge[1] - 40 * u - 32 * ek), 130 * ek, 32 * ek);
+  // the chart's legend
+  x.save();
+  x.fillStyle = 'rgba(232,255,251,0.5)';
+  x.font = `700 ${20 * u}px "Big Shoulders"`;
+  x.letterSpacing = `${8 * u}px`;
+  x.textAlign = 'left';
+  x.fillText(tall ? 'SURVEY OF THE FLAT FOREST  ·  SHEET 1 OF 2' : 'THE THIRD DIRECTION  ·  SURVEY OF THE FLAT FOREST  ·  SHEET 1 OF 2', 60 * u, H - (tall ? 170 : 54) * u);
+  x.restore();
+  finish(c, x, { grain: 0.04, vig: 0.5, seed: 17 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 09 pop art */
+const POP = [
+  ['x-bust-4k', [1.0, 0.18, 0.53], [1.0, 0.5, 0.74], [1.0, 0.88, 0.29], [0.1, 0.05, 0.26], 3.4, 1.0],
+  ['collector-4k', [0.1, 0.78, 1.0], [0.55, 0.9, 1.0], [1.0, 0.55, 0.12], [0.16, 0.04, 0.3], 1.9, 0.84],
+  ['mash-4k', [1.0, 0.83, 0.0], [1.0, 0.94, 0.5], [1.0, 0.25, 0.64], [0.06, 0.1, 0.36], 1.8, 0.9],
+];
+/** Pop art: the three who hold your family, screen-printed. Flat colour, halftone dots, a thick black line. */
+WP['pop-art'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  x.fillStyle = '#f6f1e4';
+  x.fillRect(0, 0, W, H);
+  const m = 34 * u;
+  const gut = 22 * u;
+  const top = tall ? 150 * u : m;
+  const bot = tall ? 110 * u : m;
+  for (let i = 0; i < 3; i++) {
+    const [name, A, Cc, D, B, gain, fit] = POP[i];
+    const im = await spr(name);
+    const pw = tall ? W - 2 * m : (W - 2 * m - 2 * gut) / 3;
+    const ph = tall ? (H - top - bot - 2 * gut) / 3 : H - 2 * m;
+    const px = tall ? m : m + i * (pw + gut);
+    const py = tall ? top + i * (ph + gut) : m;
+    const s = tall ? Math.min((pw * fit) / im.width, (ph * fit) / im.height) * (i === 0 ? 1.12 : 1) : Math.max(Math.min((pw * fit) / im.width, (ph * fit) / im.height), ([0.74, 0.7, 0.62][i] * ph) / im.height);
+    const bw = im.width * s;
+    const bh = im.height * s;
+    const panel = shade(pw, ph, `
+      uniform sampler2D T; uniform vec3 A, C, D, B; uniform float U, GAIN; uniform vec4 BOX;
+      void main(){
+        mat2 rot = mat2(.7071, -.7071, .7071, .7071);
+        vec2 uv = (Q - BOX.xy) / BOX.zw;
+        vec4 t = (uv.x > 0. && uv.x < 1. && uv.y > 0. && uv.y < 1.) ? texture(T, uv) : vec4(0.);
+        // the ground: flat colour, a field of lighter dots that thins out toward one corner
+        vec2 g = rot * Q / (26. * U);
+        float fade = smoothstep(-.2, 1.1, (Q.x / R.x + Q.y / R.y) * .5);
+        vec3 c = mix(A, C, smoothstep(.36 * fade + .02, .36 * fade - .02, length(fract(g) - .5)));
+        // the figure: its light and dark as dots of ink on one flat colour
+        float lum = clamp(pow(dot(t.rgb, vec3(.3, .5, .2)), .62) * GAIN, 0., 1.);
+        vec2 g2 = rot * Q / (15. * U);
+        float rad = .74 * sqrt(1. - lum);
+        vec3 f = mix(D, B, smoothstep(rad + .04, rad - .04, length(fract(g2) - .5)));
+        f = mix(f, B, smoothstep(.2, .08, lum));
+        float eye = smoothstep(.2, .45, t.r - max(t.g, t.b) * 1.05);
+        f = mix(f, vec3(1.), eye * step(.5, lum));
+        c = mix(c, f, t.a);
+        // the thick line round it
+        float mn = 1., mx = 0.;
+        for (int k = 0; k < 12; k++) { float an = float(k) * .5236; vec2 o2 = vec2(cos(an), sin(an)) * 7. * U / BOX.zw; vec2 q = uv + o2; float s = (q.x > 0. && q.x < 1. && q.y > 0. && q.y < 1.) ? texture(T, q).a : 0.; mn = min(mn, s); mx = max(mx, s); }
+        c = mix(c, vec3(.05, .03, .1), smoothstep(.3, .7, mx - mn));
+        o = vec4(c, 1.);
+      }`, { A, C: Cc, D, B, U: u, GAIN: gain, BOX: [pw / 2 - bw / 2, ph - bh - (i === 0 ? -bh * 0.04 : ph * 0.05), bw, bh] }, { T: im });
+    x.drawImage(panel, px, py);
+    x.lineWidth = 9 * u;
+    x.strokeStyle = '#0d0818';
+    x.strokeRect(px, py, pw, ph);
+    // its name, in a caption box
+    const label = ['X, THE HOLLOW', 'THE COLLECTOR', 'THE MASH'][i];
+    x.save();
+    x.font = `${(tall ? 30 : 38) * u}px "Boldonse"`;
+    x.textBaseline = 'middle';
+    const tw = x.measureText(label).width + 44 * u;
+    const th = (tall ? 62 : 78) * u;
+    x.fillStyle = '#0d0818';
+    x.fillRect(px + 22 * u + 8 * u, py + 22 * u + 8 * u, tw, th);
+    x.fillStyle = '#fff8e6';
+    x.fillRect(px + 22 * u, py + 22 * u, tw, th);
+    x.lineWidth = 5 * u;
+    x.strokeRect(px + 22 * u, py + 22 * u, tw, th);
+    x.fillStyle = '#0d0818';
+    x.fillText(label, px + 44 * u, py + 22 * u + th / 2 + 3 * u);
+    x.restore();
+  }
+  finish(c, x, { grain: 0.06, vig: 0.12, seed: 23 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 10 signal lost */
+/** Glitch: his three eyes on a dead channel. The picture tears sideways, the colours come apart, the scanlines show. */
+WP['signal-lost'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [b, bx] = cv(W, H);
+  bx.fillStyle = '#020204';
+  bx.fillRect(0, 0, W, H);
+  const cy = H * (tall ? 0.4 : 0.43);
+  const g = bx.createRadialGradient(W / 2, cy, 0, W / 2, cy, Math.min(W, H) * 0.7);
+  g.addColorStop(0, 'rgba(120,8,18,0.6)');
+  g.addColorStop(1, 'rgba(120,8,18,0)');
+  bx.fillStyle = g;
+  bx.fillRect(0, 0, W, H);
+  const eyes = await spr('x-eyes');
+  const k = Math.max(1, Math.floor((W * (tall ? 0.94 : 0.62)) / 130));
+  bx.imageSmoothingEnabled = false;
+  bx.drawImage(eyes, Math.round(W / 2 - 65 * k), Math.round(cy - 16 * k), 130 * k, 32 * k);
+  bx.textAlign = 'center';
+  bx.fillStyle = '#f4f6ff';
+  bx.font = `${(tall ? 78 : 92) * u}px "Boldonse"`;
+  bx.fillText("DON'T LOOK UP", W / 2, cy + 16 * k + (tall ? 300 : 210) * u);
+  bx.font = `700 ${24 * u}px "Big Shoulders"`;
+  bx.letterSpacing = `${12 * u}px`;
+  bx.fillStyle = 'rgba(244,246,255,0.6)';
+  bx.fillText('NO SIGNAL  ·  CHANNEL 3  ·  THE THIRD DIRECTION', W / 2, cy + 16 * k + (tall ? 380 : 280) * u);
+  const [c, x] = cv(W, H);
+  const out = shade(W, H, `
+    uniform sampler2D T; uniform float U;
+    void main(){
+      vec2 uv = Q / R;
+      float band = floor(Q.y / (46. * U));
+      float off = h21(vec2(band, 3.)) > .8 ? (h21(vec2(band, 7.)) - .5) * .11 : 0.;
+      float fine = floor(Q.y / (6. * U));
+      off += h21(vec2(fine, 11.)) > .955 ? (h21(vec2(fine, 5.)) - .5) * .05 : 0.;
+      float ca = .0028 + abs(off) * .1;
+      vec3 c = vec3(texture(T, uv + vec2(off + ca, 0.)).r, texture(T, uv + vec2(off, 0.)).g, texture(T, uv + vec2(off - ca, 0.)).b);
+      // blocks that lost their colour
+      vec2 bl = floor(Q / (vec2(210., 46.) * U));
+      float br = h21(bl + 2.);
+      if (br > .975) c = c.gbr * 1.3 + vec3(.0, .04, .07);
+      if (br < .03) c = vec3(dot(c, vec3(.33))) * vec3(.2, 1., .9);
+      // the bar of a picture that will not hold
+      float bar = smoothstep(.03, .0, abs(uv.y - .77)) ;
+      c += vec3(.5, .55, .6) * bar * (.25 + .5 * h21(vec2(floor(Q.x / (3. * U)), floor(Q.y / (3. * U)))));
+      // scanlines, snow
+      c *= .78 + .22 * step(.5, fract(Q.y / (4. * U)));
+      c += (h21(floor(Q / (2. * U)) + .5) - .5) * .11;
+      o = vec4(c, 1.);
+    }`, { U: u }, { T: b });
+  x.drawImage(out, 0, 0);
+  bloom(x, out, 18 * u, 0.35, 0.45);
+  finish(c, x, { grain: 0.03, vig: 0.7, seed: 27 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 11 rising */
+/** Geometric: a flat floor of tiles that, further back, stands up into columns. The world finding its third direction. */
+WP['rising'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  const sky = shade(W, H, `
+    uniform float U;
+    void main(){
+      vec2 uv = Q / R;
+      vec3 c = mix(vec3(.02, .025, .07), vec3(.05, .1, .2), uv.y);
+      vec2 q = (Q - vec2(R.x * .5, R.y * .3)) / min(R.x, R.y);
+      c += vec3(.36, .26, .1) * exp(-dot(q, q) * 4.5) + vec3(.04, .1, .18) * exp(-dot(q, q) * 1.2);
+      vec2 g = Q / (12. * U), id = floor(g); float r = h21(id);
+      if (r > .972 && uv.y < .5) c += vec3(.8, .9, 1.) * smoothstep(1.2, 0., length(fract(g) - h22(id)) * 12.) * fract(r * 53.);
+      o = vec4(c, 1.);
+    }`, { U: u });
+  x.drawImage(sky, 0, 0);
+  const a = 58 * u;
+  const hash = (i, j) => {
+    const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const noise = (i, j) => {
+    const f = (k) => 0.5 + 0.5 * Math.sin(i * 0.37 * k + 1.7 * k) * Math.cos(j * 0.29 * k - 0.6 * k);
+    return 0.55 * f(1) + 0.3 * f(2.3) + 0.15 * hash(i, j);
+  };
+  const oy = H * (tall ? 0.42 : 0.5);
+  const rows = Math.ceil((H - oy) / (a / 2)) + 6;
+  const half = Math.ceil(W / (2 * a)) + 2;
+  const rgb = (v) => `rgb(${v.map((q) => Math.round(clamp(q) * 255)).join(',')})`;
+  const mixc = (p, q, t) => p.map((v, i) => v + (q[i] - v) * t);
+  const [glow, gx] = cv(W, H);
+  for (let s = -8; s < rows; s++) {
+    for (let d = -half; d <= half; d++) {
+      // (i + j = s, i - j = d: only where both are whole)
+      if ((s + d) & 1) continue;
+      const i = (s + d) / 2;
+      const j = (s - d) / 2;
+      const depth = clamp(s / rows);
+      const rise = Math.pow(clamp(1 - depth * (tall ? 1.5 : 1.75)), 1.6);
+      const n = noise(i, j);
+      const h = Math.max(0, n - 0.22) * rise * (tall ? 1500 : 760) * u;
+      const cxp = W / 2 + d * a;
+      const cyp = oy + s * (a / 2) - h;
+      const gold = hash(i + 9, j - 4) > 0.93 && h > 40 * u;
+      const lit = clamp(h / (500 * u));
+      let topc = mixc([0.05, 0.16, 0.22], [0.5, 0.92, 0.9], lit * 0.85 + 0.08);
+      if (gold) topc = [1, 0.84, 0.42];
+      if (h < 2 * u) topc = (i + j) & 2 ? [0.035, 0.095, 0.13] : [0.045, 0.12, 0.16];
+      const fog = clamp(1 - depth * 0.15);
+      const top = topc.map((v) => v * fog);
+      const poly = (pts, col) => {
+        x.fillStyle = col;
+        x.beginPath();
+        pts.forEach(([px, py], k) => (k ? x.lineTo(px, py) : x.moveTo(px, py)));
+        x.closePath();
+        x.fill();
+      };
+      if (h > 0.5) {
+        poly([[cxp - a, cyp], [cxp, cyp + a / 2], [cxp, cyp + a / 2 + h], [cxp - a, cyp + h]], rgb(top.map((v) => v * 0.5)));
+        poly([[cxp + a, cyp], [cxp, cyp + a / 2], [cxp, cyp + a / 2 + h], [cxp + a, cyp + h]], rgb(top.map((v) => v * 0.26)));
+      }
+      poly([[cxp, cyp - a / 2], [cxp + a, cyp], [cxp, cyp + a / 2], [cxp - a, cyp]], rgb(top));
+      x.strokeStyle = `rgba(190,255,250,${h > 0.5 ? 0.22 : 0.07})`;
+      x.lineWidth = 1.2 * u;
+      x.stroke();
+      if (gold) {
+        gx.fillStyle = 'rgba(255,214,110,1)';
+        gx.beginPath();
+        gx.moveTo(cxp, cyp - a / 2);
+        gx.lineTo(cxp + a, cyp);
+        gx.lineTo(cxp, cyp + a / 2);
+        gx.lineTo(cxp - a, cyp);
+        gx.fill();
+      }
+    }
+  }
+  bloom(x, glow, 30 * u, 0.9);
+  bloom(x, glow, 90 * u, 0.5);
+  // the blob on the flat floor, at the front, looking up at it all
+  const blob = await spr('blob');
+  const k = Math.max(1, Math.round(4 * u));
+  const bxp = W / 2;
+  const byp = H * (tall ? 0.84 : 0.86);
+  const gl = x.createRadialGradient(bxp, byp - 8 * k, 0, bxp, byp - 8 * k, 44 * k);
+  gl.addColorStop(0, 'rgba(255,214,110,0.4)');
+  gl.addColorStop(1, 'rgba(255,214,110,0)');
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.fillStyle = gl;
+  x.fillRect(bxp - 50 * k, byp - 58 * k, 100 * k, 100 * k);
+  x.restore();
+  x.imageSmoothingEnabled = false;
+  x.drawImage(blob, Math.round(bxp - 13 * k), Math.round(byp - 19 * k), 26 * k, 20 * k);
+  finish(c, x, { grain: 0.04, vig: 0.55, seed: 33 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ 12 aurora */
+/** Flowing: five curtains of light over the forest, one in each guardian's colour. */
+WP['aurora'] = async (W, H) => {
+  const u = Math.min(W, H) / 1080;
+  const tall = H > W;
+  const [c, x] = cv(W, H);
+  const sky = shade(W, H, `
+    uniform float U;
+    vec3 curtain(vec2 p, float base, float seed, vec3 col){
+      float y = base + .11 * sin(p.x * 1.7 + seed * 3.) + .16 * (fbm(vec2(p.x * 1.1 + seed * 7., seed)) - .5) + .03 * sin(p.x * 7. + seed);
+      float d = p.y - y;
+      // sharp along its lower hem, fading a long way up; folded into rays
+      float body = d > 0. ? exp(-d * 60.) : exp(d * (5.5 + 3. * fbm(vec2(p.x * 3., seed + 2.))));
+      float rays = .45 + .55 * pow(vn(vec2(p.x * 46. + seed * 13. + fbm(vec2(p.x * 4., seed)) * 6., seed)), 1.6);
+      float along = .55 + .45 * fbm(vec2(p.x * 2. + seed * 5., 4.));
+      return col * body * rays * along;
+    }
+    void main(){
+      vec2 uv = Q / R;
+      vec2 p = vec2((Q.x - .5 * R.x) / min(R.x, R.y), Q.y / R.y);
+      vec3 c = mix(vec3(.008, .012, .035), vec3(.02, .05, .11), uv.y);
+      vec2 g = Q / (9. * U), id = floor(g); float r = h21(id);
+      if (r > .955) c += vec3(.85, .92, 1.) * smoothstep(1., 0., length(fract(g) - h22(id)) * 9.) * fract(r * 53.) * .9;
+      c += curtain(p, .30, 1., vec3(.44, .94, 1.)) * .95;
+      c += curtain(p, .40, 2., vec3(1., .69, .34)) * .7;
+      c += curtain(p, .47, 3., vec3(.79, .65, 1.)) * .85;
+      c += curtain(p, .56, 4., vec3(1., .44, .63)) * .8;
+      c += curtain(p, .64, 5., vec3(.5, 1., .7)) * .6;
+      o = vec4(c, 1.);
+    }`, { U: u });
+  x.drawImage(sky, 0, 0);
+  bloom(x, sky, 40 * u, 0.5, 0.3);
+  // the forest's own trees along the bottom, black; the glow of the sky on the ground behind them
+  const k = Math.max(1, Math.round(3 * u));
+  const gy = H - (tall ? 250 : 120) * u;
+  const dark = (im) => {
+    const [t, g] = cv(im.width, im.height);
+    g.drawImage(im, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = '#02040a';
+    g.fillRect(0, 0, im.width, im.height);
+    return t;
+  };
+  const trees = [dark(await spr('tree-a')), dark(await spr('tree-b')), dark(await spr('tree-c'))];
+  const r = rnd(3);
+  x.imageSmoothingEnabled = false;
+  x.fillStyle = '#02040a';
+  x.fillRect(0, gy, W, H - gy);
+  for (let px = -20 * k; px < W; px += Math.round((14 + r() * 22) * k)) {
+    if (Math.abs(px + 24 * k - W / 2) < 60 * k) continue;
+    const t = trees[Math.floor(r() * 3)];
+    const s = k;
+    x.drawImage(t, px, Math.round(gy - t.height * s + (4 + r() * 8) * k), t.width * s, t.height * s);
+  }
+  const blob = await spr('blob');
+  const gl = x.createRadialGradient(W / 2, gy - 6 * k, 0, W / 2, gy - 6 * k, 40 * k);
+  gl.addColorStop(0, 'rgba(255,214,110,0.45)');
+  gl.addColorStop(1, 'rgba(255,214,110,0)');
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  x.fillStyle = gl;
+  x.fillRect(W / 2 - 45 * k, gy - 50 * k, 90 * k, 90 * k);
+  x.restore();
+  x.drawImage(blob, Math.round(W / 2 - 13 * k), Math.round(gy - 18 * k), 26 * k, 20 * k);
+  finish(c, x, { grain: 0.04, vig: 0.45, seed: 37 });
+  return c;
+};
+
+/* ------------------------------------------------------------------------------------------------ */
+window.names = () => Object.keys(WP);
+window.render = async (name, W, H) => {
+  await document.fonts.load('700 40px "Big Shoulders"');
+  await document.fonts.load('40px "Boldonse"');
+  const c = await WP[name](W, H);
+  return c.toDataURL('image/jpeg', 0.93);
+};
+</script>
+</body>

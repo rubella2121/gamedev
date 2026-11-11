@@ -80,10 +80,23 @@ const SPRITES: Record<string, () => Promise<HTMLCanvasElement> | HTMLCanvasEleme
   'x-hd': async () => trim(await cutout3d('x', 900, 1500, { pos: [0, 9, 22], look: [0, 9, BOSS_Z], fov: 52 })),
 };
 
+/** the 3D bosses again, large enough for a 4K wallpaper (tools/brand/wallpapers.html): only rendered when asked for by name */
+const LARGE: typeof SPRITES = {
+  'collector-4k': async () => trim(await cutout3d('collector', 2200, 2200)),
+  'mash-4k': async () => trim(await cutout3d('mash', 2600, 2184)),
+  'x-4k': async () => trim(await cutout3d('x', 2160, 3600, { pos: [0, 9, 22], look: [0, 9, BOSS_Z], fov: 52 })),
+  // his head and shoulders, close
+  'x-bust-4k': async () => trim(await cutout3d('x', 3800, 2375, { pos: [0, 12, 22], look: [0, 11.2, BOSS_Z], fov: 18.5 })),
+};
+
 (window as unknown as { __sprites: unknown }).__sprites = {
-  render: async () => {
+  /** one 3D boss from any camera (to frame a new shot without rebuilding) */
+  cut: async (name: 'collector' | 'mash' | 'x', w: number, h: number, cam?: Parameters<typeof cutout3d>[3]) => trim(await cutout3d(name, w, h, cam)).toDataURL('image/png'),
+  /** every sprite, or only the ones named (the large ones are only ever rendered by name) */
+  render: async (names?: string[]) => {
     const out: Record<string, string> = {};
-    for (const [k, fn] of Object.entries(SPRITES)) out[k] = (await fn()).toDataURL('image/png');
+    const all = { ...SPRITES, ...LARGE };
+    for (const k of names?.length ? names : Object.keys(SPRITES)) out[k] = (await all[k]!()).toDataURL('image/png');
     return out;
   },
 };
