@@ -168,14 +168,21 @@ zip. Their portal activates the integration once the pre-roll has been watched t
 ```bash
 npm run build:y8
 ```
-This makes `dist-y8/` and `the-third-direction-y8.zip`. `vite.y8.config.ts` swaps in `src/sdk.y8.ts`: no SDK and nothing loaded
-from outside the zip (Y8 runs its own ads around the frame), saves in localStorage, and **instant play** as on CrazyGames (a new
-player starts a run as the page opens; a returning one gets the home page). The share button shares the run with the Y8 page it
-was played on, never a link to another site. On a desktop the page shows the CrazyGames desktop art around the frame.
+This makes `dist-y8/` and `the-third-direction-y8.zip`. `vite.y8.config.ts` swaps in `src/sdk.y8.ts` and puts Y8's minimal SDK in
+the page from their CDN (`cdn.y8.com/minimal-sdk/2-0/y8.min.js`; they ask for it never to be bundled), started with the game's
+**App ID** and **Game ID** from the developer portal (Builds -> SDK Initialization; set in the config, or `Y8_APP_ID` /
+`Y8_GAME_ID`).
+- **Ads** only at the natural breaks, always after a tap (Play, Continue, Play again, a boss picked; never in a fight): a "start"
+  break the first time, "next" after, as often as Y8 allows. The game is paused and silent from their beforeAd to afterAd, and goes
+  on when the break is done (or if the ad fails, or after 40 s at most).
+- **Instant play** as on CrazyGames (a new player starts a run as the page opens; a returning one gets the home page).
+- **Saves** in localStorage. The share button shares the run with the Y8 page it was played on, never a link to another site.
+  On a desktop the page shows the CrazyGames desktop art around the frame.
+- **Without the SDK** every call does nothing and Play starts in the same tap.
 
-**Uploading:** sign in to y8.com, use its upload page, choose HTML5 and upload the zip. Give it a **landscape frame (960 × 540)**
-so desktop players see the art around the game, tick mobile if offered, and use `brand/cover.png` as the thumbnail. Check their
-form for the current rules before submitting (sizes and review steps change).
+**Uploading:** developer.y8.com -> the game -> Builds: upload the zip, then run their QA (it checks the SDK and the ads). Give it
+a **landscape frame (960 x 540)** so desktop players see the art around the game, tick mobile if offered, and use
+`brand/cover.png` as the thumbnail. The studio logo is `brand/y8/studio-logo.png` (175 x 175).
 
 ### Newgrounds
 Upload `the-third-direction-web.zip` (the itch.io build) as an HTML5 game; no SDK is needed. Set the size to **390 × 844**

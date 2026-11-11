@@ -1,8 +1,12 @@
 /**
- * Stand-in for src/sdk.ts in the Y8 build (vite.y8.config.ts). Y8 hosts the game in a frame on its own page and runs its own
- * ads around it, so there is no SDK here: saved data goes to localStorage (falling back to memory where the browser blocks
- * it), there is no leaderboard, and the share button shares the run with a link to the Y8 page the game is played on (never
- * to another site).
+ * Stand-in for src/sdk.ts in the Y8 build (vite.y8.config.ts), on Y8's minimal SDK, which the build's index.html loads from their
+ * CDN and starts with this game's App ID and Game ID (`window.__y8Sdk` once it is ready). An ad is asked for only at the natural
+ * breaks the game offers, always after a tap (Play, Continue, Play again, a boss picked; never in a fight): a "start" break the
+ * first time, "next" after that, as often as Y8 allows. While one plays the game is paused and silent (their beforeAd/afterAd),
+ * and it goes on when the break is done, when the ad fails, or after 40 s at most. Saves go to localStorage (falling back to
+ * memory where the browser blocks it), there is no leaderboard, and the share button shares the run with a link to the Y8
+ * page the game is played on (never to another site). If the SDK is not there (blocked, offline, testing) every call does
+ * nothing and the game plays as usual.
  */
 export const CREDIT = 'a boss rush in three directions';
 /**
@@ -11,8 +15,16 @@ export const CREDIT = 'a boss rush in three directions';
  */
 export const INSTANT = true;
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const win = window as unknown as { __y8Sdk?: any };
+
+let pauseGame: (() => void) | null = null;
+let resumeGame: (() => void) | null = null;
+
 export function onLifecycle(onPause: () => void, onResume: () => void) {
-  document.addEventListener('visibilitychange', () => (document.hidden ? onPause() : onResume()));
+  // (the game pauses itself when the page is hidden; these are kept for the ads)
+  pauseGame = onPause;
+  resumeGame = onResume;
 }
 
 const PREFIX = 'ttd:';
@@ -71,12 +83,54 @@ export async function submitClearTime(_seconds: number, _deaths: number): Promis
   return null;
 }
 
+let first = true;
+
 /**
- * A natural break (Play, Play again, a boss picked): a site with ads may show one here. Null when there is none to wait for,
- * so the game goes on in the same tap (a phone only lets sound start inside the tap itself); otherwise resolves when it can go on.
+ * A natural break, after a tap: ask Y8 for an ad (their SDK decides whether one plays, and how often). Null when the SDK is not
+ * there, so the game goes on in the same tap; otherwise resolves when the game may go on: the break is done (adBreakDone), the
+ * call failed, the SDK answered without showing anything, or 40 s have passed.
  */
 export function adBreak(): Promise<void> | null {
-  return null;
+  const sdk = win.__y8Sdk;
+  if (!sdk || typeof sdk.showAd !== 'function') return null;
+  const type = first ? 'start' : 'next';
+  first = false;
+  return new Promise((done) => {
+    let over = false;
+    let held = false;
+    const hold = () => {
+      if (held) return;
+      held = true;
+      pauseGame?.();
+    };
+    const release = () => {
+      if (!held) return;
+      held = false;
+      resumeGame?.();
+    };
+    const end = () => {
+      if (over) return;
+      over = true;
+      window.clearTimeout(guard);
+      // (an ad that never said it ended: the game is not left paused)
+      release();
+      done();
+    };
+    const guard = window.setTimeout(end, 40000);
+    try {
+      const r = sdk.showAd({
+        type,
+        name: type === 'start' ? 'game-start' : 'natural-break',
+        beforeAd: hold,
+        afterAd: release,
+        adBreakDone: () => window.setTimeout(end, 0),
+      });
+      // (the call may settle before the break is over: go on then only if no ad has started)
+      if (r && typeof r.then === 'function') r.then(() => window.setTimeout(() => !held && end(), 1500), () => end());
+    } catch {
+      end();
+    }
+  });
 }
 
 /** whether the player is playing now (not on a menu, not paused); a site that measures play is told */
