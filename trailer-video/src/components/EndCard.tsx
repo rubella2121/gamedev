@@ -7,7 +7,7 @@ import { SANS, SERIF } from "./Words";
 
 /**
  * Every promo ends here: the cube shoots out on the hit, the name comes in letter by letter, then what to do about it - play
- * it free on RUN, and vote for it in the October Jam. All of it sits in the middle of the frame, clear of the buttons and the
+ * it free on itch.io (link in bio), in the browser. All of it sits in the middle of the frame, clear of the buttons and the
  * caption a phone lays over the bottom and the right of a reel.
  */
 export const EndCard: React.FC<{ at: number; fade: number; tag?: string }> = ({ at, fade, tag }) => {
@@ -65,7 +65,7 @@ export const EndCard: React.FC<{ at: number; fade: number; tag?: string }> = ({ 
             whiteSpace: "nowrap",
           }}
         >
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
         <div
           style={{
@@ -81,7 +81,7 @@ export const EndCard: React.FC<{ at: number; fade: number; tag?: string }> = ({ 
             <path d="M16 28 C 7 21 1 15.5 1 9 C 1 4.5 4.5 1 9 1 C 12 1 14.5 2.6 16 5 C 17.5 2.6 20 1 23 1 C 27.5 1 31 4.5 31 9 C 31 15.5 25 21 16 28 Z" fill={RED} stroke="#ffd0d6" strokeWidth={1.5} />
           </svg>
           <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 60, letterSpacing: "0.04em", color: "#fff", textShadow: `0 0 22px rgba(255,74,90,0.75), 0 4px 0 rgba(0,0,0,0.8)`, whiteSpace: "nowrap" }}>
-            VOTE FOR US
+            LINK IN BIO
           </div>
         </div>
         <div
@@ -97,7 +97,7 @@ export const EndCard: React.FC<{ at: number; fade: number; tag?: string }> = ({ 
             textShadow: "0 0 14px rgba(127,244,234,0.6), 0 2px 0 rgba(0,0,0,0.8)",
           }}
         >
-          RUN · OCTOBER JAM
+          FREE · IN YOUR BROWSER
         </div>
       </AbsoluteFill>
     </AbsoluteFill>

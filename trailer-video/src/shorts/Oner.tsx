@@ -192,9 +192,9 @@ const End: React.FC<{ t: number }> = ({ t }) => {
         </div>
         <div style={{ marginTop: 22, fontFamily: "Cormorant Garamond", fontStyle: "italic", fontWeight: 600, fontSize: 46, color: "#e9e3d6", opacity: smooth((u - 0.8) / 0.4) }}>Now go and walk it yourself.</div>
         <div style={{ marginTop: 50, fontFamily: "Inter", fontWeight: 800, fontSize: 38, letterSpacing: "0.18em", color: "#1a0a06", backgroundColor: GOLD, borderRadius: 60, padding: "20px 46px 20px 54px", opacity: smooth((u - 1.3) / 0.3), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 30px rgba(255,215,122,0.45)" }}>
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
-        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.7) / 0.3) }}>♥ VOTE · RUN OCTOBER JAM</div>
+        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.7) / 0.3) }}>♥ FREE · LINK IN BIO</div>
       </div>
     </AbsoluteFill>
   );

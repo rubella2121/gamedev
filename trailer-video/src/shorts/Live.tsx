@@ -116,7 +116,7 @@ const CHATLOG: Msg[] = [
   say(7.25, 10, "what's at the edge??"),
   say(7.55, 1, "uh"),
   say(7.75, 5, "THE SCREEN"),
-  ...spam(S.boom + 0.62, 0.09, ["WAIT IT GOES 3D??", "IT'S 3D", "BRO WHAT", "NO WAY", "CLIP IT CLIP IT", "3D?????", "this is a JAM game??", "😱😱😱"], 1),
+  ...spam(S.boom + 0.62, 0.09, ["WAIT IT GOES 3D??", "IT'S 3D", "BRO WHAT", "NO WAY", "CLIP IT CLIP IT", "3D?????", "this is FREE??", "😱😱😱"], 1),
   say(9.5, 7, "he lost time on the edge"),
   say(9.85, 9, "+0.41 it's over"),
   say(10.2, 8, "it's not over"),
@@ -558,8 +558,8 @@ const Next: React.FC<{ e: number }> = ({ e }) => {
       <div style={{ fontWeight: 600, fontSize: 36, color: "#e9ecf5", marginTop: 6, opacity: smooth((e - 0.6) / 0.25) }}>
         can you beat <span style={{ color: GOLD, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{fmt(clock(S.wr))}</span>?
       </div>
-      <div style={{ marginTop: 40, fontWeight: 800, fontSize: 40, color: "#07070c", backgroundColor: "#7ff4ea", borderRadius: 16, padding: "18px 46px", opacity: smooth((e - 0.9) / 0.2), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 40px rgba(127,244,234,0.5)" }}>▶ PLAY FREE ON RUN</div>
-      <div style={{ marginTop: 26, fontWeight: 800, fontSize: 32, color: "#ff8aa8", opacity: smooth((e - 1.3) / 0.25) }}>♥ VOTE · RUN OCTOBER JAM</div>
+      <div style={{ marginTop: 40, fontWeight: 800, fontSize: 40, color: "#07070c", backgroundColor: "#7ff4ea", borderRadius: 16, padding: "18px 46px", opacity: smooth((e - 0.9) / 0.2), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 40px rgba(127,244,234,0.5)" }}>▶ PLAY FREE ON ITCH.IO</div>
+      <div style={{ marginTop: 26, fontWeight: 800, fontSize: 32, color: "#ff8aa8", opacity: smooth((e - 1.3) / 0.25) }}>♥ FREE · LINK IN BIO</div>
       <div style={{ marginTop: 34, fontFamily: "Cinzel", fontWeight: 700, fontSize: 40, letterSpacing: "0.14em", color: "#fff1d0", opacity: smooth((e - 1.6) / 0.3) }}>THE THIRD DIRECTION</div>
     </div>
   );

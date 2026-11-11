@@ -232,8 +232,8 @@ const End: React.FC<{ t: number }> = ({ t }) => {
       <div style={{ position: "absolute", top: H * 0.36, display: "flex", flexDirection: "column", alignItems: "center", fontFamily: "Inter" }}>
         <div style={{ fontWeight: 600, fontSize: 30, color: "#cdbfc0", letterSpacing: "0.1em", opacity: smooth((u - 0.2) / 0.4) }}>sleep tight, little light ☾</div>
         <div style={{ marginTop: 24, fontFamily: "Cinzel", fontWeight: 700, fontSize: 70, color: "#fff3e6", whiteSpace: "nowrap", opacity: smooth((u - 0.5) / 0.5) }}>THE THIRD DIRECTION</div>
-        <div style={{ marginTop: 44, fontWeight: 800, fontSize: 36, letterSpacing: "0.16em", color: "#2a1630", backgroundColor: "#ffd9c4", borderRadius: 60, padding: "18px 44px 18px 50px", opacity: smooth((u - 1.0) / 0.4) }}>play free on RUN</div>
-        <div style={{ marginTop: 26, fontWeight: 800, fontSize: 30, letterSpacing: "0.1em", color: "#ff9aac", opacity: smooth((u - 1.4) / 0.4) }}>♥ vote daily · RUN October Jam</div>
+        <div style={{ marginTop: 44, fontWeight: 800, fontSize: 36, letterSpacing: "0.16em", color: "#2a1630", backgroundColor: "#ffd9c4", borderRadius: 60, padding: "18px 44px 18px 50px", opacity: smooth((u - 1.0) / 0.4) }}>play free on itch.io</div>
+        <div style={{ marginTop: 26, fontWeight: 800, fontSize: 30, letterSpacing: "0.1em", color: "#ff9aac", opacity: smooth((u - 1.4) / 0.4) }}>♥ link in bio · no download</div>
       </div>
     </AbsoluteFill>
   );

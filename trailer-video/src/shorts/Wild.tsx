@@ -158,9 +158,9 @@ const End: React.FC<{ t: number }> = ({ t }) => {
           THE THIRD DIRECTION
         </div>
         <div style={{ marginTop: 44, fontFamily: "Inter", fontWeight: 800, fontSize: 38, letterSpacing: "0.18em", paddingLeft: "0.18em", color: "#06181a", backgroundColor: "#9ff4ee", borderRadius: 60, padding: "20px 46px 20px 54px", opacity: smooth((u - 1.2) / 0.3), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 30px rgba(159,244,238,0.45)" }}>
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
-        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.6) / 0.3) }}>♥ VOTE · RUN OCTOBER JAM</div>
+        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.6) / 0.3) }}>♥ FREE · LINK IN BIO</div>
       </div>
     </AbsoluteFill>
   );

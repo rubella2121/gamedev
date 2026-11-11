@@ -250,9 +250,9 @@ const End: React.FC<{ t: number }> = ({ t }) => {
         <div style={{ fontFamily: "Cinzel", fontWeight: 900, fontSize: 64, letterSpacing: "0.05em", color: "#fff1d0", opacity: smooth((T - 0.7) / 0.4), textShadow: `0 0 22px ${GOLD}, 0 4px 0 rgba(0,0,0,0.85)`, whiteSpace: "nowrap" }}>THE THIRD DIRECTION</div>
         <div style={{ height: 2, width: (W * 0.6 * easeOut((T - 0.9) / 0.5)) | 0, background: `linear-gradient(90deg, ${BLOOD}, ${VIOLET})` }} />
         <div style={{ marginTop: 18, fontFamily: "Inter", fontWeight: 800, fontSize: 40, letterSpacing: "0.2em", color: "#fff", padding: "22px 46px 22px 54px", border: `3px solid ${VIOLET}`, borderRadius: 60, backgroundColor: "rgba(20,8,40,0.6)", boxShadow: `0 0 26px ${VIOLET}`, opacity: smooth((T - 1.2) / 0.2), transform: `scale(${pulse.toFixed(3)})`, whiteSpace: "nowrap" }}>
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
-        <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 34, letterSpacing: "0.14em", color: "#ff8aa0", opacity: smooth((T - 1.6) / 0.3) }}>♥ VOTE · RUN OCTOBER JAM</div>
+        <div style={{ fontFamily: "Inter", fontWeight: 800, fontSize: 34, letterSpacing: "0.14em", color: "#ff8aa0", opacity: smooth((T - 1.6) / 0.3) }}>♥ FREE · LINK IN BIO</div>
       </div>
     </AbsoluteFill>
   );

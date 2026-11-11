@@ -12,7 +12,7 @@ const CARDS = S.cards as number[];
 const SLOT = 2.4;
 
 /**
- * YOUR OCTOBER FORTUNE - a tarot reading on a velvet cloth by candlelight. The deck is shuffled and fanned; pick a card. Seven are
+ * YOUR DARK FORTUNE - a tarot reading on a velvet cloth by candlelight. The deck is shuffled and fanned; pick a card. Seven are
  * turned, one by one, each a boss in a gilded frame under the arcana it was born for - the Moon, the Emperor, Judgement, Death,
  * the Magician, the Hermit, the Tower - with its own voice and its fortune. The last card is 0, the Fool: the Blob, the smallest
  * light, which walks in anyway. (X is not in this deck.)
@@ -176,7 +176,7 @@ const Hook: React.FC<{ t: number }> = ({ t }) => {
         </defs>
         <text x={W / 2} y={70} textAnchor="middle" fontFamily="Inter" fontWeight={800} fontSize={30} letterSpacing="12" fill="#e8d6b0">✦ PICK A CARD ✦</text>
         {[
-          ["YOUR OCTOBER", 190, 96],
+          ["YOUR DARK", 190, 96],
           ["FORTUNE", 320, 138],
         ].map(([w, y, size]) => (
           <g key={w as string} fontFamily="Cinzel" fontWeight={700} fontSize={size as number} textAnchor="middle" letterSpacing="4">
@@ -436,9 +436,9 @@ const End: React.FC<{ t: number }> = ({ t }) => {
           THE THIRD DIRECTION
         </div>
         <div style={{ marginTop: 50, fontFamily: "Inter", fontWeight: 800, fontSize: 38, letterSpacing: "0.18em", color: "#2a1230", backgroundColor: GOLD, borderRadius: 60, padding: "20px 46px 20px 54px", opacity: smooth((u - 1.0) / 0.3), transform: `scale(${pulse.toFixed(3)})`, boxShadow: "0 0 34px rgba(255,200,110,0.5)" }}>
-          PLAY FREE ON RUN
+          PLAY FREE ON ITCH.IO
         </div>
-        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.4) / 0.3) }}>♥ VOTE · RUN OCTOBER JAM</div>
+        <div style={{ marginTop: 28, fontFamily: "Inter", fontWeight: 800, fontSize: 30, letterSpacing: "0.14em", color: "#ff9aac", opacity: smooth((u - 1.4) / 0.3) }}>♥ FREE · LINK IN BIO</div>
       </div>
     </AbsoluteFill>
   );

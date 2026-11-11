@@ -165,7 +165,7 @@ const Console: React.FC<{ t: number }> = ({ t }) => {
         ].map(([x, y, l, p]) => (
           <div key={l as string} style={{ position: "absolute", left: x as number, top: (y as number) + (p as number), width: 112, height: 112 }}>
             <div style={{ width: 112, height: 112, borderRadius: "50%", background: "radial-gradient(circle at 40% 35%, #e0495d, #9a1b2e 70%)", boxShadow: (p as number) ? "0 1px 0 rgba(0,0,0,0.6)" : "0 7px 0 rgba(0,0,0,0.55)", transform: l === "A" ? `scale(${aPulse.toFixed(3)})` : undefined }} />
-            <div style={{ marginTop: 10, textAlign: "center", fontFamily: PIXEL, fontSize: 18, color: "#8fa1a6" }}>{t >= S.end && l === "A" ? "VOTE" : t >= S.end ? "PLAY" : (l as string)}</div>
+            <div style={{ marginTop: 10, textAlign: "center", fontFamily: PIXEL, fontSize: 18, color: "#8fa1a6" }}>{t >= S.end && l === "A" ? "LIKE" : t >= S.end ? "PLAY" : (l as string)}</div>
           </div>
         ))}
         {/* select, start */}
@@ -232,7 +232,7 @@ const Static: React.FC<{ t: number; w: number; h: number }> = ({ t, w, h }) => {
   );
 };
 
-/** its boot: the RUN logo dropping into place, then the title and PRESS START */
+/** its boot: the itch.io name dropping into place, then the title and PRESS START */
 const Boot: React.FC<{ t: number; w: number; h: number }> = ({ t, w, h }) => {
   const drop = easeOut((t - S.boot) / (S.ding - S.boot));
   const title = t >= S.title2;
@@ -240,7 +240,7 @@ const Boot: React.FC<{ t: number; w: number; h: number }> = ({ t, w, h }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#0e1220", alignItems: "center", justifyContent: "center", width: w, height: h }}>
       {!title ? (
-        <div style={{ transform: `translateY(${(-h * 0.6 * (1 - drop)).toFixed(1)}px)`, fontFamily: PIXEL, fontSize: 64, color: GOLD, textShadow: "4px 4px 0 #000, 0 0 20px #ff9a3c" }}>RUN</div>
+        <div style={{ transform: `translateY(${(-h * 0.6 * (1 - drop)).toFixed(1)}px)`, fontFamily: PIXEL, fontSize: 64, color: GOLD, textShadow: "4px 4px 0 #000, 0 0 20px #ff9a3c" }}>ITCH.IO</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 30 }}>
           <div style={{ fontFamily: PIXEL, fontSize: 30, color: GOLD, textAlign: "center", lineHeight: 1.5, textShadow: "3px 3px 0 #000" }}>THE THIRD<br />DIRECTION</div>
@@ -288,8 +288,8 @@ const MiniEnd: React.FC<{ t: number; w: number; h: number }> = ({ t, w, h }) => 
   return (
     <AbsoluteFill style={{ width: w, height: h, backgroundColor: `rgba(8,10,22,${smooth(u / 0.3).toFixed(2)})`, alignItems: "center", justifyContent: "center", gap: 30, display: "flex", flexDirection: "column" }}>
       <div style={{ fontFamily: PIXEL, fontSize: 30, color: GOLD, textAlign: "center", lineHeight: 1.5, textShadow: "3px 3px 0 #000", opacity: smooth(u / 0.2) }}>THE THIRD<br />DIRECTION</div>
-      <div style={{ fontFamily: PIXEL, fontSize: 20, color: "#fff", border: `4px solid ${GOLD}`, padding: "14px 16px", opacity: smooth((u - 0.4) / 0.15) }}>PLAY FREE ON RUN</div>
-      <div style={{ fontFamily: PIXEL, fontSize: 22, color: "#ff6b7d", opacity: u > 0.8 ? (blink ? 1 : 0.35) : 0, textShadow: "3px 3px 0 #000" }}>♥ VOTE FOR US</div>
+      <div style={{ fontFamily: PIXEL, fontSize: 20, color: "#fff", border: `4px solid ${GOLD}`, padding: "14px 16px", opacity: smooth((u - 0.4) / 0.15) }}>PLAY FREE ON ITCH.IO</div>
+      <div style={{ fontFamily: PIXEL, fontSize: 22, color: "#ff6b7d", opacity: u > 0.8 ? (blink ? 1 : 0.35) : 0, textShadow: "3px 3px 0 #000" }}>♥ LINK IN BIO</div>
     </AbsoluteFill>
   );
 };
@@ -361,7 +361,7 @@ const End: React.FC<{ t: number }> = ({ t }) => {
         <div style={{ fontFamily: PIXEL, fontSize: 58, color: GOLD, transform: `scale(${(0.4 + 0.6 * backOut(u / 0.3)).toFixed(3)})`, textShadow: "5px 5px 0 #000, 0 0 30px #ff9a3c" }}>YOUR TURN.</div>
       </AbsoluteFill>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: BODY.y + BODY.h + 50 }}>
-        <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 30, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#9ff4ee", opacity: smooth((u - 1.0) / 0.4) }}>RUN · OCTOBER JAM</div>
+        <div style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 30, letterSpacing: "0.42em", paddingLeft: "0.42em", color: "#9ff4ee", opacity: smooth((u - 1.0) / 0.4) }}>FREE · IN YOUR BROWSER</div>
       </AbsoluteFill>
     </AbsoluteFill>
   );
