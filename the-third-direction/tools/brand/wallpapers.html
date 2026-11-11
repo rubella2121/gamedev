@@ -1267,13 +1267,13 @@ WP['aurora'] = async (W, H) => {
   return c;
 };
 
-/* ------------------------------------------------------------------------------------------------ extras: pink */
+/* ------------------------------------------------------------------------------------------------ 13-15 in pink */
 /**
- * Not in the pack: wallpapers made on request (`node tools/brand/wallpapers.mjs --extras`, a 4K phone: 2160 x 3840). Three in
- * pink, the colours running into each other: each is a backdrop (BG: satin, an aura, a sky at dusk) and someone from the game.
+ * Three in pink, the colours running into each other: each is a backdrop (BG: satin, an aura, a sky at dusk) and someone from
+ * the game in front of it. They were asked for at 4K on a phone, so their phone size is 2160 x 3840 (PHONE_4K).
  */
-const XP = {};
 const BG = {};
+const PHONE_4K = ['pink-blob', 'pink-hollow', 'pink-dusk'];
 /** smoother noise than the kit's (its slopes are lit here, so the joins of the lattice must not show), and a dither */
 const SOFT = `
 uniform float S;
@@ -1441,7 +1441,7 @@ function motes(x, W, H, n, seed, col, size, y0 = 0, y1 = 1) {
 }
 
 /** Blob on satin: the flat little hero, every pixel of him square, lying on folds of pink silk that are anything but flat */
-XP['pink-blob'] = async (W, H) => {
+WP['pink-blob'] = async (W, H) => {
   const c = await BG.silk(W, H);
   const x = c.getContext('2d');
   const u = Math.min(W, H) / 1080;
@@ -1501,15 +1501,17 @@ XP['pink-blob'] = async (W, H) => {
 };
 
 /** The Hollow in rose: X against the aura, plum in his shadows and pink where the light finds him, his three eyes white-hot */
-XP['pink-hollow'] = async (W, H) => {
+WP['pink-hollow'] = async (W, H) => {
   const c = await BG.aura(W, H);
   const x = c.getContext('2d');
   const u = Math.min(W, H) / 1080;
   const im = await spr('x-bust-4k');
-  const fw = W * 1.5;
-  const fh = fw / (im.width / im.height);
+  const tall = H > W;
+  // a phone: wider than the screen, his face in the middle; a desktop: his head and shoulders, the full height
+  const fh = tall ? (W * 1.5) / (im.width / im.height) : H * 1.02;
+  const fw = fh * (im.width / im.height);
   const fx = W / 2 - fw / 2;
-  const fy = H * 0.5 - fh * 0.34;
+  const fy = tall ? H * 0.5 - fh * 0.34 : H * 0.04;
   const fig = shade(fw, fh, SOFT + `
     uniform sampler2D T; uniform float U;
     void main(){
@@ -1564,7 +1566,7 @@ XP['pink-hollow'] = async (W, H) => {
 };
 
 /** Home before dark: the blob and his parents on their hill in the flat forest, the sky gone pink, and three eyes open in it */
-XP['pink-dusk'] = async (W, H) => {
+WP['pink-dusk'] = async (W, H) => {
   const c = await BG.dusk(W, H);
   const x = c.getContext('2d');
   const u = Math.min(W, H) / 1080;
@@ -1644,11 +1646,11 @@ XP['pink-dusk'] = async (W, H) => {
 
 /* ------------------------------------------------------------------------------------------------ */
 window.names = () => Object.keys(WP);
-window.extras = () => Object.keys(XP);
+window.phone4k = () => PHONE_4K;
 window.render = async (name, W, H) => {
   await document.fonts.load('700 40px "Big Shoulders"');
   await document.fonts.load('40px "Boldonse"');
-  const c = await (WP[name] ?? XP[name])(W, H);
+  const c = await WP[name](W, H);
   return c.toDataURL('image/jpeg', 0.93);
 };
 </script>

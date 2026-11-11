@@ -87,20 +87,19 @@ and the fonts (Boldonse, Big Shoulders) are under the SIL Open Font License, so 
 
 ## The wallpaper pack (the download that asks for a tip)
 A browser game is never downloaded, so itch.io never shows its players the "$0 or donate" prompt. The wallpaper pack is the
-free download that does: twelve wallpapers, each for a 4K desktop (3840 x 2160) and a phone (1440 x 3120).
+free download that does: fifteen wallpapers, each for a 4K desktop (3840 x 2160) and a phone (1440 x 3120; the three pink ones
+2160 x 3840).
 ```bash
 npm run gallery && node tools/brand/sprites.mjs x-4k x-bust-4k collector-4k mash-4k   # once: the 3D bosses, large
 node tools/brand/wallpapers.mjs                # brand/wallpapers/desktop, brand/wallpapers/phone, the-third-direction-wallpapers.zip
 node tools/brand/wallpapers.mjs aurora --preview   # one of them, at a quarter of the size, to look at a change
 ```
 All of it is drawn by `tools/brand/wallpapers.html` (WebGL shaders and a 2D canvas, from the game's own sprites); a sheet of all
-twelve is `brand/wallpapers/contact.jpg`. Crimson King (X in black and gold on a red void), Liquid Gold (abstract ink and gold
+fifteen is `brand/wallpapers/contact.jpg`. Crimson King (X in black and gold on a red void), Liquid Gold (abstract ink and gold
 veins), The Third Axis (minimal: the mark), Shatter (the flat world as breaking glass), Neon Signs (all eight bosses), Moonrise
 (pixel art), Kaleidoscope (a mandala of the guardians), Survey Map (the forest as a contour chart), Pop Art (halftone prints),
-Signal Lost (glitch), Rising (isometric columns), Aurora (five curtains of light).
-
-Three more are not in the pack (made on request, in pink: the blob on satin, X in a rose aura, the family on their hill at dusk). `node tools/brand/wallpapers.mjs
---extras` draws them into `brand/wallpapers/extras` for a 4K phone (2160 x 3840).
+Signal Lost (glitch), Rising (isometric columns), Aurora (five curtains of light), and three in pink: Pink Blob (the blob on
+satin), Pink Hollow (X in a rose aura), Pink Dusk (the family on their hill at sunset, X's eyes in the sky).
 
 **On itch.io:** Edit game → Uploads → add `the-third-direction-wallpapers.zip` (do not tick "played in the browser"; name it
 "Wallpaper pack (4K + phone)"). The page then shows a Download button, and the donation prompt with it.
