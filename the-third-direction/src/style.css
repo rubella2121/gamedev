@@ -382,6 +382,11 @@ body {
 }
 .pausecard .pbtn.main { color: #1a1206; background: #f2d36b; border-color: #f2d36b; font-weight: 900; }
 .pausecard .pbtn.quiet { color: rgba(232, 255, 251, 0.6); }
+/* after a fall: get up right here with a rewarded ad, or not */
+.revivecard { z-index: 37; }
+.revivecard .ph { color: #ff8a8a; text-shadow: 0 0 calc(var(--u) * 3) rgba(255, 106, 106, 0.35); margin-bottom: calc(var(--u) * 1); }
+.revivecard .rv { max-width: calc(var(--u) * 64); text-align: center; font-size: calc(var(--u) * 3); line-height: 1.5; color: rgba(232, 255, 251, 0.85); margin-bottom: calc(var(--u) * 2.4); }
+.revivecard .rv b { color: #f2d36b; }
 /* how to play, long form: it scrolls */
 .sheet.long { justify-content: flex-start; overflow-y: auto; pointer-events: auto; }
 .sheet.over { z-index: 40; }

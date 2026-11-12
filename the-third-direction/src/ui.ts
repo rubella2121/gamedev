@@ -160,6 +160,8 @@ export class UI {
   private recenterEl: HTMLButtonElement;
   private pauseBtn: HTMLButtonElement;
   private pauseEl: HTMLElement | null = null;
+  private reviveEl: HTMLElement | null = null;
+  private reviveDone: (() => void) | null = null;
   private pauseShown = false;
   /** the pause button was pressed (the game decides whether it can pause now) */
   onPause: (() => void) | null = null;
@@ -1160,6 +1162,51 @@ export class UI {
     this.pauseEl.remove();
     this.pauseEl = null;
     this.stage.querySelectorAll('.sheet.over').forEach((e) => e.remove());
+  }
+
+  /**
+   * After a fall, on a site with rewarded ads: get up right here (watch an ad) or come back at the checkpoint. Resolves with the
+   * choice; only a tap or a click answers it (never the action key the player may still be pressing), and not in its first half
+   * second.
+   */
+  reviveOffer(): Promise<boolean> {
+    this.hideRevive();
+    return new Promise((choose) => {
+      const el = document.createElement('div');
+      el.className = 'pausecard revivecard';
+      el.innerHTML = '<div class="ph">You fell</div><div class="rv">Watch a short ad to get back up <b>right here</b>, with all your hearts.</div>';
+      const born = performance.now();
+      const btn = (html: string, cls: string, yes: boolean) => {
+        const b = document.createElement('button');
+        b.className = cls;
+        b.innerHTML = html;
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (performance.now() - born < 500) return;
+          // (answered: taking the card away must not answer it again as a no)
+          this.reviveDone = null;
+          this.hideRevive();
+          choose(yes);
+        });
+        el.append(b);
+      };
+      btn('&#9654; Get up here', 'pbtn main', true);
+      btn('No thanks', 'pbtn quiet', false);
+      el.addEventListener('pointerdown', (e) => e.stopPropagation());
+      this.stage.append(el);
+      this.reviveEl = el;
+      this.reviveDone = () => choose(false);
+    });
+  }
+
+  /** take the offer away (leaving for the home page): it counts as a no */
+  hideRevive() {
+    if (!this.reviveEl) return;
+    this.reviveEl.remove();
+    this.reviveEl = null;
+    const d = this.reviveDone;
+    this.reviveDone = null;
+    d?.();
   }
 
   get pauseOpen(): boolean {

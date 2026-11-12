@@ -107,6 +107,15 @@ satin), Pink Hollow (X in a rose aura), Pink Dusk (the family on their hill at s
 ## Web game sites (ad revenue share)
 Check each site's current developer docs before uploading; their requirements change.
 
+**Rewarded ads (every portal build):** when the player falls, a site with a rewarded ad ready offers it ("You fell: watch a
+short ad to get back up right here, with all your hearts"). Watched to the end, the player gets up where they fell with full
+hearts and the fight goes on as it was (it does not count as a fall); "No thanks", or no ad ready, and they wake at the
+checkpoint as always. Never in the tutorial. The offer and the ad do not count on the run's clock. Each `src/sdk.*.ts` has a
+`rewardedOffer()` (see `src/core/rewarded.ts`): GameDistribution preloads one (`preloadAd('rewarded')`, earned at
+`SDK_REWARDED_WATCH_COMPLETE`), Y8 offers it only when it has one (`showAd({ type: 'reward' })`: `beforeReward`, earned at
+`adViewed`), CrazyGames asks for one when the player says yes (`requestAd('rewarded')`, earned at `adFinished`). itch.io, RUN
+and the Artifact have none, so nothing changes there.
+
 ### CrazyGames (the main earner)
 ```bash
 npm run build:crazygames

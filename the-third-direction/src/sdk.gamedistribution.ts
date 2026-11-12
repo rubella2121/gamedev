@@ -10,6 +10,8 @@ export const CREDIT = 'a boss rush in three directions';
 /** a new player lands straight in the game (no splash, intro or home page): the portals that ask for it set this */
 export const INSTANT = false;
 
+import type { Rewarded } from './core/rewarded';
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type GdEvent = { name: string; message?: string };
 const win = window as unknown as { gdsdk?: any; __gdListeners?: ((e: GdEvent) => void)[] };
@@ -124,3 +126,78 @@ export function adBreak(): Promise<void> | null {
 export function gameplay(_on: boolean) {}
 
 export function onSiteMute(_fn: (muted: boolean) => void) {}
+
+/* ---------------------------------------------------------------- rewarded ads */
+let rewardedReady = false;
+let preloading: Promise<boolean> | null = null;
+
+/** ask GameDistribution to get a rewarded ad ready (true when one is) */
+function preloadRewarded(): Promise<boolean> {
+  const sdk = win.gdsdk;
+  if (!sdk || typeof sdk.preloadAd !== 'function') return Promise.resolve(false);
+  if (rewardedReady) return Promise.resolve(true);
+  if (!preloading) {
+    preloading = Promise.resolve()
+      .then(() => sdk.preloadAd(sdk.AdType?.Rewarded ?? 'rewarded'))
+      .then(
+        () => (rewardedReady = true),
+        () => (rewardedReady = false),
+      )
+      .then((ok) => {
+        preloading = null;
+        return ok;
+      });
+  }
+  return preloading;
+}
+// (one is asked for as soon as their SDK is up, so it is ready by the time the player first falls)
+listen((e) => {
+  if (e.name === 'SDK_READY') void preloadRewarded();
+});
+
+/**
+ * A rewarded ad that can be offered now (see core/rewarded.ts), or null when GameDistribution has none ready (asked for, at
+ * most 1.5 s). Watching it pauses and silences the game (their SDK_GAME_PAUSE / SDK_GAME_START); it is earned at their
+ * SDK_REWARDED_WATCH_COMPLETE.
+ */
+export function rewardedOffer(): Promise<Rewarded | null> | null {
+  const sdk = win.gdsdk;
+  if (!sdk || typeof sdk.showAd !== 'function' || typeof sdk.preloadAd !== 'function') return null;
+  const late = new Promise<boolean>((ok) => window.setTimeout(() => ok(false), 1500));
+  return Promise.race([preloadRewarded(), late]).then((ok) => (ok ? { watch: watchRewarded, skip: () => {} } : null));
+}
+
+function watchRewarded(): Promise<boolean> {
+  const sdk = win.gdsdk;
+  rewardedReady = false;
+  return new Promise((done) => {
+    let earned = false;
+    let over = false;
+    const end = () => {
+      if (over) return;
+      over = true;
+      window.clearTimeout(guard);
+      off();
+      done(earned);
+      // (the next one is asked for straight away; the game is never left paused)
+      void preloadRewarded();
+      window.setTimeout(() => {
+        if (held) {
+          held = false;
+          resumeGame?.();
+        }
+      }, 1500);
+    };
+    const guard = window.setTimeout(end, 90000);
+    const off = listen((e) => {
+      if (e.name === 'SDK_REWARDED_WATCH_COMPLETE') earned = true;
+      if (e.name === 'SDK_GAME_START' || e.name === 'SDK_ERROR' || e.name === 'AD_ERROR' || e.name === 'AD_SDK_CANCELED') end();
+    });
+    try {
+      const r = sdk.showAd(sdk.AdType?.Rewarded ?? 'rewarded');
+      if (r && typeof r.then === 'function') r.then(() => window.setTimeout(end, 0), () => end());
+    } catch {
+      end();
+    }
+  });
+}

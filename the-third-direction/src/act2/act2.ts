@@ -90,6 +90,8 @@ export class Act2 {
   private control = false;
   private hearts = 3;
   private deadT = 0;
+  /** bumped whenever a fight begins or ends, so an answer to an old get-up offer is ignored */
+  private reviveToken = 0;
   private light = 0;
   private dashT = 0;
   private dashCd = 0;
@@ -280,6 +282,7 @@ export class Act2 {
   /* ---------------------------------------------------------------- */
 
   begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
+    this.reviveToken++;
     const a = this.arena;
     this.endDeathFilm();
     this.leaveDim();
@@ -639,6 +642,53 @@ export class Act2 {
     this.arena.setLances([]);
     this.arena.setNova(false);
     this.ctx.input.setCharge(0, 0);
+  }
+
+  /**
+   * The fall is over. On a site with rewarded ads the player may get up right where they fell, with all their hearts and the boss
+   * as it was (Ctx.revive: the game waits while they choose); otherwise, or if they say no, the phase starts again as always.
+   */
+  private afterFall() {
+    const offer = this.ctx.revive?.() ?? null;
+    if (!offer) {
+      this.resetPhase();
+      return;
+    }
+    this.deadT = Infinity;
+    const token = this.reviveToken;
+    void offer.then((yes) => {
+      if (token !== this.reviveToken || !this.pl.dead) return;
+      if (yes) this.reviveHere();
+      else this.resetPhase();
+    });
+  }
+
+  /** the run was left while a get-up offer was up (quit to the home page): its answer is ignored */
+  cancelRevive() {
+    this.reviveToken++;
+  }
+
+  /** up again where they fell (a rewarded ad): all hearts, a moment of grace, the boss and its phase untouched, and the fall does not count */
+  private reviveHere() {
+    const { ui, audio } = this.ctx;
+    this.falls.undo();
+    this.fallVerdict = 'none';
+    this.showFalls();
+    this.hearts = this.maxHearts;
+    this.pl.dead = false;
+    this.pl.invuln = 2.5;
+    this.pl.vx = this.pl.vz = 0;
+    this.dvx = this.dvz = 0;
+    this.trapped = false;
+    this.dashT = this.dashCd = this.launchT = 0;
+    this.dashPool.reset();
+    ui.hearts(this.hearts, this.maxHearts);
+    ui.light(this.light);
+    ui.fade(0, 350);
+    ui.flash(0.35, 400);
+    audio.chime();
+    this.arena.burst3(this.pl.x, 1, this.pl.z, 16, [0xf2d36b, 0xfff1a6, 0xffffff], 6);
+    this.control = true;
   }
 
   private resetPhase() {
@@ -1093,7 +1143,7 @@ export class Act2 {
     if (pl.dead) {
       this.deadT -= dt;
       this.updateRig(dt);
-      if (this.deadT <= 0) this.resetPhase();
+      if (this.deadT <= 0) this.afterFall();
       return;
     }
     if (!this.inDim) this.features.update(dt, this.fenv);
@@ -2613,6 +2663,7 @@ export class Act2 {
 
   /** everything stops (the player left for the home page in the middle of a fight or a scene) */
   stop() {
+    this.reviveToken++;
     if (this.cut) this.endCut(false);
     this.endDeathFilm();
     this.leaveDim();

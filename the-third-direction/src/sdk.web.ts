@@ -1,3 +1,4 @@
+import type { Rewarded } from './core/rewarded';
 /**
  * Stand-in for src/sdk.ts in the web build (itch.io and other sites, no RUN SDK).
  * Saved data goes to localStorage, and falls back to memory where the browser blocks it.
@@ -68,3 +69,8 @@ export function gameplay(_on: boolean) {}
 
 /** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
 export function onSiteMute(_fn: (muted: boolean) => void) {}
+
+/** a rewarded ad that can be offered now (see core/rewarded.ts): this site has none */
+export function rewardedOffer(): Promise<Rewarded | null> | null {
+  return null;
+}

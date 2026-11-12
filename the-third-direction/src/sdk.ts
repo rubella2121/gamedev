@@ -1,5 +1,6 @@
 import RundotGameAPI from '@series-inc/rundot-game-sdk/api';
 
+import type { Rewarded } from './core/rewarded';
 /** Thin, failure-proof wrappers around the RUN SDK so the game also runs outside the RUN app. */
 /** the credit line under the title and on the end card */
 export const CREDIT = 'RUN October Jam · Monster Mash';
@@ -107,3 +108,8 @@ export function gameplay(_on: boolean) {}
 
 /** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
 export function onSiteMute(_fn: (muted: boolean) => void) {}
+
+/** a rewarded ad that can be offered now (see core/rewarded.ts): this site has none */
+export function rewardedOffer(): Promise<Rewarded | null> | null {
+  return null;
+}
