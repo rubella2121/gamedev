@@ -22,6 +22,12 @@
               a stalking riff and a stab for each guardian, the orchestra in colour when the page tears, X's dread, the blues again
   oner        one crescendo the length of the take: a low A, the strings' pulse growing under it, her lullaby on the horns at the
               Moonwell, a blast when X fills the frame, drums like a quickening heart as the camera comes to his eyes, his roar
+  skins       the skins reel (itch.io): her lullaby on the music box in the dark, the strings opening out with the aurora, a
+              heartbeat under "but tonight", a climb, then a drive at 145 a minute with a hit on every reveal and every 2D-to-3D
+              pop (A major for the Explorer, F to G brass for the Knight, D minor and B flat with celesta and voices for the
+              Wizard, A minor and E with the low brass for Inferno); silence and one bell for Golden, voices rising to the
+              crown, the whole orchestra in A major as it lands; her lullaby as an anthem on the horns for the five; the music
+              box alone for the last question
   fighter, phonk, villain and lofi are made of synthesised sound (../the-third-direction/tools/trailer/shorts-sfx.ts): their orchestra is
   silent.
 """
@@ -1398,6 +1404,210 @@ def noir(P):
     cut(fade + 0.55)
 
 
+
+# ---------------------------------------------------------------- the skins reel
+
+def skins(P):
+    fl, co, light = P['flashes'], P['coldOut'], P['light']
+    aur, dim, rise, drop = P['aurora'], P['dim'], P['rise'], P['drop']
+    rv, pop = P['reveals'], P['pop']
+    gold, crown, car, e, fade = P['golden'], P['crown'], P['carousel'], P['end'], P['fadeOut']
+    HARP, BELL = HIT, TUBA
+    A_MAJ = [57, 61, 64]
+
+    def big(t, ps, root, k=1.0, dur=1.3):
+        """the whole orchestra on one chord: brass, voices, strings, the low end, the drums"""
+        v = int(124 * k)
+        chord(BRASS, t, dur, [p - 12 for p in ps], v)
+        chord(HORN, t, dur, ps, v)
+        chord(CHOIR, t, dur * 1.2, ps + [ps[0] + 12], v)
+        chord(STR, t, dur, [p + 12 for p in ps] + [ps[0] + 24], v)
+        note(BASS, t, dur * 1.1, root, v)
+        note(CELLO, t, dur, root + 12, v)
+        note(TIMP, t, 0.8, root + 12, 127)
+        note(TAIKO, t, 0.7, 48, 127)
+        drum(t, 36, 127)
+        drum(t, 49, int(116 * k))
+        drum(t, 57, int(100 * k))
+
+    # ---- the cold open: five stabs climbing, one for each skin as it flashes past
+    stabs = [[57, 61, 64], [60, 64, 67], [62, 65, 69], [64, 68, 71], [69, 73, 76]]
+    for i, t in enumerate(fl):
+        k = 0.8 + 0.05 * i
+        chord(BRASS, t, 0.16, [p - 12 for p in stabs[i]], 118 * k)
+        chord(STR, t, 0.14, [p + 12 for p in stabs[i]], 112 * k)
+        chord(HARP, t, 0.5, stabs[i], 100)
+        note(TAIKO, t, 0.4, 48, 116 + 2 * i)
+        note(TIMP, t, 0.3, 45, 104 + 4 * i)
+    big(fl[-1] + 0.12, [69, 73, 76], 33, 0.9, 0.18)
+    cut(co)
+
+    # ---- the small light: her lullaby on the music box, alone in the dark, a soft chord under it
+    note(CELLO, light, aur - light + 0.4, 33, 58)
+    chord(PAD, light + 0.1, aur - light + 0.5, [57, 60, 64], 74)
+    swell(PAD, light + 0.1, light + 2.0, 30, 96)
+    t = light + 0.25
+    for i, m in enumerate(LULL):
+        note(BOX, t, 1.4, m + 12, 112 - (8 if i % 4 == 3 else 0))
+        note(HIT, t, 1.6, m, 84)
+        note(CELESTA, t, 1.0, m, 46)
+        t += GAPS[i] * 1.18
+    # soft strings and far voices under it (Am F C E), so the lullaby has a bed to lie on
+    bed = [([57, 60, 64], 45), ([53, 57, 60], 41), ([55, 60, 64], 36), ([56, 59, 64], 40)]
+    bs = (aur - light - 0.3) / 4
+    for i, (ps, r) in enumerate(bed):
+        tt = light + 0.3 + i * bs
+        chord(STR, tt, bs + 0.1, ps, 76)
+        chord(CHOIR, tt, bs + 0.1, ps, 56)
+        note(CELLO, tt, bs + 0.1, r, 70)
+    swell(STR, light + 0.3, light + 2.2, 30, 100)
+
+    # ---- the forest under the aurora: the strings open out (Am F C G), the harp, the celesta high, voices far away
+    prog = [([57, 60, 64], 45), ([53, 57, 60], 41), ([55, 60, 64], 36), ([55, 59, 62], 43)]
+    span_ = (dim - aur) / 4
+    for i, (ps, r) in enumerate(prog):
+        t = aur + i * span_
+        chord(STR, t, span_ + 0.05, [p + 12 for p in ps], 94 + 6 * i)
+        note(CELLO, t, span_ + 0.05, r, 92 + 4 * i)
+        chord(CHOIR, t, span_ + 0.05, ps, 72 + 6 * i)
+        chord(HORN, t, span_ + 0.05, ps[:2], 64 + 6 * i)
+        note(BASS, t, span_ + 0.05, r - 12, 70)
+        for k_, m in enumerate(ps + [ps[0] + 12, ps[1] + 12, ps[2] + 12]):
+            note(HARP, t + 0.09 * k_, 1.6, m, 60 + 3 * k_)
+    swell(STR, aur, aur + 1.6, 30, 96)
+    t = aur + 0.4
+    for i, m in enumerate(LULL[4:] + LULL[:4]):
+        note(CELESTA, t, 1.2, m + 24, 66)
+        t += 0.68
+    cut(dim - 0.02, keep=(PAD,))
+
+    # ---- but tonight: almost nothing; a high string, a heartbeat on the timpani
+    chord(STR, dim, rise - dim + 0.2, [81, 88], 46)
+    note(BASS, dim, rise - dim, 33, 52)
+    t = dim + 0.25
+    while t < rise - 0.1:
+        note(TIMP, t, 0.3, 45, 74)
+        note(TIMP, t + 0.2, 0.3, 45, 56)
+        t += 0.86
+    # the climb: tremolo strings rising a step at a time, the voices and the brass swelling, the drums rolling into the drop
+    steps = [64, 65, 67, 69]
+    d = (drop - rise) / len(steps)
+    for i, m in enumerate(steps):
+        chord(TREM, rise + i * d, d + 0.02, [m, m + 7, m + 12], 70 + 12 * i)
+    chord(CHOIR, rise, drop - rise - 0.05, [57, 64, 69], 70)
+    swell(CHOIR, rise, drop - 0.06, 40, 124)
+    chord(BRASS, rise + 0.4, drop - rise - 0.45, [45, 52, 57], 90)
+    swell(BRASS, rise + 0.4, drop - 0.06, 30, 120)
+    roll(TIMP, rise + 0.3, drop - 0.06, 45, 50, 126)
+    roll(DRUMS, drop - 0.8, drop - 0.06, 38, 60, 122, 0.05)
+    cut(drop - 0.04)
+
+    # ---- the reveals: a drive at 145 a minute (a bar is 1.65 s, a reveal two bars); a hit as each one lands and as it pops into 3D
+    BEAT = 1.65 / 4
+    looks = [
+        ([[57, 61, 64], [62, 66, 69]], [33, 38]),   # the Explorer: A, D (open air)
+        ([[53, 57, 60], [55, 59, 62]], [29, 31]),   # the Knight: F, G (brass)
+        ([[50, 53, 57], [46, 50, 53]], [38, 34]),   # the Wizard: D minor, B flat (magic)
+        ([[57, 60, 64], [52, 56, 59]], [33, 28]),   # Inferno: A minor, E (fire)
+    ]
+    end_drive = gold
+    for i, t0 in enumerate(rv):
+        chords, roots = looks[i]
+        t1 = rv[i + 1] if i + 1 < len(rv) else end_drive
+        big(t0, chords[0], roots[0], 1.0, 1.0)
+        big(t0 + pop, chords[1], roots[1], 0.85, 0.8)
+        n = int(round((t1 - t0) / (BEAT / 4)))
+        for s_ in range(n):
+            tt = t0 + s_ * BEAT / 4
+            if tt >= t1 - 0.02:
+                break
+            ps = chords[0] if tt < t0 + pop else chords[1]
+            r = roots[0] if tt < t0 + pop else roots[1]
+            tones = [p + 12 for p in ps] + [ps[0] + 24]
+            note(STR, tt, 0.09, tones[[0, 1, 2, 1, 3, 1, 2, 1][s_ % 8]], 74 + (10 if i == 3 else 0))
+            if s_ % 2 == 0:
+                note(CELLO, tt, 0.16, r + 12, 86)
+            if s_ % 4 == 0:
+                note(BASS, tt, 0.34, r, 98)
+                drum(tt, 38 if (s_ // 4) % 2 else 36, 104 if (s_ // 4) % 2 == 0 else 74)
+            if s_ % 8 in (0, 3, 6) and i == 3:
+                note(TROM, tt, 0.2, r + 12, 104)
+        for dt, v in ((0, 118), (1.5 * BEAT, 86), (2 * BEAT, 104), (3 * BEAT, 96), (3.5 * BEAT, 84)):
+            for bar in (0, 4 * BEAT):
+                if t0 + bar + dt < t1 - 0.02:
+                    note(TAIKO, t0 + bar + dt, 0.4, 48, v)
+        if i < 2:
+            # her lullaby in A major on the horns, a call over the drive
+            tt = t0 + 0.05
+            for j, m in enumerate(MAJ[:4] if i == 0 else MAJ[4:]):
+                note(HORN, tt, BEAT * 1.8, m - (12 if i == 1 else 0) + (-4 if i == 1 else 0), 104)
+                tt += BEAT * 2
+        if i == 2:
+            # magic: the celesta running up and the voices, high
+            for j in range(16):
+                note(CELESTA, t0 + 0.1 + j * BEAT / 2, 0.5, [74, 77, 81, 86][j % 4] + (12 if j >= 8 else 0), 66)
+            chord(CHOIR, t0, t1 - t0, [62, 65, 69, 74], 84)
+        if i == 3:
+            chord(BRASS, t0 + 0.05, pop - 0.1, [33, 40, 45], 112)
+            chord(BRASS, t0 + pop, t1 - t0 - pop - 0.05, [28, 35, 40], 116)
+    big(rv[-1] + 3.3, [57, 60, 64], 33, 1.0, 0.3)
+    cut(gold - 0.02)
+
+    # ---- Golden: silence, one bell; voices from nothing, rising under the words; the harp; the crown comes down; A major
+    note(BELL, gold + 0.05, 3.0, 57, 112)
+    note(BASS, gold + 0.05, 2.4, 33, 64)
+    chord(CHOIR, gold + 0.6, crown - gold - 0.65, [57, 60, 64], 60)
+    swell(CHOIR, gold + 0.6, crown - 0.05, 18, 118)
+    chord(TREM, gold + 1.6, crown - gold - 1.65, [81, 84, 88], 58)
+    swell(TREM, gold + 1.6, crown - 0.05, 20, 112)
+    for t in (P['phrases']['g1'][1], P['phrases']['g1'][2]):
+        for k_ in range(10):
+            note(HARP, t + 0.035 * k_, 1.2, [57, 60, 64, 69][k_ % 4] + 12 * (k_ // 4), 62 + 3 * k_)
+    for k_, t in enumerate((31.0, 31.9, 32.6, 33.6, 34.2)):
+        note(CELESTA, t, 0.9, [93, 96, 100, 98, 105][k_], 54)
+    note(BELL, P['phrases']['g1'][2] + 0.1, 2.0, 64, 84)
+    roll(TIMP, crown - 1.3, crown - 0.04, 45, 40, 126)
+    cut(crown - 0.03)
+    big(crown, [69, 73, 76], 33, 1.0, 2.2)
+    note(BELL, crown, 3.0, 69, 120)
+    drum(crown, 52, 124)
+    chord(CHOIR, crown, car - crown + 0.3, [69, 73, 76, 81], 118)
+    swell(CHOIR, crown + 0.6, car, 120, 84)
+    for k_ in range(14):
+        note(HARP, crown + 0.2 + 0.05 * k_, 1.2, [69, 73, 76][k_ % 3] + 12 * (k_ // 6), 70)
+    chord(STR, crown + 0.4, car - crown, [81, 85, 88], 90)
+
+    # ---- the five: her lullaby as an anthem in A major, the horns, the strings, everyone; broad
+    harm = [([57, 61, 64], 33), ([57, 61, 64], 33), ([54, 57, 61], 30), ([52, 56, 59], 28),
+            ([50, 54, 57], 38), ([57, 61, 64], 33), ([52, 56, 59], 28), ([57, 61, 64], 33)]
+    step_ = (e - car) / 8
+    for i in range(8):
+        t = car + i * step_
+        ps, r = harm[i]
+        note(HORN, t, step_ * 0.98, MAJ[i] - 12, 108)
+        note(STR, t, step_ * 0.98, MAJ[i] + 12, 100)
+        note(CHOIR, t, step_ * 0.98, MAJ[i], 92)
+        chord(PAD, t, step_, ps, 84)
+        note(BASS, t, step_, r, 96)
+        note(CELLO, t, step_, r + 12, 88)
+        if i % 2 == 0:
+            note(TAIKO, t, 0.5, 48, 96)
+            note(TIMP, t, 0.5, r + 12, 92)
+        for k_, m in enumerate(ps + [ps[0] + 12]):
+            note(HARP, t + 0.07 * k_, 0.9, m + 12, 60)
+    big(e, [57, 61, 64], 33, 0.7, 1.6)
+
+    # ---- who will you be: the strings hold A major; the music box, alone, the first bars of her lullaby in major
+    chord(STR, e + 0.4, fade - e, [69, 73, 76, 81], 70)
+    swell(STR, e + 0.4, fade, 90, 20)
+    chord(PAD, e + 0.4, fade - e + 0.4, A_MAJ, 64)
+    note(BASS, e + 0.4, fade - e, 33, 56)
+    t = P['phrases']['e2'][0] + 0.15
+    for i, m in enumerate(MAJ[:6]):
+        note(BOX, t, 1.6, m + 12, 76)
+        t += 0.42
+    chord(BOX, fade - 1.6, 2.4, [69 + 12, 73 + 12, 76 + 12], 70)
+
 def silent(P):
     """made of synthesised sound: nothing from the orchestra"""
 
@@ -1420,6 +1630,7 @@ SCORES = {
     'popup': (popup, {BOX: 46, HORN: 73, TROM: 71, HIT: 46}),
     'launch': (launch, {HIT: 55}),
     'noir': (noir, {BOX: 66, CELESTA: 11, HIT: 0, BASS: 32, HORN: 59}),
+    'skins': (skins, {HIT: 46, TUBA: 14, BOX: 10}),
 }
 
 if __name__ == '__main__':

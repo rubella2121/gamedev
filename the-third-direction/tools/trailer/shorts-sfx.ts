@@ -7,7 +7,10 @@
  *            and the drop again a fourth higher once something is above him
  *   lofi     her lullaby as a lofi beat: a worn electric piano on Am9 Fmaj7 G6 Em7, a round bass, soft swung drums, rain, a record
  * and for the cartridge and the stream, the little game's own chip music (her lullaby in A major) under the orchestra's entrance;
- * for the wildlife film and the one take, a night of crickets, the Moonwell's bells, the moth's wings and X's breath.
+ * for the wildlife film and the one take, a night of crickets, the Moonwell's bells, the moth's wings and X's breath; for the
+ * skins reel, a night in the forest, a heartbeat and a climb, and a sound for each skin as it lands (the Explorer's wind and
+ * the glint of his goggles, the Knight's sword, the Wizard's magic, Inferno catching fire), glass as each one breaks into 3D,
+ * and for Golden a spotlight, gold dust and the crown coming down.
  *
  *   node tools/trailer/score-render.mjs <{"id": ..., "length": ...}.json> <out.wav> tools/trailer/shorts-sfx.ts __renderShortSfx
  */
@@ -243,6 +246,7 @@ class ShortSfx extends Base {
     if (this.id === 'popup') this.popup();
     if (this.id === 'launch') this.launch();
     if (this.id === 'noir') this.noir();
+    if (this.id === 'skins') this.skins();
   }
 
   theFourth() {
@@ -1598,6 +1602,132 @@ class ShortSfx extends Base {
     });
     this.whoosh(C.end + 0.4, 0.1, 0.18);
     this.on(C.end + 1.3, (a) => this.ping(a, 2093, 0.035));
+  }
+
+
+  /** a little jelly landing: a soft low thump and a wet squish */
+  squish(t: number, g = 1) {
+    this.on(t, (a) => {
+      this.thud(a, 150, 60, 0.18, 0.4 * g);
+      this.noise(a, 0.12, 'lowpass', 1800, 300, 0.16 * g, { a: 0.003, wet: 0.2 });
+      this.osc(a + 0.02, 320, 0.16, 0.05 * g, 'sine', { to: 160, slide: 0.12, a: 0.004 });
+    });
+  }
+
+  /** gold dust in a beam of light: a few tiny high bells */
+  twinkles(t0: number, t1: number, n: number, g = 0.02) {
+    for (let k = 0; k < n; k++) {
+      const t = t0 + ((t1 - t0) * (k + 0.5 * this.rnd())) / n;
+      const f = 2600 + this.rnd() * 3800;
+      this.on(t, (a) => this.ping(a, f, g * (0.6 + 0.4 * this.rnd())));
+    }
+  }
+
+  /** what each skin sounds like as it lands */
+  skinSound(i: number, t: number) {
+    if (i === 0) {
+      // the Explorer: a gust of wind, his scarf in it, the glint of his goggles
+      this.on(t, (a) => this.noise(a, 1.5, 'bandpass', 380, 1500, 0.09, { swell: true, a: 0.5, q: 0.9, wet: 0.4 }));
+      this.flutter(t + 0.15, t + 1.2, 0.022);
+      this.on(t + 0.45, (a) => this.ping(a, 3520, 0.06));
+      this.on(t + 0.47, (a) => this.ping(a, 5274, 0.03));
+    } else if (i === 1) {
+      // the Knight: a sword drawn (a swish and the ring of the steel), and a clank of armour
+      this.on(t, (a) => {
+        this.noise(a, 0.35, 'highpass', 2500, 7000, 0.12, { rise: true, q: 1 });
+        this.ring(a + 0.33, 2480, 1.6, 0.05, 2510);
+        this.ring(a + 0.33, 3720, 1.2, 0.025);
+        this.noise(a + 0.33, 0.06, 'bandpass', 4200, 3000, 0.16, { q: 2, a: 0.001 });
+      });
+      this.on(t + 0.12, (a) => this.clang(a, 0.22));
+    } else if (i === 2) {
+      // the Wizard: a run of little bells going up, and shimmer
+      for (let k = 0; k < 9; k++) this.on(t + 0.05 * k, (a) => this.ping(a, hz([74, 77, 81, 86, 89, 93, 98, 101, 105][k]!), 0.045));
+      this.on(t, (a) => this.noise(a, 1.4, 'bandpass', 3000, 9000, 0.05, { swell: true, a: 0.3, q: 1.2, wet: 0.7 }));
+      this.on(t + 0.05, (a) => this.osc(a, 220, 1.1, 0.05, 'sine', { to: 880, slide: 0.9, swell: true, a: 0.4, wet: 0.6 }));
+    } else if (i === 3) {
+      // Inferno: fire catching (a rush of air, low), then crackling, and something growling under it
+      this.on(t, (a) => {
+        this.noise(a, 0.9, 'lowpass', 300, 2400, 0.3, { swell: true, a: 0.25, wet: 0.3 });
+        this.thud(a, 70, 34, 0.9, 0.35);
+        this.osc(a + 0.1, 55, 1.3, 0.12, 'sawtooth', { lp: 220, swell: true, a: 0.4 });
+      });
+      for (let k = 0; k < 26; k++) {
+        const dt = 0.2 + k * 0.055 + 0.03 * Math.sin(k * 7.1);
+        this.on(t + dt, (a) => this.noise(a, 0.012, 'bandpass', 1800 + 2600 * Math.abs(Math.sin(k * 3.3)), 1500, 0.06, { q: 3, a: 0.0005, pan: Math.sin(k * 2.1) * 0.6 }));
+      }
+    }
+  }
+
+  /** the flat Blob breaks into 3D: glass, a burst of little blocks, a drop in the floor */
+  popTo3d(t: number, g = 1) {
+    this.glassCrack(t, 0.8 * g);
+    this.on(t, (a) => {
+      this.thud(a, 90, 30, 0.7, 0.5 * g);
+      for (let k = 0; k < 22; k++) this.noise(a + 0.01 + k * 0.012, 0.012, 'bandpass', 900 + this.rnd() * 5000, 900, 0.06 * g, { q: 5, a: 0.0005, pan: this.rnd() * 2 - 1, wet: 0.3 });
+      this.osc(a, 1200, 0.25, 0.03 * g, 'square', { to: 300, slide: 0.2, a: 0.002, lp: 2600 });
+    });
+    this.on(t + 0.05, (a) => this.noise(a, 0.9, 'bandpass', 6000, 2000, 0.05 * g, { a: 0.003, wet: 0.7 }));
+  }
+
+  skins() {
+    const C = this.C;
+    const [rv, pop] = [C.reveals as number[], C.pop as number];
+    // the cold open: a whoosh and a glint for each skin as it flashes past, the first one hit hard
+    this.on(C.flashes[0], (a) => this.impact(a, 0.9));
+    (C.flashes as number[]).forEach((t, i) => {
+      // (the first starts with the film: its whoosh cannot begin before it)
+      if (t > 0.15) this.whoosh(t, 0.14, 0.14);
+      this.on(t, (a) => this.ping(a, [1760, 2093, 2349, 2637, 3520][i]!, 0.05));
+    });
+    this.on(C.coldOut - 0.32, (a) => this.noise(a, 0.3, 'highpass', 1500, 9000, 0.18, { rise: true, q: 0.8 }));
+    this.on(C.coldOut + 0.02, (a) => this.ring(a, 3900, 0.9, 0.02));
+    // the small light: it glows; a night in the forest around it
+    this.on(C.light, (a) => {
+      this.ping(a, 1318, 0.05);
+      this.osc(a, 110, 2.4, 0.05, 'sine', { swell: true, a: 1.0 });
+    });
+    this.night(C.light + 0.2, C.dim + 0.4, 0.9);
+    this.on(C.light + 0.5, (a) => this.air(a, C.dim - C.light, 0.022, 520, 900, 0.7));
+    // the aurora: air full of light
+    this.on(C.aurora - 0.4, (a) => this.noise(a, 2.6, 'bandpass', 2400, 7000, 0.05, { swell: true, a: 1.2, q: 0.7, wet: 0.8 }));
+    this.twinkles(C.aurora, C.aurora + 4.5, 8, 0.016);
+    // but tonight: the wind drops; a heartbeat, quickening
+    this.on(C.dim, (a) => this.thud(a, 70, 40, 0.8, 0.25));
+    [0.2, 1.0, 1.7, 2.3, 2.8].forEach((dt, i) => this.on(C.dim + dt, (a) => this.heart(a, 0.22 + 0.05 * i)));
+    // the climb, and the drop
+    this.on(C.rise, (a) => this.riser(a, C.drop - C.rise - 0.02, 0.2, 300, 9000, [110, 880]));
+    this.on(C.drop, (a) => {
+      this.impact(a, 1.3);
+      this.noise(a, 1.2, 'bandpass', 6000, 1500, 0.1, { a: 0.003, wet: 0.6 });
+    });
+    // each reveal: the curtain of light sweeps across, the Blob lands in its new skin, its sound; then it breaks into 3D
+    rv.forEach((t0, i) => {
+      this.whoosh(t0, 0.2, 0.32);
+      this.squish(t0 + 0.12, 0.9);
+      this.skinSound(i, t0 + 0.14);
+      this.popTo3d(t0 + pop, 1);
+      this.whoosh(t0 + pop, 0.12, 0.2);
+    });
+    // Golden: a spotlight thrown on; dust in its beam; the crown coming down, a shimmer rising to it; it lands
+    this.on(C.spot, (a) => {
+      this.thud(a, 95, 60, 0.2, 0.45);
+      this.noise(a, 0.03, 'highpass', 3000, 3000, 0.18, { a: 0.001 });
+      this.osc(a + 0.05, 100, C.crown - C.spot, 0.012, 'sawtooth', { lp: 400, swell: true, a: 0.3 });
+    });
+    this.twinkles(C.spot + 0.3, C.crown - 0.2, 16, 0.018);
+    this.on(C.phrases.g1[2] - 0.2, (a) => this.riser(a, C.crown - C.phrases.g1[2] + 0.17, 0.08, 800, 8000, [440, 1760]));
+    this.on(C.crown, (a) => {
+      this.impact(a, 1.1);
+      for (let k = 0; k < 18; k++) this.ping(a + 0.03 + k * 0.045, 2093 * 2 ** ((k % 6) / 6 + Math.floor(k / 6) * 0.5), 0.04 - k * 0.0015);
+      this.noise(a, 1.6, 'bandpass', 7000, 3000, 0.06, { a: 0.003, wet: 0.8 });
+    });
+    // the five on their carousel: a sweep as it turns in; the end: each little Blob pops up in turn, and one last glint
+    this.whoosh(C.carousel, 0.16, 0.4);
+    this.on(C.carousel, (a) => this.noise(a, 1.8, 'bandpass', 4000, 9000, 0.04, { swell: true, a: 0.6, wet: 0.7 }));
+    for (let k = 0; k < 5; k++) this.boing(C.end + 0.3 + 0.13 * k, 0.05);
+    this.on(C.end, (a) => this.noise(a, 0.6, 'bandpass', 3000, 700, 0.08, { a: 0.003, wet: 0.5 }));
+    this.on(C.phrases.e2[1] + 1.3, (a) => this.ping(a, 2637, 0.045));
   }
 
   lullaby() {

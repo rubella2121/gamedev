@@ -4,7 +4,7 @@
 # for out/the-third-direction-short-<id>.mp4). The promos and the shorts reuse the trailer's voice takes.
 #
 #   FOOT=<footage dir> KOKORO=<kokoro model dir> PY=<python with kokoro-onnx, soundfile, scipy, praat-parselmouth, mido> \
-#     scripts/make.sh [voices] [music] [clips] [render] [promos] [promo-render] [shorts] [short-render]   (none: all of them)
+#     scripts/make.sh [voices] [music] [clips] [render] [promos] [promo-render] [skins-assets] [shorts] [short-render]   (none: all of them)
 #
 # FOOT: the capture (the-third-direction/tools/trailer/capture.mjs). KOKORO: kokoro-v1.0.int8.onnx and voices-v1.0.bin.
 # SF: a General MIDI soundfont (MuseScore General: apt install musescore-general-soundfont), played by fluidsynth.
@@ -13,9 +13,9 @@ cd "$(dirname "$0")/.."
 WORK=${WORK:-/tmp/trailer-work}
 PY=${PY:-python3}
 SF=${SF:-/usr/share/sounds/sf3/MuseScore_General_Full.sf3}
-STEPS=${*:-voices music clips render promos promo-render shorts short-render}
+STEPS=${*:-voices music clips render promos promo-render skins-assets shorts short-render}
 PROMOS="2d-to-3d boss-rush family dont-look-up"
-SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup popup launch noir"
+SHORTS="the-fourth fighter secrets phonk lullaby cartridge live villain festival wild oner lofi tarot lineup popup launch noir skins"
 mkdir -p "$WORK" public/audio
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 
@@ -35,6 +35,9 @@ if has voices; then
   # the noir comic: its hardboiled narrator
   $PY audio/lines.py "$KOKORO" "$WORK/takes-noir" src/data/lines-noir.json
   $PY audio/voices.py "$WORK/takes-noir" "$WORK/voice" src/data/lines-noir.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['noir']['length'])")"
+  # the skins reel: its storyteller (a blend of two of Kokoro's voices)
+  $PY audio/lines.py "$KOKORO" "$WORK/takes-skins" src/data/lines-skins.json
+  $PY audio/voices.py "$WORK/takes-skins" "$WORK/voice" src/data/lines-skins.json "$($PY -c "import json; print(json.load(open('src/data/shorts.json'))['shorts']['skins']['length'])")"
 fi
 if has music; then
   echo "== orchestra"
@@ -78,6 +81,11 @@ if has clips; then
   ink wild-moon; ink x-gaze; ink f-gloom 13.33; ink f-thicket 6.67; ink f-marsh 2.67; ink f-bones 3.53; ink f-meadow 9.0
   mkdir -p public/noir
   cp public/launch/*.png public/noir/
+fi
+if has skins-assets; then
+  echo "== the skins reel's pictures: the Blob in every skin (pixel strips, 3D turns, the crown, the carousel) and the night"
+  (cd ../the-third-direction && node tools/trailer/skins-assets.mjs ../trailer-video/public/skins \
+    && node tools/brand/live/render.mjs 1080 1920 30 ../trailer-video/public/skins/aurora.mp4 --no-blob)
 fi
 if has render; then
   echo "== render"

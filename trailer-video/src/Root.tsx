@@ -17,6 +17,7 @@ import { Oner } from "./shorts/Oner";
 import { Phonk } from "./shorts/Phonk";
 import { Popup } from "./shorts/Popup";
 import { Secrets } from "./shorts/Secrets";
+import { Skins } from "./shorts/Skins";
 import { Tarot } from "./shorts/Tarot";
 import { TheFourth } from "./shorts/TheFourth";
 import { Villain } from "./shorts/Villain";
@@ -42,6 +43,7 @@ const SHORTS: [keyof typeof shorts.shorts, React.FC][] = [
   ["popup", Popup],
   ["launch", Launch],
   ["noir", Noir],
+  ["skins", Skins],
 ];
 
 export const RemotionRoot: React.FC = () => {

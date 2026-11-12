@@ -2,6 +2,7 @@
  * Renders the live "Aurora" wallpaper (aurora.ts) into a seamless MP4 loop for Wallpaper Engine.
  *   node tools/brand/live/render.mjs [width] [height] [fps] [out.mp4]      (defaults: 2560 1440 30 brand/wallpapers/live/aurora-live-1440p.mp4)
  *   node tools/brand/live/render.mjs 1920 1080 30 /tmp/x.mp4 --frames 0,360,719   (just those frames, as PNGs next to the out file)
+ *   --no-blob: the scene without the Blob (a film puts its own in it)
  * Frame n is drawn at t = n / fps, for n = 0 .. LOOP * fps - 1: the frame after the last is frame 0 again.
  */
 import { chromium } from 'playwright-core';
@@ -35,7 +36,7 @@ page.on('console', (m) => m.type() === 'error' && console.error(m.text()));
 await page.setContent('<html><body style="margin:0;background:#000"></body></html>');
 await page.evaluate((s) => (window.__sprites = s), { 'tree-a': sprite('tree-a'), 'tree-b': sprite('tree-b'), 'tree-c': sprite('tree-c') });
 await page.addScriptTag({ path: js });
-await page.evaluate(([w, h]) => window.__setup(w, h), [W, H]);
+await page.evaluate(([w, h, blob]) => window.__setup(w, h, { blob }), [W, H, !args.includes('--no-blob')]);
 fs.unlinkSync(js);
 
 const total = LOOP * FPS;
