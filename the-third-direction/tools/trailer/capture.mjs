@@ -3,7 +3,7 @@
 //   node tools/trailer/capture.mjs dist-standalone tools/trailer/shots.mjs outDir [shotName ...]
 // Each shot sets the game up through its debug hooks (window.__tt, __bot, __bot3) with the clock running, waits until it is
 // ready, then takes the clock over: every frame moves the game on by exactly 1/30 s (Game.tick) and the canvas is saved as a
-// JPEG (outDir/<shot>/00001.jpg ...). A slow software renderer only makes it take longer; the footage is still 30 frames a
+// JPEG (outDir/<shot>/00001.jpg ...). A shot's `skin` puts that skin on the Blob. A slow software renderer only makes it take longer; the footage is still 30 frames a
 // second of game time. The canvas holds the game only: no HUD, no captions (the trailer adds its own words).
 import { chromium } from 'playwright-core';
 import http from 'http';
@@ -37,6 +37,12 @@ for (const shot of SHOTS) {
   // (a shot can ask for a bigger picture: the 3D is drawn at the page's size, within the shot's pixel budget)
   const [vw, vh] = shot.viewport ?? [540, 960];
   const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1 });
+  // a shot can dress the Blob: the save says it owns every skin and wears this one (the test build keeps its save in window.name)
+  if (shot.skin) {
+    await ctx.addInitScript((skin) => {
+      window.name = JSON.stringify({ 'tt.skins': 'explorer,knight,wizard,inferno,golden', 'tt.skin': skin, 'tt.tutorial': '1', 'tt.briefed': '1', 'tt.intro': '1' });
+    }, shot.skin);
+  }
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log(`[${shot.name}] pageerror ${e.message}`));
   await page.goto(`http://localhost:${port}/?debug`, { waitUntil: 'load' });
