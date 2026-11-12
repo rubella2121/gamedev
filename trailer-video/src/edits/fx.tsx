@@ -55,13 +55,17 @@ const Defs: React.FC<{ flame: { seed: number; k: number; glow: string }; w: numb
   <svg width={0} height={0} style={{ position: "absolute" }}>
     <defs>
       <filter id={flId(flame.seed, flame.k, flame.glow)} filterUnits="userSpaceOnUse" x={0} y={0} width={w} height={h} colorInterpolationFilters="sRGB">
-        <feMorphology in="SourceAlpha" operator="dilate" radius={Math.round(10 + 26 * flame.k)} result="d" />
-        <feGaussianBlur in="d" stdDeviation={10 + 8 * flame.k} result="b" />
-        <feTurbulence type="fractalNoise" baseFrequency="0.011 0.032" numOctaves={2} seed={flame.seed} result="n" />
-        <feDisplacementMap in="b" in2="n" scale={70 + 90 * flame.k} xChannelSelector="R" yChannelSelector="G" result="w" />
-        <feOffset in="w" dy={-(16 + 30 * flame.k)} result="o" />
-        <feComponentTransfer in="o" result="a">
-          <feFuncA type="linear" slope={1.6} />
+        {/* a soft halo round the Blob's shape, pushed about by noise, and broken up by it into tongues that rise */}
+        <feMorphology in="SourceAlpha" operator="dilate" radius={Math.round(8 + 22 * flame.k)} result="d" />
+        <feGaussianBlur in="d" stdDeviation={14 + 10 * flame.k} result="halo" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.018 0.05" numOctaves={3} seed={flame.seed} result="n" />
+        <feDisplacementMap in="halo" in2="n" scale={60 + 80 * flame.k} xChannelSelector="R" yChannelSelector="G" result="w" />
+        <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.2 0 0 0 -0.75" result="tongues" />
+        <feComposite in="w" in2="tongues" operator="arithmetic" k1={1} k2={0} k3={0} k4={0} result="m" />
+        <feOffset in="m" dy={-(14 + 26 * flame.k)} result="o" />
+        <feGaussianBlur in="o" stdDeviation={2.5} result="o2" />
+        <feComponentTransfer in="o2" result="a">
+          <feFuncA type="linear" slope={2.4} />
         </feComponentTransfer>
         <feFlood floodColor={`rgb(${flame.glow})`} />
         <feComposite in2="a" operator="in" />
