@@ -5,6 +5,7 @@ Images for the GameDistribution listing (Assets tab), cut from the brand art, in
   brand/gamedistribution/512x512.jpg    the square key art (brand/crazygames/square.jpg)
   brand/gamedistribution/512x384.jpg    the key art (brand/logo-on-night.jpg) at 4:3
   brand/gamedistribution/512x340.jpg    the key art at about 3:2, without the three eyes
+  brand/gamedistribution/200x120.jpg    the main thumbnail: the guardians and the logo, close (it is shown small)
   python3 tools/brand/gd-assets.py   (Pillow)
 """
 import os
@@ -38,6 +39,8 @@ jobs = {
     '512x384': cover(key, 512, 384, cy=0.5),
     # (too short for the three eyes and the family both: the eyes go, as on the Y8 portrait)
     '512x340': key.crop((0, 280, 2400, 1874)).resize((512, 340), Image.LANCZOS),
+    # (the main thumbnail, tiny: the guardians and the logo only, as close as they go, so the name can be read)
+    '200x120': key.crop((150, 330, 2250, 1590)).resize((200, 120), Image.LANCZOS),
 }
 for name, im in jobs.items():
     p = os.path.join(OUT, f'{name}.jpg')
