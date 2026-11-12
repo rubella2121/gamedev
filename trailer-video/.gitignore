@@ -18,6 +18,8 @@ public/launch
 public/noir
 # rendered by ../the-third-direction/tools/trailer/skins-assets.mjs and tools/brand/live/render.mjs (scripts/make.sh skins-assets)
 public/skins
+# the song edits' footage, captured by ../the-third-direction/tools/trailer/capture.mjs (shots-skins.mjs)
+public/edit
 
 # Python bytecode (audio/kit.py is imported)
 __pycache__

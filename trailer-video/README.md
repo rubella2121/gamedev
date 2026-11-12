@@ -62,6 +62,23 @@ orchestral scores, `../the-third-direction/tools/trailer/shorts-sfx.ts` the rest
 three synthesised ones). A short's `mix` can set its balance and how far its quiet moments are brought up (`ride`; the festival
 trailer keeps its silence). `scripts/make.sh shorts short-render` makes them.
 
+## The song edits
+
+Cut to a track the owner chooses (not in the repository: its 0-43.2 s cut is `public/audio/edit-skins.wav`).
+
+| | |
+|---|---|
+| `edit-skins` | THE SKINS EDIT (43 s): three skins flash on the song's pickup, and X's foot comes down on its first hit (Inferno crushed, and back up in flames); "the smallest guy in the game" (Golden, tiny, under X); "but his drip?"; a drip check through the build (each skin close up in the Crater, then as a pixel try-on card, then a roulette a beat at a time, black, NOW WATCH.); the first drop a cut on every kick (the Knight against X, the Wizard against the Collector, the Explorer against the Mash, close-ups, the 2D fights) with speed ramps, impact frames and punches, a tag on each; the gap a freeze on Golden ("the 5th one... ONLY ON NIGHTMARE"); the second drop harder (GOLDEN, pixel-to-3D swaps, the carousel, 5 SKINS / 2D + 3D / FREE, a colour split on the hits); black, PLAY FREE, and on the last hit the logo, the five, ON ITCH.IO. |
+
+Its footage is the real game with the Blob in its skins, filmed by `../the-third-direction/tools/trailer/shots-skins.mjs` (a shot's
+`skin` dresses the Blob before the game loads):
+
+```sh
+(cd ../the-third-direction && npm run build:standalone && node tools/trailer/capture.mjs dist-standalone tools/trailer/shots-skins.mjs ../trailer-video/public/edit)
+ffmpeg -i <song> -t 43.2 -af "afade=t=out:st=42.3:d=0.9,loudnorm=I=-14:TP=-1.0:LRA=11" -ar 48000 -ac 2 public/audio/edit-skins.wav
+npx remotion render src/index.ts edit-skins out/the-third-direction-edit-skins.mp4 --codec h264 --crf 17
+```
+
 ## Where things are
 
 | | |

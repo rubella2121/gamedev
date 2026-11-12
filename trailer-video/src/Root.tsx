@@ -18,6 +18,7 @@ import { Phonk } from "./shorts/Phonk";
 import { Popup } from "./shorts/Popup";
 import { Secrets } from "./shorts/Secrets";
 import { Skins } from "./shorts/Skins";
+import { EDIT_LENGTH, SkinsEdit } from "./edits/SkinsEdit";
 import { Tarot } from "./shorts/Tarot";
 import { TheFourth } from "./shorts/TheFourth";
 import { Villain } from "./shorts/Villain";
@@ -53,6 +54,8 @@ export const RemotionRoot: React.FC = () => {
       {PROMOS.map((p) => (
         <Composition key={p.id} id={`promo-${p.id}`} component={Promo} defaultProps={{ id: p.id }} durationInFrames={Math.round(p.length * cues.fps)} fps={cues.fps} width={W} height={H} />
       ))}
+      {/* the song edits: cut to a track of the owner's choosing (src/edits/) */}
+      <Composition id="edit-skins" component={SkinsEdit} durationInFrames={Math.round(EDIT_LENGTH * shorts.fps)} fps={shorts.fps} width={W} height={H} />
       {SHORTS.map(([id, C]) => (
         <Composition key={id} id={`short-${id}`} component={C} durationInFrames={Math.round(shorts.shorts[id].length * shorts.fps)} fps={shorts.fps} width={W} height={H} />
       ))}
