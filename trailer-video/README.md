@@ -68,16 +68,26 @@ Cut to a track the owner chooses (not in the repository: its 0-43.2 s cut is `pu
 
 | | |
 |---|---|
-| `edit-skins` | THE SKINS EDIT (43 s): three skins flash on the song's pickup, and X's foot comes down on its first hit (Inferno crushed, and back up in flames); "the smallest guy in the game" (Golden, tiny, under X); "but his drip?"; a drip check through the build (each skin close up in the Crater, then as a pixel try-on card, then a roulette a beat at a time, black, NOW WATCH.); the first drop a cut on every kick (the Knight against X, the Wizard against the Collector, the Explorer against the Mash, close-ups, the 2D fights) with speed ramps, impact frames and punches, a tag on each; the gap a freeze on Golden ("the 5th one... ONLY ON NIGHTMARE"); the second drop harder (GOLDEN, pixel-to-3D swaps, the carousel, 5 SKINS / 2D + 3D / FREE, a colour split on the hits); black, PLAY FREE, and on the last hit the logo, the five, ON ITCH.IO. |
+| `edit-skins` | THE SKINS EDIT (43 s), mostly in the 2D forest, the Blob on a layer of its own all the way through: the hook each skin close, its aura on fire, NEW SKINS behind it, one on each of the song's three pickups; "bro is 16 pixels tall" (the pulse in slow motion, the camera pulling back), the Bone Wyrm's lunge, the Thornback King's slash; "but he has final boss aura" (Golden under X, the world grey); X's eyes over the forest, "then HE showed up", his foot on the hit; a drip check through the build, four beats a skin (its 2D fight; a freeze, the world grey, the Blob outlined and burning, its name behind it; the 3D one popping out of a tilted card), a roulette a beat at a time, the fifth a shadow (???), impact frames on the half beats, NOW / WATCH.; the first drop a cut on every kick, 2D and 3D fights, velocity ramps, trails, impacts, a tag on each (SKIN vs WHO); the breakdown Golden alone, burning, the world grey ("the 5th skin... only if you beat NIGHTMARE"); the second drop GOLDEN, the forest torn open, the dive, Golden landing in 3D, every skin in 2D and in 3D (split screens), the 2D Golden popping out of the forest, the carousel, 5 SKINS / 2D + 3D / FREE; PLAY FREE, and on the last hit the logo, the five, ON ITCH.IO. |
 
 Its footage is the real game with the Blob in its skins, filmed by `../the-third-direction/tools/trailer/shots-skins.mjs` (a shot's
-`skin` dresses the Blob before the game loads):
+`skin` dresses the Blob before the game loads; `layers` saves the Blob alone as well: the forest's own pixels and the Blob redrawn
+over transparent, or the 3D frame and the Blob cut out of it, see `capture.mjs` and `layers.ts`). `scripts/edit-layers.py` gathers
+where the Blob is in every frame (`src/data/edit2-layers.json`), and `src/edits/fx.tsx` does the rest: its aura (drop-shadows, and an
+SVG fire), an outline, the world gone grey, words behind it, the pop out of a card, impact frames, trails, rays, sparks.
 
 ```sh
-(cd ../the-third-direction && npm run build:standalone && node tools/trailer/capture.mjs dist-standalone tools/trailer/shots-skins.mjs ../trailer-video/public/edit)
+(cd ../the-third-direction && npm run build:standalone && node tools/trailer/capture.mjs dist-standalone tools/trailer/shots-skins.mjs ../trailer-video/public/edit2)
+python3 scripts/edit-layers.py
 ffmpeg -i <song> -t 43.2 -af "afade=t=out:st=42.3:d=0.9,loudnorm=I=-14:TP=-1.0:LRA=11" -ar 48000 -ac 2 public/audio/edit-skins.wav
-npx remotion render src/index.ts edit-skins out/the-third-direction-edit-skins.mp4 --codec h264 --crf 17
+# (a public folder of links, so the bundle does not copy 2 GB of footage: the bundler passes links through)
+mkdir -p /tmp/pub && for d in edit2 audio skins lineup grain; do ln -sfn "$PWD/public/$d" /tmp/pub/$d; done
+npx remotion bundle src/index.ts --public-dir /tmp/pub --out-dir /tmp/edit-bundle
+npx remotion render /tmp/edit-bundle edit-skins out/the-third-direction-edit-skins.mp4 --concurrency=4
 ```
+
+The 3D shots take about 4 s a frame to capture (three extra renders for the cutout and the glow) and the whole set about 40
+minutes on three processes; the render about an hour (the aura's fire is an SVG filter, worked out by the CPU).
 
 ## Where things are
 

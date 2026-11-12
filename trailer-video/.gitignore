@@ -20,6 +20,7 @@ public/noir
 public/skins
 # the song edits' footage, captured by ../the-third-direction/tools/trailer/capture.mjs (shots-skins.mjs)
 public/edit
+public/edit2
 
 # Python bytecode (audio/kit.py is imported)
 __pycache__
