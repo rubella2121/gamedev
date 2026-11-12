@@ -11,7 +11,9 @@
  *  - the Blob breathes (the game's own squash), blinks twice, and its glow pulses
  * Noise that changes is sampled round a circle in its own space, and every rhythm is a whole number of cycles per loop.
  *
- * `window.__setup(W, H)` once, then `window.__frame(t)` draws the frame at t seconds into the canvas `window.__out`.
+ * `window.__setup(W, H, opts)` once, then `window.__frame(t)` draws the frame at t seconds into the canvas `window.__out`.
+ * opts.blob = false leaves the Blob (its glow and its sparks) out, for a film that puts its own Blob in the scene; a portrait
+ * frame stands the forest on higher ground, as the wallpaper's phone version does.
  */
 import { drawBlob } from '../../../src/core/art';
 import { Pix } from '../../../src/core/pix';
@@ -19,7 +21,8 @@ import { Pix } from '../../../src/core/pix';
 export const LOOP = 24;
 const TAU = Math.PI * 2;
 
-type Win = { __sprites: Record<string, string>; __setup: (w: number, h: number) => Promise<void>; __frame: (t: number) => void; __out: HTMLCanvasElement };
+type Opts = { blob?: boolean };
+type Win = { __sprites: Record<string, string>; __setup: (w: number, h: number, o?: Opts) => Promise<void>; __frame: (t: number) => void; __out: HTMLCanvasElement };
 const WIN = window as unknown as Win;
 
 /* ------------------------------------------------------------------------------------------------ WebGL: the sky */
@@ -222,13 +225,15 @@ const motes: Mote[] = [];
 /** where the Blob's 60 x 40 picture goes (the wallpaper's sprite is its tight crop: 26 x 20) */
 let blobAt = { x: 0, y: 0 };
 const blobPix = new Pix(60, 40);
+let withBlob = true;
 
-WIN.__setup = async (w: number, h: number) => {
+WIN.__setup = async (w: number, h: number, o: Opts = {}) => {
   W = w;
   H = h;
+  withBlob = o.blob !== false;
   u = Math.min(W, H) / 1080;
   k = Math.max(1, Math.round(3 * u));
-  gy = H - 120 * u;
+  gy = H - (H > W ? 250 : 120) * u;
   glc = document.createElement('canvas');
   glc.width = W;
   glc.height = H;
@@ -288,12 +293,38 @@ WIN.__setup = async (w: number, h: number) => {
   const m = rnd(5);
   for (let i = 0; i < 70; i++)
     motes.push({ x: m() * W, y: H * (0.06 + m() * 0.82), ax: (10 + m() * 34) * u, ay: (8 + m() * 26) * u, kx: 1 + Math.floor(m() * 2), ky: 1 + Math.floor(m() * 2), px: m() * TAU, py: m() * TAU, r: (0.8 + m() * 1.6) * u, a: 0.05 + m() * 0.16, kf: 1 + Math.floor(m() * 3), pf: m() * TAU, warm: false });
-  for (let i = 0; i < 9; i++)
+  for (let i = 0; i < (withBlob ? 9 : 0); i++)
     motes.push({ x: W / 2 + (m() - 0.5) * 150 * k, y: gy - (6 + m() * 50) * k, ax: (6 + m() * 14) * k, ay: (4 + m() * 10) * k, kx: 1 + Math.floor(m() * 2), ky: 1 + Math.floor(m() * 3), px: m() * TAU, py: m() * TAU, r: (0.9 + m() * 0.9) * u, a: 0.12 + m() * 0.2, kf: 1 + Math.floor(m() * 3), pf: m() * TAU, warm: true });
 
   [out, ox] = cv(W, H);
   WIN.__out = out;
 };
+
+/** the Blob in its glow: it breathes with it, and a wider, fainter light swells and fades around it */
+function blob(x: CanvasRenderingContext2D, t: number) {
+  const breath = Math.sin((TAU * t) / 4);
+  const glowA = 0.45 * (1 + 0.16 * Math.sin((TAU * t) / 8));
+  const gr = 40 * k * (1 + 0.04 * Math.sin((TAU * t) / 8 - 0.6));
+  x.save();
+  x.globalCompositeOperation = 'lighter';
+  const halo = x.createRadialGradient(W / 2, gy - 6 * k, 0, W / 2, gy - 6 * k, 95 * k);
+  halo.addColorStop(0, `rgba(255,214,110,${0.09 * (0.5 - 0.5 * Math.cos((TAU * t) / 12))})`);
+  halo.addColorStop(1, 'rgba(255,214,110,0)');
+  x.fillStyle = halo;
+  x.fillRect(W / 2 - 100 * k, gy - 100 * k, 200 * k, 200 * k);
+  const gl2 = x.createRadialGradient(W / 2, gy - 6 * k, 0, W / 2, gy - 6 * k, gr);
+  gl2.addColorStop(0, `rgba(255,214,110,${glowA})`);
+  gl2.addColorStop(1, 'rgba(255,214,110,0)');
+  x.fillStyle = gl2;
+  x.fillRect(W / 2 - gr - 5 * k, gy - gr - 10 * k, 2 * gr + 10 * k, 2 * gr + 10 * k);
+  x.restore();
+  // the Blob itself: breathing (the game's squash: a pixel taller, a pixel wider), blinking twice a loop
+  const blink = [6.2, 17.4].some((b) => t >= b && t < b + 0.15) ? 1 : 0;
+  blobPix.ctx.clearRect(0, 0, 60, 40);
+  drawBlob(blobPix, 30, 34, { s: 1.6, lookY: -1, shadow: false, squash: 1 + 0.035 * breath, blink });
+  x.imageSmoothingEnabled = false;
+  x.drawImage(blobPix.canvas, blobAt.x, blobAt.y, 60 * k, 40 * k);
+}
 
 WIN.__frame = (t: number) => {
   const th = (TAU * t) / LOOP;
@@ -330,29 +361,7 @@ WIN.__frame = (t: number) => {
     }
   }
 
-  // the Blob's glow: it breathes with it, and a wider, fainter light swells and fades around it
-  const breath = Math.sin((TAU * t) / 4);
-  const glowA = 0.45 * (1 + 0.16 * Math.sin((TAU * t) / 8));
-  const gr = 40 * k * (1 + 0.04 * Math.sin((TAU * t) / 8 - 0.6));
-  x.save();
-  x.globalCompositeOperation = 'lighter';
-  const halo = x.createRadialGradient(W / 2, gy - 6 * k, 0, W / 2, gy - 6 * k, 95 * k);
-  halo.addColorStop(0, `rgba(255,214,110,${0.09 * (0.5 - 0.5 * Math.cos((TAU * t) / 12))})`);
-  halo.addColorStop(1, 'rgba(255,214,110,0)');
-  x.fillStyle = halo;
-  x.fillRect(W / 2 - 100 * k, gy - 100 * k, 200 * k, 200 * k);
-  const gl2 = x.createRadialGradient(W / 2, gy - 6 * k, 0, W / 2, gy - 6 * k, gr);
-  gl2.addColorStop(0, `rgba(255,214,110,${glowA})`);
-  gl2.addColorStop(1, 'rgba(255,214,110,0)');
-  x.fillStyle = gl2;
-  x.fillRect(W / 2 - gr - 5 * k, gy - gr - 10 * k, 2 * gr + 10 * k, 2 * gr + 10 * k);
-  x.restore();
-  // the Blob itself: breathing (the game's squash: a pixel taller, a pixel wider), blinking twice a loop
-  const blink = [6.2, 17.4].some((b) => t >= b && t < b + 0.15) ? 1 : 0;
-  blobPix.ctx.clearRect(0, 0, 60, 40);
-  drawBlob(blobPix, 30, 34, { s: 1.6, lookY: -1, shadow: false, squash: 1 + 0.035 * breath, blink });
-  x.imageSmoothingEnabled = false;
-  x.drawImage(blobPix.canvas, blobAt.x, blobAt.y, 60 * k, 40 * k);
+  if (withBlob) blob(x, t);
 
   // the dust and the sparks
   x.save();

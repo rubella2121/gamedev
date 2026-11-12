@@ -13,6 +13,8 @@ place the voice is heard in, made with a convolution room:
   radio    mission control on a headset: the top and bottom of the voice cut, squeezed, a little crushed
   noir     a hardboiled narrator, close and warm in a small smoky room, a little of his own breath and rasp under the voice;
            noir-hush is the same man half whispering, noir-fear the same with his breath shaking
+  tale     a deep, gentle storyteller close to the microphone: warm low end, the mud taken out, air on top, a touch of his own
+           breath under the voice, in a soft room a little bigger than a booth (the skins reel); tale-hush, nearer and quieter
 For every line the slowest take that still ends before the next line is used.
 """
 import glob
@@ -61,6 +63,7 @@ def room(secs, decay, bright, name):
 
 ROOM = room(0.5, 0.35, 0.6, 'room')
 HALL = room(3.0, 2.4, 0.3, 'hall')
+STUDIO = room(1.2, 0.85, 0.42, 'studio')
 
 EQ = 'equalizer=f=180:t=q:w=1:g=1.2,equalizer=f=3300:t=q:w=1.3:g=1.8,deesser=i=0.3,acompressor=threshold=-24dB:ratio=2.2:attack=10:release=180:makeup=1.6'
 STYLE = {
@@ -74,9 +77,11 @@ STYLE = {
     'noir': ('highpass=f=65,equalizer=f=140:t=q:w=1:g=2.5,' + EQ + ',equalizer=f=4500:t=q:w=1.5:g=1.2', ROOM, 0.06),
     'noir-hush': ('highpass=f=80,equalizer=f=160:t=q:w=1:g=2,' + EQ + ',equalizer=f=6000:t=q:w=1.5:g=2', ROOM, 0.05),
     'noir-fear': ('highpass=f=80,equalizer=f=160:t=q:w=1:g=2,' + EQ + ',vibrato=f=5.6:d=0.035,tremolo=f=6.2:d=0.18', ROOM, 0.05),
+    'tale': ('highpass=f=58,equalizer=f=115:t=q:w=0.9:g=3,equalizer=f=320:t=q:w=1.2:g=-2,' + EQ + ',equalizer=f=10500:t=q:w=1.5:g=1.8', STUDIO, 0.075),
+    'tale-hush': ('highpass=f=70,equalizer=f=130:t=q:w=0.9:g=2.5,equalizer=f=320:t=q:w=1.2:g=-2,' + EQ + ',equalizer=f=7500:t=q:w=1.5:g=2.4', STUDIO, 0.06),
 }
 # how much of a line is the take's own breath (its vocal tract driven by air instead of a voice): a whisper's worth, or a rasp's
-BREATH = {'breathy': 0.38, 'noir': 0.14, 'noir-hush': 0.45, 'noir-fear': 0.3}
+BREATH = {'breathy': 0.38, 'noir': 0.14, 'noir-hush': 0.45, 'noir-fear': 0.3, 'tale': 0.07, 'tale-hush': 0.22}
 
 
 def lpc_breath(x, sr, order=24):

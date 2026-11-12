@@ -6,6 +6,7 @@ The Mother tells it (af_heart, the most natural voice Kokoro has), at close to h
 makes it sound synthetic. A '|' in a line is a held breath: each side is spoken on its own and joined with a pause.
 A line can also be performed, phrase by phrase (the noir narrator's are): "rates" sets each phrase's own pace (times the
 take's speed), "pauses" each pause after a phrase, and "breath" puts an inhale of that many seconds before the first word.
+A voice can be a blend of Kokoro's: "am_michael:0.6+am_onyx:0.4" (the skins reel's narrator: Michael's calm, Onyx's depth).
 """
 import json
 import os
@@ -25,8 +26,15 @@ os.makedirs(out, exist_ok=True)
 rng = np.random.default_rng(5)
 
 
+def style(voice):
+    """a voice's name, or a blend of voices ("a:0.6+b:0.4") as one style vector"""
+    if '+' not in voice and ':' not in voice:
+        return voice
+    return sum(k.get_voice_style(v) * float(w) for v, w in (p.split(':') for p in voice.split('+')))
+
+
 def say(text, voice, sp):
-    s, sr = k.create(text, voice=voice, speed=sp, lang='en-us')
+    s, sr = k.create(text, voice=style(voice), speed=sp, lang='en-us')
     # trim the silence Kokoro leaves at either end
     on = np.where(np.abs(s) > 0.01)[0]
     return s[max(0, on[0] - int(0.03 * sr)) : on[-1] + int(0.12 * sr)], sr

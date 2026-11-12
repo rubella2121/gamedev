@@ -16,6 +16,8 @@ public/lineup
 public/popup
 public/launch
 public/noir
+# rendered by ../the-third-direction/tools/trailer/skins-assets.mjs and tools/brand/live/render.mjs (scripts/make.sh skins-assets)
+public/skins
 
 # Python bytecode (audio/kit.py is imported)
 __pycache__
