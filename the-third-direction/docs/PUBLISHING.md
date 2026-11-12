@@ -104,6 +104,17 @@ satin), Pink Hollow (X in a rose aura), Pink Dusk (the family on their hill at s
 **On itch.io:** Edit game → Uploads → add `the-third-direction-wallpapers.zip` (do not tick "played in the browser"; name it
 "Wallpaper pack (4K + phone)"). The page then shows a Download button, and the donation prompt with it.
 
+**Live wallpaper (Aurora, for Wallpaper Engine):** the Aurora wallpaper, alive, as a 24 s video that loops with no seam: the
+curtains' rays drift, fold and ripple and light runs along them (their hems, the "mountains", stay put), the stars twinkle, mist
+and dust drift, the treetops sway by a pixel, and the Blob breathes, blinks and glows. Its first frame is the still wallpaper.
+```bash
+node tools/brand/live/render.mjs                       # brand/wallpapers/live/aurora-live-1440p.mp4 (2560 x 1440, 30 fps)
+node tools/brand/live/render.mjs 3840 2160 30 brand/wallpapers/live/aurora-live-4k.mp4
+node tools/brand/live/render.mjs 1920 1080 30 /tmp/a.mp4 --frames 0,360   # just those frames, as PNGs, to look at a change
+```
+Drawn by `tools/brand/live/aurora.ts` (the wallpaper's own shader and sprites, with time). In Wallpaper Engine: Open Wallpaper →
+Open from File → the .mp4.
+
 ## Web game sites (ad revenue share)
 Check each site's current developer docs before uploading; their requirements change.
 

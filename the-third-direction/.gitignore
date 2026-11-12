@@ -20,6 +20,8 @@ the-third-direction-gamedistribution.zip
 brand/wallpapers/desktop/
 brand/wallpapers/phone/
 brand/wallpapers/preview/
+# the live wallpapers (videos, made by tools/brand/live/render.mjs)
+brand/wallpapers/live/
 the-third-direction-wallpapers.zip
 tools/brand/sprites/*-4k.png
 the-third-direction-y8.zip
