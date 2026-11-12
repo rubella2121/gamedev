@@ -47,9 +47,12 @@ if (only) {
     console.log('saved', f);
   }
 } else {
-  // H.264, high quality, yuv420p (what every player and Wallpaper Engine take), +faststart; the grain is still, so it compresses
+  // H.264 High, yuv420p (what every player and Wallpaper Engine take), +faststart. One keyframe, at the start of the loop: a
+  // keyframe re-rolls the encoder's faint rounding of the (still) film grain, and every two seconds that showed as a pulse in the
+  // texture; now it happens only where the loop begins again, once in 24 s. Tuned to keep grain.
   const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'png', '-i', '-',
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', '-tune', 'film', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-g', String(FPS * 2),
+    '-c:v', 'libx264', '-preset', 'slow', '-crf', '14', '-tune', 'grain', '-pix_fmt', 'yuv420p', '-profile:v', 'high',
+    '-x264-params', `keyint=${LOOP * FPS}:min-keyint=${LOOP * FPS}:scenecut=0`,
     '-movflags', '+faststart', '-r', String(FPS), out], { stdio: ['pipe', 'inherit', 'inherit'] });
   const t0 = Date.now();
   for (let n = 0; n < total; n++) {
