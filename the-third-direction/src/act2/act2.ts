@@ -21,6 +21,7 @@ import { H, W } from '../core/pix';
 import { playTimed, say, STORY, type SubLine } from '../core/story';
 import { MothMood, MothShield } from '../core/mothbond';
 import { Falls, type Verdict } from '../core/falls';
+import { SKIN } from '../core/skins';
 import { clamp, easeOutBack, easeOutCubic, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 
 type St = 'boom' | 'fight' | 'interlude' | 'ending' | 'end';
@@ -284,6 +285,8 @@ export class Act2 {
   begin(frame: HTMLCanvasElement, boss = 0, cinematic = false) {
     this.reviveToken++;
     const a = this.arena;
+    // the Blob comes into 3D in what it wore in the forest
+    a.setSkin(SKIN.id);
     this.endDeathFilm();
     this.leaveDim();
     this.state = 'boom';

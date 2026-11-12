@@ -6,6 +6,7 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { bestTime, D, type DiffId, loadDifficulty, PRESETS, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
+import { loadSkins, milestone, type Milestone } from './core/skins';
 import { fmtTime } from './core/util';
 import { adBreak, gameplay, INSTANT, onLifecycle, onSiteMute, rewardedOffer, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
 import { Trailer } from './cinematic/trailer';
@@ -135,6 +136,7 @@ export class Game {
     // saved settings load first; the first visit gets the cinematic intro (after a tap, because sound needs one), later visits the home page
     void storageInit().then(() => {
       loadDifficulty();
+      loadSkins();
       if (this.state !== 'menu') return;
       // test builds (?debug) go straight to the home page; add &intro to see the first-visit flow
       const q = new URLSearchParams(location.search);
@@ -245,6 +247,7 @@ export class Game {
       onScene: (id) => (id === 'edge' ? this.playEdge() : id === 'ending' ? this.playEnding() : id === 'fourth' ? this.playFourth() : this.playGlimpses()),
       onSound: (on) => this.audio.setMaster(on ? 0.9 : 0),
       onDifficulty: (id) => setDifficulty(id),
+      onWatchAd: this.watchForSkin,
       difficulty: D.id,
       sound: this.audio.level > 0,
       best: () => {
@@ -439,6 +442,10 @@ export class Game {
     const s = this.summary();
     // the showcase skips the story, so its time is never recorded or ranked
     const newBest = !this.showcaseRun && recordTime(D.id, this.elapsed);
+    if (!this.showcaseRun) {
+      this.won('clear');
+      if (D.id === 'nightmare') this.won('nightmare');
+    }
     const rankEl = this.ui.showEnd('i can look up now.', s.time, s.deaths, D.label, newBest, () => this.restart(), () => shareRun(s.time, s.deaths), () => this.home());
     if (!this.showcaseRun && D.ranked) {
       void submitClearTime(this.elapsed, s.deaths).then((r) => {
@@ -540,6 +547,22 @@ export class Game {
       elapsed: Math.round(this.elapsed),
     };
     storageSet(RUN_KEY, JSON.stringify(s));
+    // where there are no ads, getting this far wins a skin: a guardian down, the fall into 3D, X beaten (the next fight starts)
+    if (at === 'forest') {
+      if (f.zones.length > 0) this.won('guardian');
+    } else {
+      this.won('fell');
+      if (at >= 1) this.won('x');
+    }
+  }
+
+  /** a skin won in a real run: unlocked (see core/skins.ts) and, if it is new, a word about it */
+  private won(m: Milestone) {
+    const s = milestone(m);
+    if (s) {
+      track(`skin_${s.id}`);
+      this.ui.skinToast(s.name, s.colour);
+    }
   }
 
   /** the saved run, if there is one worth continuing (a forest with nothing done yet is just a new run) */
@@ -624,6 +647,29 @@ export class Game {
    * The player has fallen (Ctx.revive): on a site with rewarded ads, offer to get up right where they fell. The game waits, silent,
    * while the offer is up and while the ad plays (the site pauses it), and the run's clock does not count that time.
    */
+  /**
+   * The wardrobe (on the home page): watch one rewarded ad towards a skin. True if it was watched to the end, false if not, null
+   * if the site has none to show right now. The game is silent while it plays.
+   */
+  private watchForSkin = (): Promise<boolean | null> => {
+    const offer = rewardedOffer();
+    if (!offer) return Promise.resolve(null);
+    const settle = (v: boolean | null) => {
+      this.offerOpen = false;
+      this.applyPause();
+      return v;
+    };
+    return offer
+      .then((r) => {
+        if (!r) return null;
+        this.offerOpen = true;
+        this.applyPause();
+        track('skin_ad');
+        return r.watch();
+      })
+      .then(settle, () => settle(null));
+  };
+
   private revive = (): Promise<boolean> | null => {
     const offer = rewardedOffer();
     if (!offer) return null;

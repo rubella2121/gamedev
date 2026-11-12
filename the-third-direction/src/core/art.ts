@@ -1,4 +1,5 @@
 import { Pix, makeSprite, W, H } from './pix';
+import { SKIN_PAL, skinBack, skinFront, type BlobGeo, type SkinId } from './blobskins';
 import { C } from './palette';
 import { clamp, hash2, rng, TAU } from './util';
 
@@ -316,6 +317,10 @@ export interface BlobOpts {
   alpha?: number;
   /** a little pink bow on the head (Mother wears one) */
   bow?: boolean;
+  /** what the Blob is wearing (see blobskins.ts) */
+  skin?: SkinId;
+  /** seconds, for a skin that flickers or flaps (the page's clock when not given) */
+  t?: number;
 }
 
 /** The colours of Mother's bow: the only pink in the game, so she can always be told from Father. */
@@ -348,10 +353,14 @@ export function drawBlob(p: Pix, x: number, y: number, o: BlobOpts = {}) {
   const cy = y - ry;
   if (o.alpha !== undefined) p.alpha(o.alpha);
   if (o.shadow !== false) p.dither(x, y - 1, rx * 1.15, 2.4 * s, C.ink, 0.75);
-  p.ellipse(x, cy, rx + 1, ry + 1, C.blobOutline);
-  p.ellipse(x, cy, rx, ry, C.blobShade);
-  p.ellipse(x, cy - ry * 0.12, rx * 0.93, ry * 0.86, C.blob);
-  p.ellipse(x - rx * 0.36, cy - ry * 0.5, rx * 0.3, ry * 0.2, C.blobLight);
+  const skin = o.skin && o.skin !== 'default' ? o.skin : null;
+  const pal = (skin && SKIN_PAL[skin]) || null;
+  const geo: BlobGeo | null = skin ? { x, cy, rx, ry, s, t: o.t ?? performance.now() / 1000 } : null;
+  if (skin && geo) skinBack(p, skin, geo);
+  p.ellipse(x, cy, rx + 1, ry + 1, pal ? pal.outline : C.blobOutline);
+  p.ellipse(x, cy, rx, ry, pal ? pal.shade : C.blobShade);
+  p.ellipse(x, cy - ry * 0.12, rx * 0.93, ry * 0.86, pal ? pal.blob : C.blob);
+  p.ellipse(x - rx * 0.36, cy - ry * 0.5, rx * 0.3, ry * 0.2, pal ? pal.light : C.blobLight);
   const ex = 2.7 * s;
   const lx = (o.lookX ?? 0) * 1.3;
   const ly = (o.lookY ?? 0) * 1.0;
@@ -365,8 +374,9 @@ export function drawBlob(p: Pix, x: number, y: number, o: BlobOpts = {}) {
       p.ellipse(bx, ey, 1.5 * s, 2.1 * s, C.blobEye);
       p.px(bx - 0.6 * s, ey - 1.2 * s, C.white);
     }
-    p.px(x + sgn * ex * 1.65, ey + 2 * s, C.blush);
+    p.px(x + sgn * ex * 1.65, ey + 2 * s, pal ? pal.blush : C.blush);
   }
+  if (skin && geo) skinFront(p, skin, geo);
   if (o.third) {
     p.ellipse(x, cy - ry * 0.55, 1.8 * s, 1.8 * s, C.red);
     p.px(x - 0.5, cy - ry * 0.55 - 0.5, C.redGlow);

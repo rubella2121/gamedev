@@ -172,6 +172,9 @@ function listenMute() {
   }
 }
 
+/** rewarded ads exist on this site (the wardrobe's skins are unlocked by watching them; elsewhere by playing) */
+export const REWARDED = true;
+
 /**
  * A rewarded ad that can be offered now (see core/rewarded.ts): CrazyGames has no way to ask beforehand whether one is ready,
  * so it is offered whenever their SDK is up; if none plays, the player wakes at the checkpoint as usual. The game is paused and

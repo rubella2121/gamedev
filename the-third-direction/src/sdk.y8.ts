@@ -141,6 +141,9 @@ export function gameplay(_on: boolean) {}
 /** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
 export function onSiteMute(_fn: (muted: boolean) => void) {}
 
+/** rewarded ads exist on this site (the wardrobe's skins are unlocked by watching them; elsewhere by playing) */
+export const REWARDED = true;
+
 /**
  * A rewarded ad that can be offered now (see core/rewarded.ts), or null when Y8 has none (it answers within 2 s). Y8 asks the
  * game to offer it (beforeReward) only when one is ready; the player watches it (showAdFn) or not. It is earned at adViewed;

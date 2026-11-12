@@ -155,6 +155,9 @@ listen((e) => {
   if (e.name === 'SDK_READY') void preloadRewarded();
 });
 
+/** rewarded ads exist on this site (the wardrobe's skins are unlocked by watching them; elsewhere by playing) */
+export const REWARDED = true;
+
 /**
  * A rewarded ad that can be offered now (see core/rewarded.ts), or null when GameDistribution has none ready (asked for, at
  * most 1.5 s). Watching it pauses and silences the game (their SDK_GAME_PAUSE / SDK_GAME_START); it is earned at their

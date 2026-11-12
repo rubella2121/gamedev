@@ -8,6 +8,8 @@ import { buildMoth3D, type Moth3D } from './moth3d';
 import { Crater, FAR_Z, FLOOR_R, landY, type Cover } from './crater';
 import { groundY, onGround } from './ground';
 import { animateJelly, BLOB_LOOK, makeJelly, type JellyRig } from './jelly';
+import { dressJelly, type Dressed } from './skins3d';
+import type { SkinId } from '../core/blobskins';
 
 const BG = 0x0c2230;
 /** the fighting floor's radius (it is cut off at FAR_Z on the boss's side: see crater.ts) */
@@ -147,6 +149,11 @@ export class Arena {
   private rig!: JellyRig;
   private thirdEyeSize = new THREE.Vector3();
   private thirdEye!: THREE.Mesh;
+  /** where the third eye sits on the bare jelly (a skin over the forehead pushes it out: see setSkin) */
+  private eyeAt!: { p: THREE.Vector3; n: THREE.Vector3 };
+  /** what the Blob wears (skins3d.ts), and which skin that is */
+  private dressed: Dressed | null = null;
+  private dressedAs: SkinId | null = null;
   private glow: THREE.PointLight;
   private redLight: THREE.PointLight;
   private shadowDisc: THREE.Mesh;
@@ -301,6 +308,7 @@ export class Arena {
     // the third eye opens later, in the middle of the forehead
     this.thirdEye = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff2a40 }));
     const fh = jelly.forehead;
+    this.eyeAt = fh;
     this.thirdEye.position.copy(fh.p);
     this.thirdEye.lookAt(fh.p.clone().add(fh.n));
     this.thirdEyeSize.set(0.2, 0.26, 0.08);
@@ -326,6 +334,16 @@ export class Arena {
     this.world.add(P);
   }
 
+  /** put a skin on the 3D Blob (the one it wears in the forest: core/skins.ts); nothing happens if it already wears it */
+  setSkin(id: SkinId) {
+    if (id === this.dressedAs) return;
+    this.dressed?.dispose();
+    this.dressed = dressJelly(this.rig, id);
+    this.dressedAs = id;
+    // the third eye opens on top of whatever covers the forehead
+    this.thirdEye.position.copy(this.eyeAt.p).addScaledVector(this.eyeAt.n, this.dressed.lift);
+  }
+
   /** Hop-and-splat, the slosh, blinking and the claw swing. `phase` advances with distance walked. */
   animatePlayer(dt: number, time: number, walk: number, phase: number, strike: number, hurt: boolean) {
     const r = this.rig;
@@ -333,6 +351,7 @@ export class Arena {
     const lean = strike > 0 ? 0.3 * Math.sin((1 - strike) * Math.PI) : 0;
     // the stride is quick; a slime's hops are slower and bigger, about two and a half a second at a run
     animateJelly(r, dt, time, walk, phase * 0.55, 0, 0, 0, lean);
+    this.dressed?.tick(time);
     if (strike > 0) {
       const u = 1 - strike;
       this.claw.rotation.y = -0.9 + 2.1 * (1 - Math.pow(1 - u, 3));
