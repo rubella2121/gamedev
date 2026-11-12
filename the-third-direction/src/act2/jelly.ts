@@ -35,13 +35,27 @@ export interface JellyRig {
   wob: Wobble;
   /** the skin's ripple: how strong, and its clock */
   wave: { uWave: { value: number }; uT: { value: number } };
+  /** its width (look.size) */
+  size: number;
+  /** the dome itself (what it wears is fitted to it: see skins3d.ts) */
+  skin: THREE.Mesh;
+  /** a point on the skin and the way it faces there: seen from the front at (x, y), or from above at (x, z) */
+  onSkin: (x: number, y: number, fromTop?: boolean) => { p: THREE.Vector3; n: THREE.Vector3 };
 }
 
 let domeGeo: THREE.BufferGeometry | null = null;
 /** a unit dome: a sphere with the bottom pressed flat and the base spread out a little (1 wide, 0.68 tall, 0.82 deep) */
-function dome(): THREE.BufferGeometry {
+export function dome(): THREE.BufferGeometry {
   if (domeGeo) return domeGeo;
-  const g = new THREE.SphereGeometry(0.5, 48, 32);
+  domeGeo = shapeDome(new THREE.SphereGeometry(0.5, 48, 32));
+  return domeGeo;
+}
+
+/**
+ * Press a sphere of radius 0.5 (or any part of one: a SphereGeometry with its own phi and theta ranges) into the dome's shape, so
+ * whatever is cut from the same sphere fits the dome exactly (see skins3d.ts)
+ */
+export function shapeDome(g: THREE.BufferGeometry): THREE.BufferGeometry {
   const p = g.getAttribute('position');
   const v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) {
@@ -61,7 +75,6 @@ function dome(): THREE.BufferGeometry {
     p.setXYZ(i, v.x * 2 * spread * 0.5, (ny + 0.1) * 0.68 / 0.7, v.z * 2 * spread * 0.41);
   }
   g.computeVertexNormals();
-  domeGeo = g;
   return g;
 }
 
@@ -95,6 +108,8 @@ function jellyMaterial(look: JellyLook, wave: JellyRig['wave']): THREE.MeshStand
       );
   };
   m.customProgramCacheKey = () => 'jelly';
+  // (its colours can be changed later: a skin)
+  m.userData.jelly = u;
   return m;
 }
 
@@ -191,7 +206,7 @@ export function makeJelly(look: JellyLook): JellyRig {
     }
   }
   body.matrixAutoUpdate = false;
-  return { g, body, eyes, mat, height, forehead: onSkin(0, height * 0.86), wob: new Wobble(), wave };
+  return { g, body, eyes, mat, height, forehead: onSkin(0, height * 0.86), wob: new Wobble(), wave, size: S, skin, onSkin };
 }
 
 /**

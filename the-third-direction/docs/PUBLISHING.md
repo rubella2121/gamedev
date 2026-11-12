@@ -116,6 +116,14 @@ checkpoint as always. Never in the tutorial. The offer and the ad do not count o
 `adViewed`), CrazyGames asks for one when the player says yes (`requestAd('rewarded')`, earned at `adFinished`). itch.io, RUN
 and the Artifact have none, so nothing changes there.
 
+**Skins (the wardrobe):** a Skins button at the top left of the home page opens the wardrobe: the Blob in Explorer, Knight,
+Wizard, Inferno and Golden, worn in the 2D forest (and the opening, and the dash's ghosts) and on the 3D jelly in the fights
+(`src/core/blobskins.ts`, `src/act2/skins3d.ts`, `src/core/skins.ts`). Where the site has rewarded ads (`REWARDED` in each
+`src/sdk.*.ts`: CrazyGames, GameDistribution, Y8) Explorer takes 1 ad, Knight 2, Wizard 2, Inferno 3; each ad watched to the
+end is saved, so a player can come back for the next one. Where there are none (itch.io, RUN, the Artifact) they are won by
+playing instead: beat a guardian, fall into the third dimension, beat X, beat the game. Golden is won everywhere by beating the
+game on Nightmare, never with ads. A skin won in a run is announced with a short notice at the top of the screen.
+
 ### CrazyGames (the main earner)
 ```bash
 npm run build:crazygames

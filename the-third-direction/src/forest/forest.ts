@@ -1,5 +1,6 @@
 import { DashPool } from '../core/dash';
 import { storageGet, storageSet } from '../sdk';
+import { SKIN } from '../core/skins';
 import { D } from '../core/difficulty';
 import { Pix, W, H } from '../core/pix';
 import { C } from '../core/palette';
@@ -2167,7 +2168,7 @@ export class Forest implements Hub {
       const pl = this.player;
       if (this.mode !== 'dive') {
         this.drawGlowUnder(pl.x - camX, pl.y - camY);
-        drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink });
+        drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink, skin: SKIN.id, t: this.time });
       }
     }
     // the rift: cracks running from between his eyes down to its top (the world behind it is drawn over this, smooth)
@@ -2321,7 +2322,7 @@ export class Forest implements Hub {
     for (const g of this.ghosts) {
       const u = g.t / 0.3;
       p.alpha(0.5 * (1 - u));
-      drawBlob(p, g.x - this.camX, g.y - this.camY, { squash: 0.8, lookX: this.aim.x, lookY: this.aim.y, shadow: false });
+      drawBlob(p, g.x - this.camX, g.y - this.camY, { squash: 0.8, lookX: this.aim.x, lookY: this.aim.y, shadow: false, skin: SKIN.id, t });
     }
     p.alpha(1);
     // the way an aimed Lance will fly: faint dots while it charges, a bright line with a head when it is ready
@@ -2462,7 +2463,7 @@ export class Forest implements Hub {
           y: pl.y,
           fn: () => {
             this.drawGlowUnder(pl.x - camX, pl.y - camY);
-            drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink });
+            drawBlob(p, pl.x - camX, pl.y - camY, { squash: pl.squash, lookX: pl.lookX, lookY: pl.lookY, blink: pl.blink, skin: SKIN.id, t: this.time });
             // the moth's shield: a thin bubble of moonlight while it is ready
             if (this.arena && this.moth.has && this.shield.ready) {
               const bx = pl.x - camX;
@@ -2710,7 +2711,7 @@ export class Forest implements Hub {
     const squash = slammed && ot < OP.slam + 0.6 ? 0.7 + 0.3 * smooth((ot - OP.slam) / 0.6) : br(0);
     list.push({
       y: ky + OY,
-      fn: () => drawBlob(p, kx, ky - cam, { squash, lookX: alarm ? -0.4 : 0, lookY: lookUp || alarm ? -1 : 0.3, blink: hash2(Math.floor(t * 4), 9) > 0.94 ? 1 : 0 }),
+      fn: () => drawBlob(p, kx, ky - cam, { squash, lookX: alarm ? -0.4 : 0, lookY: lookUp || alarm ? -1 : 0.3, blink: hash2(Math.floor(t * 4), 9) > 0.94 ? 1 : 0, skin: SKIN.id, t }),
     });
     if (!slammed) {
       const nudge = ot > OP.nudge && ot < OP.nudge + 0.7 ? Math.sin(((ot - OP.nudge) / 0.7) * Math.PI) * 5 : 0;

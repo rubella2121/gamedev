@@ -15,6 +15,7 @@
  * at most about 0.9 megapixels, and if the phone cannot keep up the page steps itself down (fewer lights, a smaller canvas,
  * fewer frames) instead of stuttering.
  */
+import { SKIN } from './core/skins';
 import { drawBlob, drawRedEyes, makeBush, makeFlower, makeRock } from './core/art';
 import { C } from './core/palette';
 import { Pix } from './core/pix';
@@ -1036,7 +1037,7 @@ export class Landing {
         // the pulse: the baby stretches up as the light leaves it; the parents flinch
         squash *= i === 1 ? 1 + 0.3 * Math.exp(-bu / 0.12) : 1 - 0.1 * Math.exp(-bu / 0.2);
       }
-      drawBlob(p, k.x + M + dx, groundY(k.x) + M + 1 + dy, { s: k.s, squash, lookX: k.lx, lookY: k.ly, blink: k.blinkT > 0 ? 1 : 0, bow: k.bow });
+      drawBlob(p, k.x + M + dx, groundY(k.x) + M + 1 + dy, { s: k.s, squash, lookX: k.lx, lookY: k.ly, blink: k.blinkT > 0 ? 1 : 0, bow: k.bow, skin: i === 1 ? SKIN.id : undefined, t });
     });
     this.drawBlades(p, this.front, t, wind, 0.7, Q.blades);
 

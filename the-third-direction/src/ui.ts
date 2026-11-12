@@ -4,6 +4,10 @@ import { STORY } from './core/story';
 import { fmtTime } from './core/util';
 import { INTRO, Landing } from './landing';
 import { Crest } from './crest';
+import { drawBlob } from './core/art';
+import type { SkinId } from './core/blobskins';
+import { Pix } from './core/pix';
+import { adsWatched, adWatched, byAds, markWardrobeSeen, owns, SKIN, SKINS, wardrobeSeen, wear } from './core/skins';
 import { CREDIT } from './sdk';
 
 export interface HomeOptions {
@@ -19,6 +23,8 @@ export interface HomeOptions {
   onIntro?: () => void;
   onSound: (on: boolean) => void;
   onDifficulty: (id: DiffId) => void;
+  /** the wardrobe: watch one rewarded ad towards a skin (true: watched to the end, false: not, null: none to show now) */
+  onWatchAd?: () => Promise<boolean | null>;
   difficulty: DiffId;
   best: () => string | null;
   /** is the sound on right now (the switch starts there) */
@@ -42,6 +48,8 @@ const ICON = {
   help: ['.#####.', '##...##', '.....##', '...###.', '..##...', '.......', '..##...'],
   share: ['...#...', '..###..', '.#.#.#.', '...#...', '#..#..#', '#.....#', '#######'],
   menu: ['#######', '.......', '#######', '.......', '#######'],
+  crown: ['#..#..#', '##.#.##', '#######', '#######', '.#####.'],
+  lock: ['..###..', '.#...#.', '.#...#.', '#######', '###.###', '###.###', '#######'],
 };
 
 /** the speaker on the landing page: its three waves light up one after another (CSS) */
@@ -49,6 +57,17 @@ const SPEAKER =
   '<svg viewBox="0 0 12 9" shape-rendering="crispEdges" fill="currentColor"><path d="M0 3h2v3H0z M2 2h1v5H2z M3 1h1v7H3z M4 0h1v9H4z"/><path class="w" d="M6 3h1v3H6z"/><path class="w w2" d="M8 2h1v5H8z"/><path class="w w3" d="M10 1h1v7h-1z"/></svg>';
 
 const HEART_SVG = '<svg class="heart" viewBox="0 0 7 6"><path d="M1 0h2v1H1z M4 0h2v1H4z M0 1h7v2H0z M1 3h5v1H1z M2 4h3v1H2z M3 5h1v1H3z"/></svg>';
+
+/** the wardrobe's pictures: the Blob in a skin, on a patch of its own size (game pixels, shown enlarged) */
+const PIC_W = 40;
+const PIC_H = 34;
+
+/** the Blob wearing `skin` at time t, breathing and blinking now and then (`k` keeps the pictures out of step with each other) */
+function wearer(p: Pix, skin: SkinId, t: number, k: number) {
+  p.ctx.clearRect(0, 0, p.w, p.h);
+  const blink = (t + k * 0.83) % 3.7 < 0.12 ? 1 : 0;
+  drawBlob(p, PIC_W / 2, PIC_H - 6, { skin, t: t + k * 0.37, squash: 1 + Math.sin(t * 2.3 + k) * 0.035, blink, lookY: 0.2 });
+}
 
 /** The three bosses of the 3D act, for the picker on the home page (names and colours match the fights). */
 const BOSSES = [
@@ -868,6 +887,15 @@ export class UI {
       o.onSound(on);
     });
 
+    // the wardrobe, in the other top corner (it glows until it has been opened once)
+    const skins = mk('skinbtn', '', 'button');
+    skins.innerHTML = `${icon(ICON.crown)}<span>Skins</span>`;
+    skins.classList.toggle('fresh', !wardrobeSeen());
+    skins.addEventListener('click', () => {
+      skins.classList.remove('fresh');
+      this.showWardrobe(o);
+    });
+
     const tag = mk('tag', "don't look up");
     const premise = mk('premise', 'a baby blob, lost in a forest of monsters. beat five guardians. find the third dimension.');
     const spacer = mk('spacer');
@@ -932,7 +960,7 @@ export class UI {
     pill('How to play', ICON.help, () => this.showHowTo());
 
     const foot = mk('foot', CREDIT);
-    home.append(amb.canvas, snd, logo.canvas, tag, premise, spacer, wrap, ...(cont ? [cont] : []), diffs, blurb, row, foot);
+    home.append(amb.canvas, snd, skins, logo.canvas, tag, premise, spacer, wrap, ...(cont ? [cont] : []), diffs, blurb, row, foot);
     el.append(home);
     el.classList.remove('hide');
     this.runFx(el, logo, amb, 0.8);
@@ -1019,6 +1047,145 @@ export class UI {
     if (this.fxRaf) cancelAnimationFrame(this.fxRaf);
     this.fxRaf = 0;
     this.onFit = null;
+  }
+
+  /**
+   * The wardrobe: the Blob in every skin, moving as it does in the game, what each one is, and how to get it. Where the site has
+   * rewarded ads, a locked skin is unlocked by watching them (each one is saved as it is watched); elsewhere by getting that far in
+   * the game. Golden is won on Nightmare everywhere. Tapping a skin the Blob owns puts it on.
+   */
+  private showWardrobe(o: HomeOptions) {
+    markWardrobeSeen();
+    const mk = (tag: string, cls: string, text = '') => {
+      const e = document.createElement(tag);
+      e.className = cls;
+      if (text) e.textContent = text;
+      return e;
+    };
+    const card = mk('div', 'sheet wardrobe');
+    const stage = mk('div', 'wstage');
+    const big = new Pix(PIC_W, PIC_H);
+    stage.append(big.canvas);
+    const name = mk('div', 'wname');
+    const blurb = mk('div', 'wblurb');
+    const act = mk('button', 'wact') as HTMLButtonElement;
+    const note = mk('div', 'wnote');
+    const grid = mk('div', 'wgrid');
+    let sel = SKINS.find((s) => s.id === SKIN.id) ?? SKINS[0]!;
+    let busy = false;
+    let msg = '';
+    const tiles = SKINS.map((s) => {
+      const b = mk('button', 'wtile');
+      b.style.setProperty('--sc', s.colour);
+      const p = new Pix(PIC_W, PIC_H);
+      const st = mk('i', '');
+      b.append(p.canvas, mk('b', '', s.name), st);
+      b.addEventListener('click', () => {
+        if (busy) return;
+        sel = s;
+        msg = '';
+        if (owns(s.id)) wear(s.id);
+        paint();
+      });
+      grid.append(b);
+      return { s, b, p, st };
+    });
+    const pips = (n: number, of: number) => `<span class="wpips">${'<em class="on"></em>'.repeat(n)}${'<em></em>'.repeat(Math.max(0, of - n))}</span>`;
+    const paint = () => {
+      for (const { s, b, st } of tiles) {
+        const mine = owns(s.id);
+        b.classList.toggle('sel', s === sel);
+        b.classList.toggle('locked', !mine);
+        st.innerHTML =
+          s.id === SKIN.id ? 'wearing' : mine ? 'owned' : byAds(s.id) ? `${icon(ICON.play)}${adsWatched(s.id)} / ${s.ads}` : `${icon(ICON.lock)}locked`;
+      }
+      name.textContent = sel.name;
+      stage.style.setProperty('--sc', sel.colour);
+      name.style.color = sel.colour;
+      blurb.textContent = sel.blurb;
+      act.className = 'wact';
+      act.disabled = busy;
+      if (sel.id === SKIN.id) {
+        act.textContent = 'Wearing';
+        act.classList.add('done');
+        act.disabled = true;
+        note.textContent = msg || (sel.id === 'default' ? 'The Blob, as it was born.' : 'In the forest and in the third dimension.');
+      } else if (owns(sel.id)) {
+        act.textContent = 'Wear';
+        act.classList.add('main');
+        note.textContent = msg;
+      } else if (byAds(sel.id)) {
+        const n = adsWatched(sel.id);
+        act.classList.add('main');
+        act.innerHTML = busy ? '<span>Loading ad…</span>' : `${icon(ICON.play)}<span>Watch ${sel.ads - n === 1 && sel.ads > 1 ? 'the last ad' : 'an ad'}</span>`;
+        note.innerHTML = msg || `${pips(n, sel.ads)}${sel.ads === 1 ? 'One short ad unlocks it.' : `${sel.ads} short ads unlock it. Each one is saved.`}`;
+      } else {
+        act.innerHTML = `${icon(ICON.lock)}<span>Locked</span>`;
+        act.classList.add('done');
+        act.disabled = true;
+        note.textContent = msg || `${sel.goal} to unlock it.`;
+      }
+    };
+    act.addEventListener('click', () => {
+      if (busy) return;
+      if (owns(sel.id)) {
+        wear(sel.id);
+        msg = '';
+        paint();
+        return;
+      }
+      if (!byAds(sel.id) || !o.onWatchAd) return;
+      const s = sel;
+      busy = true;
+      msg = '';
+      paint();
+      void o.onWatchAd().then((v) => {
+        busy = false;
+        if (v === null) msg = 'No ad is ready right now. Try again in a minute.';
+        else if (!v) msg = 'No ad played to the end, so it did not count. Try again in a minute.';
+        else if (adWatched(s.id)) {
+          wear(s.id);
+          msg = `Unlocked! The Blob is wearing the ${s.name}.`;
+          stage.classList.remove('burst');
+          void stage.offsetWidth;
+          stage.classList.add('burst');
+        } else {
+          const n = adsWatched(s.id);
+          msg = `${pips(n, s.ads)}Saved: ${n} of ${s.ads}. ${s.ads - n === 1 ? 'One more' : `${s.ads - n} more`} to go.`;
+        }
+        if (card.isConnected) paint();
+      });
+    });
+    const close = mk('button', 'sclose', 'Back');
+    close.addEventListener('click', () => card.remove());
+    card.append(mk('div', 'sh', 'Skins'), stage, name, blurb, act, note, grid, close);
+    card.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.startEl.append(card);
+    paint();
+    // the Blob in each, alive: it breathes, blinks, and whatever it wears flickers or flaps (twenty-five frames a second)
+    const t0 = performance.now();
+    let drawn = 0;
+    const draw = (now: number) => {
+      if (!card.isConnected) return;
+      requestAnimationFrame(draw);
+      if (now - drawn < 40) return;
+      drawn = now;
+      const t = (now - t0) / 1000;
+      wearer(big, sel.id, t, 0);
+      tiles.forEach(({ s, p }, k) => wearer(p, s.id, t, k + 1));
+    };
+    requestAnimationFrame(draw);
+  }
+
+  /** a word when a skin is won in a run (where there are no ads): it slides in at the top and goes by itself */
+  skinToast(name: string, colour: string) {
+    const el = document.createElement('div');
+    el.className = 'skintoast';
+    el.style.setProperty('--sc', colour);
+    el.innerHTML = `${icon(ICON.crown)}<div><b>New skin: ${name}</b><span>Wear it from Skins on the home page</span></div>`;
+    this.stage.append(el);
+    window.setTimeout(() => el.classList.add('out'), 4200);
+    window.setTimeout(() => el.remove(), 4800);
   }
 
   /** Pick a boss to fight right now, skipping the story (these runs are never ranked). */

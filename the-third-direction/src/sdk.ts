@@ -109,6 +109,9 @@ export function gameplay(_on: boolean) {}
 /** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
 export function onSiteMute(_fn: (muted: boolean) => void) {}
 
+/** rewarded ads exist on this site (the wardrobe's skins are unlocked by watching them; elsewhere by playing) */
+export const REWARDED = false;
+
 /** a rewarded ad that can be offered now (see core/rewarded.ts): this site has none */
 export function rewardedOffer(): Promise<Rewarded | null> | null {
   return null;

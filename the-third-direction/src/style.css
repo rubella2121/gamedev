@@ -442,3 +442,41 @@ body {
 .hearts.tutglow, .lightmeter.tutglow, .dashmeter.tutglow { animation: tutglow 1s ease-in-out infinite; }
 @keyframes tutglow { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); } 50% { transform: scale(1.12); filter: drop-shadow(0 0 calc(var(--u) * 1.6) #ffe9a0); } }
 .cinematic .tut, .cinematic .tutjoy { display: none !important; }
+/* the wardrobe: its button on the home page (top left, across from the sound), and the sheet with the Blob in every skin */
+.home > .skinbtn { position: absolute; z-index: 3; top: calc(var(--u) * 4 + env(safe-area-inset-top, 0px)); left: calc(var(--u) * 4); height: calc(var(--u) * 9); display: flex; align-items: center; gap: calc(var(--u) * 1.4); padding: 0 calc(var(--u) * 3) 0 calc(var(--u) * 2.4); font: inherit; font-size: calc(var(--u) * 2.4); letter-spacing: 0.16em; text-transform: uppercase; color: #ffe9a0; background: rgba(5, 6, 12, 0.5); border: 1px solid rgba(242, 211, 107, 0.45); border-radius: calc(var(--u) * 4.5); pointer-events: auto; cursor: pointer; }
+.skinbtn .pi { width: calc(var(--u) * 3.6); height: auto; color: #f2d36b; }
+.skinbtn:active { transform: scale(0.96); }
+.skinbtn.fresh { animation: skinglow 1.8s ease-in-out infinite; }
+@keyframes skinglow { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 211, 107, 0); } 50% { box-shadow: 0 0 calc(var(--u) * 3) rgba(242, 211, 107, 0.6); } }
+.sheet.wardrobe { gap: calc(var(--u) * 2); padding: calc(var(--u) * 5); overflow-y: auto; pointer-events: auto; justify-content: safe center; }
+.wstage { --sc: #f2d36b; position: relative; flex: none; width: calc(var(--u) * 46); aspect-ratio: 40 / 34; border-radius: 50%; background: radial-gradient(ellipse at 50% 64%, color-mix(in srgb, var(--sc) 22%, transparent), rgba(159, 244, 238, 0.04) 58%, transparent 72%); }
+.wstage canvas, .wtile canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.wstage.burst::after { content: ''; position: absolute; inset: 6%; border-radius: 50%; pointer-events: none; animation: wburst 1.1s ease-out forwards; }
+@keyframes wburst { from { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 240, 180, 0.9), inset 0 0 calc(var(--u) * 12) rgba(255, 240, 180, 0.7); } to { opacity: 0; box-shadow: 0 0 0 calc(var(--u) * 12) rgba(255, 240, 180, 0), inset 0 0 0 rgba(255, 240, 180, 0); } }
+.wname { margin-top: calc(var(--u) * -1.5); font-size: calc(var(--u) * 4.6); font-weight: 900; letter-spacing: 0.2em; text-indent: 0.2em; text-transform: uppercase; text-shadow: 0 0 calc(var(--u) * 3) currentColor; }
+.wblurb { margin-top: calc(var(--u) * -1.2); font-size: calc(var(--u) * 2.5); letter-spacing: 0.05em; text-align: center; color: rgba(232, 255, 251, 0.7); }
+.wact { min-width: calc(var(--u) * 52); display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 1.6); font: inherit; font-size: calc(var(--u) * 3.2); letter-spacing: 0.2em; text-transform: uppercase; cursor: pointer; pointer-events: auto; color: rgba(232, 255, 251, 0.9); background: rgba(232, 255, 251, 0.06); border: 1px solid rgba(232, 255, 251, 0.3); border-radius: calc(var(--u) * 0.8); padding: calc(var(--u) * 2.6) calc(var(--u) * 5); transition: transform 100ms; }
+.wact .pi { width: calc(var(--u) * 3); height: auto; }
+.wact.main { color: #1a1206; background: #f2d36b; border-color: #f2d36b; font-weight: 900; }
+.wact.main:disabled { opacity: 0.72; }
+.wact.done { cursor: default; color: rgba(232, 255, 251, 0.55); }
+.wact:not(:disabled):active { transform: scale(0.97); }
+.wnote { min-height: calc(var(--u) * 7); max-width: calc(var(--u) * 80); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: calc(var(--u) * 1.4); font-size: calc(var(--u) * 2.4); line-height: 1.45; text-align: center; color: rgba(232, 255, 251, 0.75); }
+.wpips { display: inline-flex; gap: calc(var(--u) * 0.8); }
+.wpips em { width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); border-radius: 50%; border: 1px solid rgba(242, 211, 107, 0.7); }
+.wpips em.on { background: #f2d36b; box-shadow: 0 0 calc(var(--u) * 1.2) rgba(242, 211, 107, 0.7); }
+.wgrid { flex: none; width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 2); }
+.wtile { --sc: #f2d36b; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 0.5); padding: calc(var(--u) * 0.6) calc(var(--u) * 1) calc(var(--u) * 1.6); font: inherit; cursor: pointer; pointer-events: auto; color: rgba(232, 255, 251, 0.85); background: rgba(5, 6, 12, 0.6); border: 2px solid rgba(232, 255, 251, 0.14); border-radius: calc(var(--u) * 0.8); transition: border-color 150ms, background 150ms, transform 100ms; }
+.wtile b { font-size: calc(var(--u) * 2.4); letter-spacing: 0.12em; text-transform: uppercase; color: var(--sc); }
+.wtile i { display: flex; align-items: center; gap: calc(var(--u) * 0.8); font-style: normal; font-size: calc(var(--u) * 1.9); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(232, 255, 251, 0.6); }
+.wtile i .pi { width: calc(var(--u) * 1.9); height: auto; }
+.wtile.sel { border-color: var(--sc); background: color-mix(in srgb, var(--sc) 12%, rgba(5, 6, 12, 0.6)); box-shadow: 0 0 calc(var(--u) * 2.4) color-mix(in srgb, var(--sc) 35%, transparent); }
+.wtile:active { transform: scale(0.96); }
+/* a skin won in a run */
+.skintoast { --sc: #f2d36b; position: absolute; z-index: 36; left: 50%; top: calc(var(--u) * 17 + env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: calc(var(--u) * 2.4); padding: calc(var(--u) * 2) calc(var(--u) * 4); white-space: nowrap; pointer-events: none; background: rgba(5, 6, 12, 0.86); border: 1px solid var(--sc); border-radius: calc(var(--u) * 1); box-shadow: 0 0 calc(var(--u) * 4) color-mix(in srgb, var(--sc) 40%, transparent); animation: toastin 380ms cubic-bezier(0.2, 1.4, 0.4, 1) both; transition: opacity 500ms, transform 500ms; }
+.skintoast .pi { width: calc(var(--u) * 4.4); height: auto; color: var(--sc); }
+.skintoast div { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); }
+.skintoast b { font-size: calc(var(--u) * 3); letter-spacing: 0.12em; text-transform: uppercase; color: var(--sc); }
+.skintoast span { font-size: calc(var(--u) * 2.2); letter-spacing: 0.05em; color: rgba(232, 255, 251, 0.75); }
+.skintoast.out { opacity: 0; transform: translateX(-50%) translateY(calc(var(--u) * -3)); }
+@keyframes toastin { from { opacity: 0; transform: translateX(-50%) translateY(calc(var(--u) * -4)) scale(0.9); } to { opacity: 1; transform: translateX(-50%); } }
