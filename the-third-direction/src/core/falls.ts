@@ -52,6 +52,13 @@ export class Falls {
     return 'none';
   }
 
+  /** a fall taken back: the player got up where they fell (a rewarded ad), so it does not count */
+  undo() {
+    this.fight = Math.max(0, this.fight - 1);
+    this.phase = Math.max(0, this.phase - 1);
+    if (!this.assisted) this.help(false);
+  }
+
   /** the moth is helping in this phase */
   get assisted(): boolean {
     return D.id !== 'nightmare' && this.phase >= ASSIST_AFTER;

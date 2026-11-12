@@ -15,6 +15,8 @@ export const CREDIT = 'a boss rush in three directions';
  */
 export const INSTANT = true;
 
+import type { Rewarded } from './core/rewarded';
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const win = window as unknown as { __y8Sdk?: any };
 
@@ -138,3 +140,76 @@ export function gameplay(_on: boolean) {}
 
 /** the site's own mute button, if it has one: `fn(true)` when it asks for silence */
 export function onSiteMute(_fn: (muted: boolean) => void) {}
+
+/**
+ * A rewarded ad that can be offered now (see core/rewarded.ts), or null when Y8 has none (it answers within 2 s). Y8 asks the
+ * game to offer it (beforeReward) only when one is ready; the player watches it (showAdFn) or not. It is earned at adViewed;
+ * the game is paused and silent from beforeAd to afterAd.
+ */
+export function rewardedOffer(): Promise<Rewarded | null> | null {
+  const sdk = win.__y8Sdk;
+  if (!sdk || typeof sdk.showAd !== 'function') return null;
+  return new Promise((offer) => {
+    let answered = false;
+    let over = false;
+    let earned = false;
+    let held = false;
+    let finish: ((earned: boolean) => void) | null = null;
+    const answer = (r: Rewarded | null) => {
+      if (answered) return;
+      answered = true;
+      window.clearTimeout(late);
+      offer(r);
+    };
+    const hold = () => {
+      if (held) return;
+      held = true;
+      pauseGame?.();
+    };
+    const release = () => {
+      if (!held) return;
+      held = false;
+      resumeGame?.();
+    };
+    const end = () => {
+      if (over) return;
+      over = true;
+      window.clearTimeout(guard);
+      release();
+      answer(null);
+      const f = finish;
+      finish = null;
+      f?.(earned);
+    };
+    // (none offered in time: the player wakes at the checkpoint as usual)
+    const late = window.setTimeout(() => answer(null), 2000);
+    const guard = window.setTimeout(end, 90000);
+    try {
+      const r = sdk.showAd({
+        type: 'reward',
+        name: 'get-up-here',
+        beforeAd: hold,
+        afterAd: release,
+        beforeReward: (showAdFn: () => void) => {
+          if (answered) return;
+          answer({
+            watch: () =>
+              new Promise<boolean>((f) => {
+                finish = f;
+                showAdFn();
+              }),
+            skip: () => {
+              finish = null;
+            },
+          });
+        },
+        adDismissed: () => (earned = false),
+        adViewed: () => (earned = true),
+        adBreakDone: () => window.setTimeout(end, 0),
+      });
+      if (r && typeof r.catch === 'function') r.catch(() => end());
+    } catch {
+      end();
+    }
+  });
+}

@@ -7,7 +7,7 @@ import { Sfx } from './core/audio';
 import { bestTime, D, type DiffId, loadDifficulty, PRESETS, recordTime, setDifficulty } from './core/difficulty';
 import { H, W } from './core/pix';
 import { fmtTime } from './core/util';
-import { adBreak, gameplay, INSTANT, onLifecycle, onSiteMute, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
+import { adBreak, gameplay, INSTANT, onLifecycle, onSiteMute, rewardedOffer, shareRun, storageGet, storageInit, storageSet, submitClearTime, track } from './sdk';
 import { Trailer } from './cinematic/trailer';
 import { makeScore } from './cinematic/scoreHook';
 import { UI } from './ui';
@@ -86,7 +86,7 @@ export class Game {
     this.renderer.shadowMap.autoUpdate = false;
 
     const progress = (at: 'forest' | number) => this.saveRun(at);
-    const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress };
+    const ctx = { audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress, revive: this.revive };
     this.act1 = new Forest(ctx);
     this.tex2d = new THREE.CanvasTexture(this.act1.p.canvas);
     this.tex2d.minFilter = this.tex2d.magFilter = THREE.NearestFilter;
@@ -96,7 +96,7 @@ export class Game {
     this.scene2d.add(quad);
     this.cam2d.position.z = 5;
 
-    this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress });
+    this.act2 = new Act2({ audio: this.audio, ui: this.ui, input: this.input, stats: this.stats, progress, revive: this.revive });
     this.act2.onEnd = () => this.onEnd();
     this.ui.onPause = () => this.pause();
     window.addEventListener('keydown', (e) => {
@@ -354,9 +354,9 @@ export class Game {
     this.applyPause();
   }
 
-  /** stopped if the page is hidden or the player paused (coming back to the page never undoes the player's pause) */
+  /** stopped if the page is hidden, the player paused, or the get-up offer is up (coming back to the page never undoes the player's pause) */
   private applyPause() {
-    const p = this.sysPaused || this.userPaused;
+    const p = this.sysPaused || this.userPaused || this.offerOpen;
     if (p === this.paused) return;
     this.paused = p;
     if (this.audio.ctx) void (p ? this.audio.ctx.suspend() : this.audio.ctx.resume());
@@ -617,8 +617,46 @@ export class Game {
     this.afterBreak(() => this.begin());
   }
 
+  /** the get-up offer is up after a fall (see revive): the game waits for the answer */
+  private offerOpen = false;
+
+  /**
+   * The player has fallen (Ctx.revive): on a site with rewarded ads, offer to get up right where they fell. The game waits, silent,
+   * while the offer is up and while the ad plays (the site pauses it), and the run's clock does not count that time.
+   */
+  private revive = (): Promise<boolean> | null => {
+    const offer = rewardedOffer();
+    if (!offer) return null;
+    const t0 = performance.now();
+    const settle = (earned: boolean) => {
+      this.offerOpen = false;
+      this.applyPause();
+      this.runStart += performance.now() - t0;
+      return earned;
+    };
+    return offer
+      .then((r) => {
+        if (!r) return false;
+        this.offerOpen = true;
+        this.applyPause();
+        return this.ui.reviveOffer().then((yes) => {
+          if (!yes) {
+            r.skip();
+            return false;
+          }
+          track('revive_ad');
+          return r.watch();
+        });
+      })
+      .then(settle, () => settle(false));
+  };
+
   /** Back to the home page (used by the end card). */
   home() {
+    // (a get-up offer still up is a no, and nobody gets up behind the home page)
+    this.act1.cancelRevive();
+    this.act2.cancelRevive();
+    this.ui.hideRevive();
     // (from the end card, or from the pause menu in the middle of anything: a fight, a scene)
     if (this.state === 'boom' || this.state === 'arena' || this.state === 'ending') this.act2.stop();
     this.ui.narrateClear();

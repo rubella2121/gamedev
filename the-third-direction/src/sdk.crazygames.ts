@@ -12,6 +12,8 @@ export const CREDIT = 'a boss rush in three directions';
  */
 export const INSTANT = true;
 
+import type { Rewarded } from './core/rewarded';
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;
 const sdk = (): Any => (window as unknown as { CrazyGames?: { SDK?: Any } }).CrazyGames?.SDK;
@@ -168,4 +170,40 @@ function listenMute() {
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * A rewarded ad that can be offered now (see core/rewarded.ts): CrazyGames has no way to ask beforehand whether one is ready,
+ * so it is offered whenever their SDK is up; if none plays, the player wakes at the checkpoint as usual. The game is paused and
+ * silent while it plays; it is earned when it finishes (adFinished).
+ */
+export function rewardedOffer(): Promise<Rewarded | null> | null {
+  const s = sdk();
+  if (!ready || !s?.ad?.requestAd) return null;
+  const watch = () =>
+    new Promise<boolean>((done) => {
+      let paused = false;
+      let over = false;
+      const end = (earned: boolean) => {
+        if (over) return;
+        over = true;
+        clearTimeout(guard);
+        if (paused) resumeGame?.();
+        done(earned);
+      };
+      const guard = setTimeout(() => end(false), 90000);
+      try {
+        s.ad.requestAd('rewarded', {
+          adStarted: () => {
+            paused = true;
+            pauseGame?.();
+          },
+          adFinished: () => end(true),
+          adError: () => end(false),
+        });
+      } catch {
+        end(false);
+      }
+    });
+  return Promise.resolve({ watch, skip: () => {} });
 }

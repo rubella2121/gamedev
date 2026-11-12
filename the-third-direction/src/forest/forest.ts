@@ -70,6 +70,10 @@ export class Forest implements Hub {
   readonly zones: Zone[];
   private fired = new Set<string>();
   private cp = { x: 598, y: OY + 74 };
+  /** where the player last fell (a rewarded ad can get them up right there: see afterFall) */
+  private fellAt = { x: 0, y: 0 };
+  /** bumped whenever the run starts again, so an answer to an old get-up offer is ignored */
+  private reviveToken = 0;
   private lookHold = 0;
   private cracks: { x: number; y: number }[][] = [];
   private crackLen = 0;
@@ -272,6 +276,7 @@ export class Forest implements Hub {
     const pl = this.player;
     if (pl.dead > 0 || this.mode === 'opening') return;
     pl.dead = 1.0;
+    this.fellAt = { x: pl.x, y: pl.y };
     pl.hearts = 0;
     this.ui.hearts(0, pl.maxHearts);
     this.ctx.stats.deaths++;
@@ -489,6 +494,7 @@ export class Forest implements Hub {
   /* ---------------------------------------------------------------- */
 
   start(skipOpening = false) {
+    this.reviveToken++;
     this.mode = 'opening';
     this.ot = 0;
     this.et = 0;
@@ -956,6 +962,56 @@ export class Forest implements Hub {
     this.camY = OY + LOCAL_CAM;
   }
 
+  /**
+   * The fall is over. On a site with rewarded ads the player may get up right where they fell, with all their hearts (Ctx.revive:
+   * the game waits while they choose); otherwise, or if they say no, they wake at the checkpoint as always. Not in the tutorial.
+   */
+  private afterFall() {
+    const offer = this.tut || this.mode !== 'play' ? null : (this.ctx.revive?.() ?? null);
+    if (!offer) {
+      this.respawn();
+      return;
+    }
+    const pl = this.player;
+    pl.dead = Infinity;
+    const token = this.reviveToken;
+    void offer.then((yes) => {
+      if (token !== this.reviveToken || pl.dead !== Infinity) return;
+      if (yes) this.reviveHere();
+      else this.respawn();
+    });
+  }
+
+  /** the run was left while a get-up offer was up (quit to the home page): its answer is ignored */
+  cancelRevive() {
+    this.reviveToken++;
+  }
+
+  /** up again where they fell (a rewarded ad): all hearts, a moment of grace, and the fight goes on as it was (it does not count as a fall) */
+  private reviveHere() {
+    const pl = this.player;
+    pl.x = this.fellAt.x;
+    pl.y = this.fellAt.y;
+    pl.vx = pl.vy = 0;
+    pl.dead = 0;
+    pl.hide = false;
+    pl.speedMul = 1;
+    pl.maxHearts = this.maxHearts;
+    pl.hearts = pl.maxHearts;
+    pl.invuln = 2.5;
+    pl.calm = 0;
+    this.slams = [];
+    pl.dashT = 0;
+    pl.dashCd = 0;
+    this.dashPool.reset();
+    this.ui.hearts(pl.hearts, pl.maxHearts);
+    this.ui.fade(0, 350);
+    this.ui.flash(0.35, 400);
+    this.audio.chime();
+    burst(this.parts, pl.x, pl.y - 5, 22, [C.blob, C.blobLight, '#fff6c8'], 60, 1);
+    this.snapCamera();
+  }
+
   private respawn() {
     const pl = this.player;
     // a fall inside a guardian fight: Nightmare counts toward starting over, the others toward the moth's help
@@ -1214,7 +1270,7 @@ export class Forest implements Hub {
     const pl = this.player;
     if (pl.dead > 0) {
       pl.dead -= dt;
-      if (pl.dead <= 0) this.respawn();
+      if (pl.dead <= 0) this.afterFall();
       this.updateSlams(dt);
       return;
     }
