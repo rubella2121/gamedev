@@ -152,6 +152,7 @@ SDK and the ad revenue matter. This build already has the SDK in, so nothing nee
 ```bash
 GD_GAME_ID=<the game id from their control panel> npm run build:gamedistribution
 ```
+The Third Direction's Game ID there is `c1d77f81534f43ea96746726c7218a59` (account TheThird; it is public, it ships in the page).
 This makes `dist-gamedistribution/` and `the-third-direction-gamedistribution.zip`. `vite.gamedistribution.config.ts` swaps in
 `src/sdk.gamedistribution.ts` and puts their HTML5 SDK in the page (`html5.api.gamedistribution.com/main.min.js`, with
 `window.GD_OPTIONS`: the id, and an `onEvent` that hands every event to the game). The build refuses to run without a 32-character id.
