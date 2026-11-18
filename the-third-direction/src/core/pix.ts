@@ -1,8 +1,30 @@
 import { clamp } from './util';
 
-/** Logical (pixel-art) resolution. Portrait 9:16, scaled up with nearest-neighbour filtering. */
-export const W = 216;
-export const H = 384;
+/**
+ * Logical (pixel-art) resolution, scaled up with nearest-neighbour filtering. The game is designed in portrait 9:16 (216 x 384,
+ * `DW` x `DH`), and never shows less than that: on a wider screen the view widens (up to 16:9, the height kept), on a taller one
+ * it grows taller (the width kept), so the picture fills the screen instead of sitting in a strip. `setView` is called once, at
+ * start, before anything is built (main.ts); everything reads W and H live.
+ */
+export const DW = 216;
+export const DH = 384;
+export let W = DW;
+export let H = DH;
+
+/** the view for a screen of this shape (width / height): see above */
+export function viewFor(aspect: number): [number, number] {
+  const even = (v: number) => Math.round(v / 2) * 2;
+  if (aspect >= DW / DH) return [even(clamp(DH * Math.min(aspect, 16 / 9), DW, 684)), DH];
+  return [DW, even(clamp(DW / Math.max(aspect, 9 / 21), DH, 504))];
+}
+
+export function setView(w: number, h: number) {
+  W = w;
+  H = h;
+}
+
+/** how far the old portrait frame's left edge is from the view's (where a picture composed for 216 wide is centred) */
+export const SX = () => (W - DW) / 2;
 
 const BAYER4 = [
   [0, 8, 2, 10],

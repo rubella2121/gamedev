@@ -30,6 +30,10 @@ export class Input {
   private aimDY = 0;
   private aimNow = false;
   usingTouch = false;
+  /** on a touch screen (touched, or a coarse pointer): the words for touch, not for keys */
+  get touchy(): boolean {
+    return this.usingTouch || window.matchMedia('(pointer: coarse)').matches;
+  }
   moveEnabled = true;
   /** 3D camera: drag on the right side (any drag with a mouse), or Q / E. */
   cameraEnabled = false;

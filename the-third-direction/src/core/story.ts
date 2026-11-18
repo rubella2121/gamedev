@@ -63,6 +63,9 @@ export const STORY = {
    */
   hero: { name: 'The Blob', sub: 'the last small light' },
 
+  /** the one line a new player gets before the fight that teaches the controls (instant play) */
+  hook: 'Something huge took your family. Get them back.',
+
   /** What the game is about, in plain words: the first-time card, and the top of How to play. */
   brief: ['Something huge took your family.', 'Five guardians hold the paths of this forest. Beat them all.', 'Then the road opens. Follow the arrow.'] as readonly string[],
 

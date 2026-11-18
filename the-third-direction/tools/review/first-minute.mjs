@@ -126,7 +126,14 @@ const state = () =>
       mode: a.mode,
       gstate: window.__tt.state,
       pl: { x: pl.x, y: pl.y, hearts: pl.hearts, light: pl.light, dashCd: pl.dashCd },
-      tut: t ? { i: t.i, id: t.step.id, count: t.count, need: t.step.need, done: t.doneT, motes: t.motes, lamps: t.lamps, shades: t.shades } : null,
+      tut: t ? { i: t.i, id: t.step.id, count: t.count, need: t.step.need, done: t.doneT, shades: t.shades, pack: t.pack, brute: t.brute && { x: t.brute.x, y: t.brute.y, st: t.brute.st } } : null,
+      fps: window.__tt.fps,
+      // (which guardian zone the blob is in, if any: src/forest/land.ts ZONES)
+      inZone: (() => {
+        const Z = { gloom: [250, 1230, 205, 190], thicket: [250, 860, 205, 180], marsh: [1030, 860, 205, 180], bones: [1050, 1230, 195, 190], meadow: [1030, 1640, 195, 170] };
+        for (const [id, [x, y, rx, ry]] of Object.entries(Z)) if (Math.hypot((pl.x - x) / rx, (pl.y - y) / ry) < 1) return id;
+        return null;
+      })(),
       tutText: ui ? ui.textContent.trim().slice(0, 200) : null,
       arena: !!a.arena,
       zone: (a.zones.find((z) => z.guardian && z.guardian.state !== 'gone' && z.guardian.state !== 'idle') || {}).id || null,
@@ -134,8 +141,10 @@ const state = () =>
       goal: (() => {
         const E = { gloom: [462, 1250], thicket: [408, 962], marsh: [872, 962], bones: [848, 1250], meadow: [850, 1672] };
         let best = null;
+        // (as the game's arrow: with nothing beaten yet it points to the Gloom first)
+        const first = a.zones.every((z) => !z.cleared);
         for (const z of a.zones) {
-          if (z.cleared || !E[z.id]) continue;
+          if (z.cleared || !E[z.id] || (first && z.id !== 'gloom')) continue;
           const [x, y] = E[z.id];
           const d = Math.hypot(pl.x - x, pl.y - y);
           if (!best || d < best.d) best = { x, y, d, id: z.id };
@@ -155,7 +164,10 @@ let stuckT = 0;
 let sidestep = 0;
 let sideUntil = 0;
 let tutorialOver = false;
+const fpsLog = [];
+let route = null;
 let fightSeen = false;
+let zoneSeen = false;
 while (now() < SECONDS) {
   const s = await state();
   const t = now();
@@ -165,15 +177,20 @@ while (now() < SECONDS) {
     lastShot = sec;
     await page.screenshot({ path: path.join(out, 'shots', `s${String(sec).padStart(3, '0')}.png`) });
   }
+  if (s.fps) fpsLog.push(s.fps);
   const key = s.tut ? `${s.tut.id}${s.tut.done >= 0 ? ':done' : ''}` : s.mode;
   if (key !== lastStep) {
     note(`state ${key}${s.tut ? ` (${s.tut.count}/${s.tut.need})` : ''}`);
     lastStep = key;
     stepSeen = t;
   }
-  if (s.tut === null && lastStep !== 'play' && !tutorialOver && log.some((l) => String(l[1]).startsWith('state move'))) {
+  if (s.tut === null && !tutorialOver && log.some((l) => String(l[1]).startsWith('state move'))) {
     tutorialOver = true;
     note('tutorial over');
+  }
+  if (s.inZone && !zoneSeen) {
+    zoneSeen = true;
+    note(`entered a guardian zone: ${s.inZone}`);
   }
   if (s.arena && !fightSeen) {
     fightSeen = true;
@@ -195,64 +212,88 @@ while (now() < SECONDS) {
       // the captions before the tutorial: a new player looks, and moves a little
       if (t % 4 > 2.6) keys = toward(Math.sin(t), 0.4);
     } else if (s.goal) {
-      // after the tutorial: follow the arrow
-      keys = toward(s.goal.x - s.pl.x, s.goal.y - s.pl.y);
+      // after the tutorial: follow the arrow, along the paths (a route over the walkable ground, found once), then on into the
+      // zone's middle
+      if (!route || route.goal !== s.goal.id) {
+        route = await page.evaluate(([gx, gy, id]) => {
+          const a = window.__tt.act1;
+          const land = a.land;
+          const C = 6;
+          const sx = Math.round(a.player.x / C), sy = Math.round(a.player.y / C);
+          const tx = Math.round(gx / C), ty = Math.round(gy / C);
+          const key = (x, y) => y * 4000 + x;
+          const prev = new Map([[key(sx, sy), -1]]);
+          const q = [[sx, sy]];
+          let found = false;
+          for (let h = 0; h < q.length && q.length < 400000; h++) {
+            const [x, y] = q[h];
+            if (Math.abs(x - tx) + Math.abs(y - ty) <= 2) { found = [x, y]; break; }
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+              const nx = x + dx, ny = y + dy;
+              const k = key(nx, ny);
+              if (prev.has(k) || !land.isWalk(nx * C, ny * C) || !land.isWalk(nx * C + 4, ny * C) || !land.isWalk(nx * C - 4, ny * C)) continue;
+              prev.set(k, key(x, y));
+              q.push([nx, ny]);
+            }
+          }
+          if (!found) return { goal: id, pts: [], len: 0 };
+          const pts = [];
+          let k = key(found[0], found[1]);
+          while (k !== -1) { pts.push([(k % 4000) * C, Math.floor(k / 4000) * C]); k = prev.get(k); }
+          pts.reverse();
+          let len = 0;
+          for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+          return { goal: id, pts: pts.filter((_, i) => i % 3 === 0 || i === pts.length - 1), len: Math.round(len) };
+        }, [s.goal.x, s.goal.y, s.goal.id]);
+        note(`route to ${route.goal}: ${route.len} px of path (${(route.len / 66).toFixed(1)} s of walking)`);
+      }
+      while (route.pts.length && Math.hypot(route.pts[0][0] - s.pl.x, route.pts[0][1] - s.pl.y) < 10) route.pts.shift();
+      const wp = route.pts[0] ?? [s.goal.x - 60, s.goal.y];
+      keys = toward(wp[0] - s.pl.x, wp[1] - s.pl.y);
     }
   } else if (tu.done >= 0 || reading) {
     keys = new Set();
   } else if (tu.id === 'move') {
-    const m = tu.motes.filter((q) => !q.got).sort((a, b) => Math.hypot(a.x - s.pl.x, a.y - s.pl.y) - Math.hypot(b.x - s.pl.x, b.y - s.pl.y))[0];
-    if (m) keys = toward(m.x - s.pl.x, m.y + 4 - s.pl.y);
-  } else if (tu.id === 'pulse') {
-    const l = tu.lamps.filter((q) => q.lit === 0).sort((a, b) => Math.hypot(a.x - s.pl.x, a.y - s.pl.y) - Math.hypot(b.x - s.pl.x, b.y - s.pl.y))[0];
-    if (l) {
-      const d = Math.hypot(l.x - s.pl.x, l.y - 6 - s.pl.y);
-      if (d > 22) keys = toward(l.x - s.pl.x, l.y - 6 - s.pl.y);
-      else {
-        await press(new Set());
-        await tap();
-        busyUntil = now() + 0.6;
-        continue;
-      }
-    }
+    keys = toward(0.3, -1);
   } else if (tu.id === 'lance') {
-    const sh = tu.shades.filter((q) => q.hit === 0)[0];
-    if (sh) {
-      const d = Math.hypot(sh.x - s.pl.x, sh.y - 5 - s.pl.y);
-      if (d > 48) keys = toward(sh.x - s.pl.x, sh.y - 5 - s.pl.y);
+    // hold and let go (the Lance finds the nearest shade), stepping back from the closest between throws
+    const live = (tu.shades || []).filter((q) => q.hit === 0 && q.age > 0.4);
+    if (live.length) {
+      const n = live.sort((a, b) => Math.hypot(a.x - s.pl.x, a.y - s.pl.y) - Math.hypot(b.x - s.pl.x, b.y - s.pl.y))[0];
+      if (Math.hypot(n.x - s.pl.x, n.y - s.pl.y) < 26) keys = toward(s.pl.x - n.x, s.pl.y - n.y);
       else {
-        // face it (a step toward it), then hold and let go
-        await press(toward(sh.x - s.pl.x, sh.y - 5 - s.pl.y));
-        await page.waitForTimeout(90);
         await press(new Set());
         await holdSpace(650);
-        busyUntil = now() + 0.9;
+        busyUntil = now() + 0.35;
         continue;
       }
     }
   } else if (tu.id === 'dash') {
-    if (s.pl.dashCd <= 0) {
-      await press(toward(1, -0.2));
+    // when it turns red: dash across its line
+    if (tu.brute && (tu.brute.st === 'tele' || tu.brute.st === 'rush') && s.pl.dashCd <= 0) {
+      const dx = tu.brute.x - s.pl.x;
+      const dy = tu.brute.y - s.pl.y;
+      await press(toward(-dy, dx));
       await tap(60);
       await page.waitForTimeout(90);
       await tap(60);
       await page.waitForTimeout(250);
       await press(new Set());
-      busyUntil = now() + 1.0;
+      busyUntil = now() + 0.4;
       continue;
     }
   } else if (tu.id === 'nova') {
+    // hold until the button glows pink (the forest's charge stage 2), as someone watching it would, then let go
     await press(new Set());
-    await holdSpace(1600);
+    await page.keyboard.down('Space');
+    const t1 = now();
+    while (now() - t1 < 4 && !(await page.evaluate(() => window.__tt.act1.chargeStage === 2))) await page.waitForTimeout(50);
+    await page.waitForTimeout(80);
+    await page.keyboard.up('Space');
     busyUntil = now() + 1.0;
     continue;
   } else if (tu.id === 'hearts' || tu.id === 'way') {
-    // a card to read, then Next
-    if (t - stepSeen > 3.0) {
-      await tap();
-      busyUntil = now() + 0.5;
-      continue;
-    }
+    // (the last card goes by itself)
   }
   if (stuckT > 0.5 && keys.size) {
     sidestep = sidestep ? -sidestep : 1;
@@ -266,6 +307,8 @@ while (now() < SECONDS) {
 await press(new Set());
 const fin = await state();
 note(`end: ${fin.mode}${fin.tut ? ' tutorial ' + fin.tut.id : ''}, hearts ${fin.pl.hearts}`);
+const fs2 = fpsLog.slice(10).sort((a, b) => a - b);
+if (fs2.length) note(`fps (headless, software GL): median ${fs2[fs2.length >> 1]}, low ${fs2[Math.floor(fs2.length * 0.1)]}`);
 fs.writeFileSync(path.join(out, 'log.json'), JSON.stringify({ mode, view: VIEW, log, sdk: fin.cg, errors }, null, 1));
 await cdp.send('Page.stopScreencast').catch(() => {});
 await ctx.close();

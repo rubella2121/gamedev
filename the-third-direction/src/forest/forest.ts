@@ -2,7 +2,7 @@ import { DashPool } from '../core/dash';
 import { storageGet, storageSet } from '../sdk';
 import { SKIN } from '../core/skins';
 import { D } from '../core/difficulty';
-import { Pix, W, H } from '../core/pix';
+import { DW, Pix, SX, W, H } from '../core/pix';
 import { C } from '../core/palette';
 import { clamp, easeOutCubic, hash2, lerp, rng, smooth, TAU, unlerp } from '../core/util';
 import { playTimed, say, STORY } from '../core/story';
@@ -25,6 +25,8 @@ const SPEED = 66;
 const GLITCH = 2.3;
 /** The opening is drawn in "local" coordinates where the family clearing is at (108, 0). */
 const OX = START.x - 108;
+/** clamp to [lo, hi], or the middle of the two when the range is empty (a clearing narrower than a wide view: centred on it) */
+const within = (v: number, lo: number, hi: number) => (lo <= hi ? clamp(v, lo, hi) : (lo + hi) / 2);
 const OY = START.y;
 const LOCAL_CAM = -190;
 const PULSE_R = 36;
@@ -446,7 +448,7 @@ export class Forest implements Hub {
       this.input.setMoveEnabled(true);
       if (!this.powersHinted) {
         this.powersHinted = true;
-        window.setTimeout(() => this.ui.hint('drag the button to aim a lance   double-tap: dash'), 5200);
+        window.setTimeout(() => this.ui.hint(this.input.touchy ? 'drag the button to aim a lance   double-tap: dash' : 'hold space and let go: a lance   double-tap space: dash'), 5200);
         window.setTimeout(() => this.ui.hint(null), 11000);
       }
       tr.zone.onArrive?.();
@@ -545,7 +547,8 @@ export class Forest implements Hub {
     this.player.maxHearts = this.maxHearts;
     this.player.hearts = this.player.maxHearts;
     this.cp = { x: 66 + OX, y: 74 + OY };
-    this.camX = OX;
+    // (the opening is composed for a portrait frame: on a wider view it is centred, see SX)
+    this.camX = OX - SX();
     this.camY = OY + LOCAL_CAM;
     this.lookHold = 0;
     this.smudge = 0;
@@ -594,12 +597,13 @@ export class Forest implements Hub {
     const teach = (real && !storageGet(TUT_KEY) && !q.has('debug')) || (this.briefNext && q.has('tutorial'));
     this.briefNext = false;
     if (this.instant) {
-      // no card to tap away: the blob can move at once, the story comes in captions, and the tutorial follows them
+      // no card to tap away: the blob can move at once, the story is one line, and the fight that teaches the controls starts
+      // as it fades (the rest of the story comes with the tutorial's last card)
       storageSet(BRIEF_KEY, '1');
       this.input.setMoveEnabled(true);
-      this.ui.card({ small: STORY.hero.sub, big: STORY.hero.name }, 2600);
-      STORY.brief.forEach((line, i) => window.setTimeout(() => this.mode === 'play' && this.instant && this.ui.narrate(line, 2300, 'world'), 2400 + i * 2500));
-      if (teach) this.tutIn = 2.4 + STORY.brief.length * 2.5 + 0.3;
+      this.ui.card({ small: STORY.hero.sub, big: STORY.hero.name }, 2400);
+      window.setTimeout(() => this.mode === 'play' && this.instant && this.ui.narrate(STORY.hook, 2300, 'world'), 250);
+      if (teach) this.tutIn = 2.6;
       else this.startMoveHint();
       return;
     }
@@ -844,7 +848,7 @@ export class Forest implements Hub {
     this.player.x = PLATEAU.x;
     this.player.y = CLIFF_Y + 28;
     this.player.lookY = 1;
-    this.camX = PLATEAU.x - 108;
+    this.camX = PLATEAU.x - W / 2;
     this.camY = CLIFF_Y + 28 - 0.62 * H - 120;
     this.slams = [];
     this.ui.hint(null);
@@ -959,7 +963,7 @@ export class Forest implements Hub {
     });
     if (t >= OP.slam) this.smudge += dt;
     if (t >= OP.end) this.beginPlay();
-    this.camX = OX;
+    this.camX = OX - SX();
     this.camY = OY + LOCAL_CAM;
   }
 
@@ -1131,13 +1135,15 @@ export class Forest implements Hub {
     let ax = aimed ? this.input.aimX : this.aim.x;
     let ay = aimed ? this.input.aimY : this.aim.y;
     if (aimed) this.aim = { x: ax, y: ay };
-    // aim assist: if the guardian is within about 40 degrees of where you face (10 when you aimed), the lance goes for it
+    // aim assist: if the guardian is within about 40 degrees of where you face (10 when you aimed), the lance goes for it; in the
+    // tutorial (someone's first throw) it always goes for the nearest shade, unless they dragged it somewhere on purpose
     const tg = this.fightZone?.lanceTarget?.() ?? this.tut?.lanceTarget() ?? null;
     if (tg) {
       const dx = tg.x - pl.x;
       const dy = tg.y - (pl.y - 8);
       const d = Math.hypot(dx, dy) || 1;
-      if ((dx / d) * ax + (dy / d) * ay > (aimed ? 0.985 : 0.76)) {
+      const reach = aimed ? 0.985 : this.tut && !this.fightZone ? -1.01 : 0.76;
+      if ((dx / d) * ax + (dy / d) * ay > reach) {
         ax = dx / d;
         ay = dy / d;
       }
@@ -1371,8 +1377,8 @@ export class Forest implements Hub {
       // in an arena the camera holds the whole clearing, leaning toward the player and the guardian
       const a = this.arena;
       const f = this.camFocus ?? { x: a.x, y: a.boss.y };
-      tx = clamp((pl.x * 0.4 + f.x * 0.6) - W / 2, a.x - a.rx - 6, a.x + a.rx + 6 - W);
-      ty = clamp((pl.y * 0.55 + f.y * 0.45) - 0.55 * H, a.y - a.ry + 38, a.y + a.ry + 10 - H);
+      tx = within((pl.x * 0.4 + f.x * 0.6) - W / 2, a.x - a.rx - 6, a.x + a.rx + 6 - W);
+      ty = within((pl.y * 0.55 + f.y * 0.45) - 0.55 * H, a.y - a.ry + 38, a.y + a.ry + 10 - H);
     }
     if (this.cineFocus) {
       tx = clamp(this.cineFocus.x - W / 2, 0, WORLD_W - W);
@@ -1725,7 +1731,8 @@ export class Forest implements Hub {
   /** the Edge fight's ground: the strip of plateau on screen, below the cliff */
   private xBounds() {
     const c = this.edgeCam();
-    return { x0: c.x + 12, x1: c.x + W - 12, y0: CLIFF_Y + 20, y1: c.y + H - 22 };
+    // (the fight is tuned for the portrait frame: on a wide view it keeps to the frame's middle band)
+    return { x0: c.x + SX() + 12, x1: c.x + SX() + DW - 12, y0: CLIFF_Y + 20, y1: c.y + H - 22 };
   }
 
   /** a hit at the Edge: a heart, never the last one (this is not a fight you can lose; it is one you cannot win) */
@@ -1955,7 +1962,7 @@ export class Forest implements Hub {
     const c = this.edgeCam();
     // beside you, on the side with more room
     const side = pl.x < PLATEAU.x ? 1 : -1;
-    const x = clamp(pl.x + side * 44, c.x + 34, c.x + W - 34);
+    const x = clamp(pl.x + side * 44, c.x + SX() + 34, c.x + SX() + DW - 34);
     f.rift = { x, top: this.eyePos(1).y + 24, bot: pl.y + 6, open: 0, grow: 0 };
     this.ui.hint(null);
     this.input.setAction(null);
@@ -2199,7 +2206,7 @@ export class Forest implements Hub {
     const r = rng(4242);
     this.cracks = [];
     this.crackLen = 0;
-    const ox = 108;
+    const ox = 108 + SX();
     const oy = 214;
     for (let i = 0; i < 11; i++) {
       let a = (i / 11) * TAU + (r() - 0.5) * 0.4;
@@ -2414,15 +2421,16 @@ export class Forest implements Hub {
     this.drawPatches();
     land.drawDecals(p, camX, camY);
     land.drawFlowers(p, camX, camY, t, opening ? closed : 0, opening ? glow : 1);
-    if (opening) drawMoon(p, 176, 36, 13);
+    const sx = SX();
+    if (opening) drawMoon(p, 176 + sx, 36, 13);
 
     if (opening && ot >= OP.shadow && ot < OP.slam) {
       const cy = lerp(-120, 2, smooth(shadowU)) - LOCAL_CAM;
-      this.drawShadow(108, cy, 64, shadowU * 0.98 + 0.02);
+      this.drawShadow(108 + sx, cy, 64, shadowU * 0.98 + 0.02);
     }
     if (opening && ot >= OP.slam && ot < OP.slam + 0.4) {
       const u = (ot - OP.slam) / 0.4;
-      p.ellipse(108, -LOCAL_CAM, 64, 46, u < 0.3 ? C.white : C.ink);
+      p.ellipse(108 + sx, -LOCAL_CAM, 64, 46, u < 0.3 ? C.white : C.ink);
     }
     for (const z of this.zones) z.ground?.();
     this.drawSlams();
@@ -2574,8 +2582,11 @@ export class Forest implements Hub {
     let ty = 560;
     let col: string = C.red;
     let best = 1e9;
+    // (nothing beaten yet: the first is the Gloom, where things attack at once, not the nearest, the Meadow and its puzzle)
+    const first = this.zones.every((q) => !q.cleared);
     for (const z of ZONES) {
       if (this.zones.find((q) => q.id === z.id)!.cleared) continue;
+      if (first && z.id !== 'gloom') continue;
       const d = Math.hypot(pl.x - z.entry.x, pl.y - z.entry.y);
       if (d < best) {
         best = d;
@@ -2679,10 +2690,12 @@ export class Forest implements Hub {
     this.p.blit(this.dark[i]!, 0, 0);
   }
 
+  /** the blob's own light: the ground lit round it, and a faint glow round its body, so it is the brightest thing about */
   private drawGlowUnder(x: number, sy: number) {
     const p = this.p;
-    p.dither(x, sy - 1, 18, 8, C.moss, 0.22);
-    p.dither(x, sy - 1, 11, 5, C.mossLight, 0.22);
+    p.dither(x, sy - 1, 26, 11, C.moss, 0.26);
+    p.dither(x, sy - 1, 16, 7, C.mossLight, 0.28);
+    p.dither(x, sy - 7, 15, 12, C.blobLight, 0.1);
   }
 
   private pushOpeningActors(list: Drawable[]) {
@@ -2695,6 +2708,8 @@ export class Forest implements Hub {
     const lookUp = ot > 2.2 && ot < OP.cap1 + 0.2;
     const alarm = ot > OP.shadow + 0.5 && !slammed;
     const br = (k: number) => 1 + 0.04 * Math.sin(t * 2 + k);
+    // (local x is the portrait frame's; on a wide view the frame is centred, sx over)
+    const sx = SX();
     let kx = 108;
     let ky = 20;
     if (ot >= OP.shove) {
@@ -2711,23 +2726,23 @@ export class Forest implements Hub {
     const squash = slammed && ot < OP.slam + 0.6 ? 0.7 + 0.3 * smooth((ot - OP.slam) / 0.6) : br(0);
     list.push({
       y: ky + OY,
-      fn: () => drawBlob(p, kx, ky - cam, { squash, lookX: alarm ? -0.4 : 0, lookY: lookUp || alarm ? -1 : 0.3, blink: hash2(Math.floor(t * 4), 9) > 0.94 ? 1 : 0, skin: SKIN.id, t }),
+      fn: () => drawBlob(p, kx + sx, ky - cam, { squash, lookX: alarm ? -0.4 : 0, lookY: lookUp || alarm ? -1 : 0.3, blink: hash2(Math.floor(t * 4), 9) > 0.94 ? 1 : 0, skin: SKIN.id, t }),
     });
     if (!slammed) {
       const nudge = ot > OP.nudge && ot < OP.nudge + 0.7 ? Math.sin(((ot - OP.nudge) / 0.7) * Math.PI) * 5 : 0;
-      list.push({ y: 4 + OY, fn: () => drawBlob(p, 90 + nudge, 4 - cam, { s: 1.5, squash: br(1), lookY: alarm ? -1 : 0.4, lookX: 0.3, bow: true }) });
+      list.push({ y: 4 + OY, fn: () => drawBlob(p, 90 + nudge + sx, 4 - cam, { s: 1.5, squash: br(1), lookY: alarm ? -1 : 0.4, lookX: 0.3, bow: true }) });
       const lean = ot > OP.shove && ot < OP.shove + 0.8 ? -Math.sin(((ot - OP.shove) / 0.8) * Math.PI) * 4 : 0;
-      list.push({ y: 6 + OY, fn: () => drawBlob(p, 127 + lean, 6 - cam, { s: 1.62, squash: br(2), lookY: alarm ? -1 : 0.4, lookX: -0.3 }) });
+      list.push({ y: 6 + OY, fn: () => drawBlob(p, 127 + lean + sx, 6 - cam, { s: 1.62, squash: br(2), lookY: alarm ? -1 : 0.4, lookX: -0.3 }) });
     } else {
       const a = clamp(1 - this.smudge / 3.6, 0, 1);
       if (a > 0) {
         p.alpha(a);
-        p.ellipse(90, 4 - cam, 11, 2.2, C.blob);
+        p.ellipse(90 + sx, 4 - cam, 11, 2.2, C.blob);
         // her bow, pressed flat with her
-        p.ellipse(93.5, 3 - cam, 2.4, 1, BOW.pink);
-        p.ellipse(98.5, 3 - cam, 2.4, 1, BOW.pink);
-        p.px(96, 3 - cam, BOW.knot);
-        p.ellipse(127, 6 - cam, 12, 2.4, C.blobShade);
+        p.ellipse(93.5 + sx, 3 - cam, 2.4, 1, BOW.pink);
+        p.ellipse(98.5 + sx, 3 - cam, 2.4, 1, BOW.pink);
+        p.px(96 + sx, 3 - cam, BOW.knot);
+        p.ellipse(127 + sx, 6 - cam, 12, 2.4, C.blobShade);
         p.alpha(1);
       }
     }
@@ -2738,23 +2753,24 @@ export class Forest implements Hub {
     const cam = LOCAL_CAM;
     const ot = this.ot;
     const t = this.time;
+    const sx = SX();
     if (ot >= OP.lurk) {
       const a = clamp((ot - OP.lurk) / 1.2, 0, 1);
       p.alpha(a);
-      drawLurker(p, 'maw', 30, -24 - cam, t);
-      drawLurker(p, 'bell', 188, 6 - cam, t);
-      drawLurker(p, 'bones', 24, 92 - cam, t);
-      drawLurker(p, 'gloom', 186, 120 - cam, t);
+      drawLurker(p, 'maw', 30 + sx * 0.5, -24 - cam, t);
+      drawLurker(p, 'bell', 188 + sx * 1.5, 6 - cam, t);
+      drawLurker(p, 'bones', 24 + sx * 0.5, 92 - cam, t);
+      drawLurker(p, 'gloom', 186 + sx * 1.5, 120 - cam, t);
       p.alpha(1);
     }
     if (ot >= OP.eyes) {
       const o = clamp((ot - OP.eyes) / 1.4, 0, 1);
       const blink = hash2(Math.floor(t * 3), 4) > 0.92 ? 0.2 : 1;
-      drawRedEyes(p, 16, 40 - cam, o * blink, 0.6);
-      drawRedEyes(p, 200, 76 - cam, o * blink, -0.6);
-      drawRedEyes(p, 196, -52 - cam, o * (1 - 0.8 * (blink < 1 ? 1 : 0)), -0.6);
-      drawRedEyes(p, 14, -70 - cam, o * blink, 0.6);
-      drawGlint(p, 60, -120 - cam, C.cyanEye);
+      drawRedEyes(p, 16 + sx * 0.4, 40 - cam, o * blink, 0.6);
+      drawRedEyes(p, 200 + sx * 1.6, 76 - cam, o * blink, -0.6);
+      drawRedEyes(p, 196 + sx * 1.6, -52 - cam, o * (1 - 0.8 * (blink < 1 ? 1 : 0)), -0.6);
+      drawRedEyes(p, 14 + sx * 0.4, -70 - cam, o * blink, 0.6);
+      drawGlint(p, 60 + sx * 0.7, -120 - cam, C.cyanEye);
     }
   }
 
@@ -2763,7 +2779,7 @@ export class Forest implements Hub {
     if (this.et < 3.4 && this.mode === 'edge') return;
     const u = this.mode === 'edge' ? this.clawU() : 1;
     const tip = lerp(-30, 250, easeOutCubic(u));
-    const xs = [54, 108, 162];
+    const xs = [54, 108, 162].map((x) => x + SX());
     xs.forEach((cx, i) => {
       const w = i === 1 ? 17 : 14;
       const t0 = tip - i * 8;

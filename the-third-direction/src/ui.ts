@@ -6,7 +6,7 @@ import { INTRO, Landing } from './landing';
 import { Crest } from './crest';
 import { drawBlob } from './core/art';
 import type { SkinId } from './core/blobskins';
-import { Pix } from './core/pix';
+import { DH, DW, H, Pix, W } from './core/pix';
 import { adsWatched, adWatched, byAds, markWardrobeSeen, owns, SKIN, SKINS, wardrobeSeen, wear } from './core/skins';
 import { CREDIT } from './sdk';
 
@@ -196,6 +196,10 @@ export class UI {
   constructor(parent: HTMLElement) {
     this.stage = document.createElement('div');
     this.stage.className = 'stage';
+    // the stage has the view's shape (core/pix.ts): portrait, wide or tall
+    this.stage.style.setProperty('--vw', String(W));
+    this.stage.style.setProperty('--vh', String(H));
+    this.stage.classList.toggle('wide', W > DW);
     this.view = document.createElement('canvas');
     this.view.className = 'view';
     this.stage.appendChild(this.view);
@@ -263,11 +267,20 @@ export class UI {
     this.endEl = mk('endcard hide');
 
     const fit = () => {
-      this.stage.style.setProperty('--u', `${this.stage.clientWidth / 100}px`);
+      // the unit of every size in the interface: a hundredth of the portrait frame's width (on a wide view, the column the
+      // menus stand in), so nothing grows just because the screen is wide
+      const pw = this.colW();
+      this.stage.style.setProperty('--u', `${pw / 100}px`);
+      this.stage.style.setProperty('--pw', `${pw}px`);
       this.onFit?.();
     };
     fit();
     new ResizeObserver(fit).observe(this.stage);
+  }
+
+  /** the width of the portrait frame on the stage (the whole stage, unless the view is wider than portrait) */
+  colW(): number {
+    return Math.min(this.stage.clientWidth, (this.stage.clientHeight * DW) / DH);
   }
 
   fade(opacity: number, ms = 400) {
@@ -969,12 +982,12 @@ export class UI {
   /** The animation of the home page: the logo's depth sways, the fireflies drift, eyes open in the dark. */
   private runFx(el: HTMLElement, logo: Crest, amb: Ambient, width: number) {
     this.stopFx();
-    const size = () => logo.resize(this.stage.clientWidth * width);
+    const size = () => logo.resize(this.colW() * width);
     this.onFit = size;
     size();
     // (a property, so showing the page again replaces the old handler instead of stacking another)
     el.onpointermove = (e) => {
-      const r = this.stage.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
       logo.tilt = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) * 2));
     };
     const t0 = performance.now();
@@ -1003,13 +1016,13 @@ export class UI {
     this.stopFx();
     const top = el.querySelector<HTMLElement>('.ltop');
     const size = () => {
-      logo.resize(this.stage.clientWidth * 0.8);
-      land.resize(this.stage.clientWidth, window.devicePixelRatio || 1);
+      logo.resize(this.colW() * 0.8);
+      land.resize(this.colW(), window.devicePixelRatio || 1);
     };
     this.onFit = size;
     size();
     el.onpointermove = (e) => {
-      const r = this.stage.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
       land.point((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, e.pointerType === 'mouse');
     };
     el.onpointerleave = () => land.unpoint();

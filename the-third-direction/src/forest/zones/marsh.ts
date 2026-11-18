@@ -1,3 +1,4 @@
+import { H, W } from '../../core/pix';
 import { burst } from '../../core/art';
 import { drawBellwether, drawReeds } from '../../core/art2';
 import { C } from '../../core/palette';
@@ -303,7 +304,7 @@ export class MarshZone implements Zone {
     for (const b of this.bells) {
       const sx = b.x - hub.camX;
       const sy = b.y - hub.camY;
-      if (sy < -90 || sy > 384 + 90 || sx < -100 || sx > 216 + 100 || b.stun > 0) continue;
+      if (sy < -90 || sy > H + 90 || sx < -100 || sx > W + 100 || b.stun > 0) continue;
       const hot = b.alert > 0;
       p.cone(sx, sy - 14, b.ang, HALF * D.vision, RANGE * D.vision, hot ? C.red : '#cfc6ff', hot ? 0.22 : 0.12);
     }

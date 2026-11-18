@@ -1,3 +1,4 @@
+import { H, W } from '../../core/pix';
 import { burst } from '../../core/art';
 import { drawReeds } from '../../core/art2';
 import { D } from '../../core/difficulty';
@@ -565,7 +566,7 @@ export class TollQueen extends Guardian {
     if (this.mode === 'watch' && this.open > 0.5) {
       const p = hub.p;
       p.alpha(0.18 * this.open);
-      p.dither(108, 192, 130, 200, '#05060c', 0.3);
+      p.dither(W / 2, H / 2, 130 + (W - 216) / 2, 200, '#05060c', 0.3);
       p.alpha(1);
     }
   }
