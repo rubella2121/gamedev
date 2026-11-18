@@ -1,3 +1,4 @@
+import { H, W } from '../../core/pix';
 import { clamp, dist } from '../../core/util';
 import type { Hub, Rect } from '../types';
 
@@ -89,5 +90,5 @@ export class Gate {
 export const onScreen = (hub: Hub, x: number, y: number, m = 40) => {
   const sx = x - hub.camX;
   const sy = y - hub.camY;
-  return sx > -m && sx < 216 + m && sy > -m && sy < 384 + m + 30;
+  return sx > -m && sx < W + m && sy > -m && sy < H + m + 30;
 };

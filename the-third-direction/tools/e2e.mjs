@@ -29,7 +29,9 @@ const browser = await chromium.launch({
   headless: true,
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--no-sandbox'],
 });
-const ctx = await browser.newContext({ viewport: { width: 405, height: 720 }, deviceScaleFactor: 1 });
+// (VP=1280x720 runs it on a wide screen: the game's view widens to fill it, see src/core/pix.ts)
+const [vpw, vph] = (process.env.VP || '405x720').split('x').map(Number);
+const ctx = await browser.newContext({ viewport: { width: vpw, height: vph }, deviceScaleFactor: 1 });
 const page = await ctx.newPage();
 const errors = [];
 page.on('console', (m) => { if (['error', 'warning'].includes(m.type())) errors.push(`[${m.type()}] ${m.text()}`); });

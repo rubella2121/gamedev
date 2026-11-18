@@ -540,7 +540,7 @@ export class Act2 {
         this.arenaStory = true;
         for (const s of STORY.arena) window.setTimeout(() => this.state === 'fight' && say(ui, s.line), s.after);
       }
-      window.setTimeout(() => ui.hint('drag the button to aim a lance   double-tap: dash'), 3600);
+      window.setTimeout(() => ui.hint(this.ctx.input.touchy ? 'drag the button to aim a lance   double-tap: dash' : 'hold space: a lance   double-tap space: dash   q / e: turn'), 3600);
       window.setTimeout(() => ui.hint(null), 9600);
     }
     this.quietStart = false;
