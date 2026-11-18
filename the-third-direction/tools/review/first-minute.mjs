@@ -262,8 +262,13 @@ while (now() < SECONDS) {
       const n = live.sort((a, b) => Math.hypot(a.x - s.pl.x, a.y - s.pl.y) - Math.hypot(b.x - s.pl.x, b.y - s.pl.y))[0];
       if (Math.hypot(n.x - s.pl.x, n.y - s.pl.y) < 26) keys = toward(s.pl.x - n.x, s.pl.y - n.y);
       else {
+        // hold until the button shows the Lance is ready (charge stage 1), as someone watching it would, then let go
         await press(new Set());
-        await holdSpace(650);
+        await page.keyboard.down('Space');
+        const t1 = now();
+        while (now() - t1 < 3 && !(await page.evaluate(() => window.__tt.act1.chargeStage >= 1))) await page.waitForTimeout(40);
+        await page.waitForTimeout(60);
+        await page.keyboard.up('Space');
         busyUntil = now() + 0.35;
         continue;
       }
