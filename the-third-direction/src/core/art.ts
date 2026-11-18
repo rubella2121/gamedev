@@ -282,8 +282,7 @@ export function makeVignette(): HTMLCanvasElement {
       const dx = (x - W / 2) / (W / 2);
       const dy = (y - H / 2) / (H / 2);
       const d = Math.sqrt(dx * dx * 0.9 + dy * dy * 0.75);
-      // (only the very edges: the middle of the screen is where the game is, and a wide view has a lot of middle)
-      const a = clamp((d - 0.74) / 0.45, 0, 1);
+      const a = clamp((d - 0.55) / 0.55, 0, 1);
       const thr = B[y & 3]![x & 3]!;
       const i = (y * W + x) * 4;
       if (a * 16 > thr) {

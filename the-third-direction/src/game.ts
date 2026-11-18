@@ -93,23 +93,7 @@ export class Game {
     this.tex2d.minFilter = this.tex2d.magFilter = THREE.NearestFilter;
     this.tex2d.generateMipmaps = false;
     this.tex2d.colorSpace = THREE.SRGBColorSpace;
-    // the forest on the screen, graded: its shadows lifted (a gamma under 1: the darks come up, the black stays black) and its
-    // colour a little richer, so it reads on any screen without losing the night
-    const mat2d = new THREE.MeshBasicMaterial({ map: this.tex2d, toneMapped: false });
-    mat2d.onBeforeCompile = (sh) => {
-      sh.fragmentShader = sh.fragmentShader.replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-        {
-          vec3 s = pow(max(diffuseColor.rgb, vec3(0.0)), vec3(1.0 / 2.2));
-          s = pow(s, vec3(0.82));
-          float l = dot(s, vec3(0.299, 0.587, 0.114));
-          s = clamp(mix(vec3(l), s, 1.12), 0.0, 1.0);
-          diffuseColor.rgb = pow(s, vec3(2.2));
-        }`,
-      );
-    };
-    const quad = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat2d);
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: this.tex2d, toneMapped: false }));
     this.scene2d.add(quad);
     this.cam2d.position.z = 5;
 
