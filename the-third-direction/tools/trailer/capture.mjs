@@ -13,6 +13,10 @@
 //   '3d'  the frame (00001.jpg), the Blob cut out of it (m00001.png, transparent round it) and, with `glow`, the light of what
 //         it wears that glows, on black (g00001.jpg); the moth and the moth's shield are left out of every frame
 // and layers.json: for each frame where the Blob is on the screen (and, in 2D, whether it is drawn and whether there is an h).
+//
+// A shot with `pix` saves the forest as its own pixels (00001.png, exact, 684 x 384 in the wide view) while it is the forest,
+// and the screen (00001.jpg) once it has torn open onto the 3D world: footage that can be cropped and scaled up with nearest
+// neighbour and stay sharp.
 import { chromium } from 'playwright-core';
 import { execFileSync } from 'child_process';
 import http from 'http';
@@ -100,6 +104,13 @@ for (const shot of SHOTS) {
       if (r.hd) save(`h${n}.jpg`, r.hd);
       if (r.b) save(`b${n}.png`, r.b.png);
       meta.push(r.b ? { x: r.b.x, y: r.b.y, shown: r.b.shown, mode: r.b.mode, hd: !!r.hd } : { shown: false, hd: !!r.hd, px: !!r.px });
+    } else if (shot.pix) {
+      // the forest as its own pixels (exact, HUD and all unless the shot turns it off) while it is the forest; the screen once
+      // it tears open onto the 3D world or the 3D has taken over
+      const r = await page.evaluate(`(() => { ${before} ${shot.each ?? ''}; __tt.tick(${dt});
+        const flat = __tt.state === 'act1' && !__tt.act1.portalView();
+        return flat ? { png: __tt.act1.p.canvas.toDataURL('image/png') } : { jpg: __tt.renderer.domElement.toDataURL('image/jpeg', 0.93) } })()`);
+      if (r.png) save(`${n}.png`, r.png); else save(`${n}.jpg`, r.jpg);
     } else {
       const data = await page.evaluate(`(() => { ${before} ${shot.each ?? ''}; __tt.tick(${dt}); return __tt.renderer.domElement.toDataURL('image/jpeg', 0.93) })()`);
       save(`${n}.jpg`, data);
