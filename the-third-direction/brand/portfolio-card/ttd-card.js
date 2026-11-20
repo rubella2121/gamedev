@@ -1,9 +1,9 @@
 /**
  * The Third Direction: a live project card for a portfolio site.
  *
- * One ES module, no dependencies. The preview is a 15-second loop of real gameplay (ttd-preview.mp4 / .webm, captured from
- * the game frame by frame): the 2D pixel forest, two guardian fights, the world tearing open onto the third dimension, and
- * two 3D boss fights.
+ * One ES module, no dependencies. The preview is a 13.5-second loop of real gameplay at 60 frames a second (ttd-preview.mp4 /
+ * .webm, captured from the game frame by frame): all eight bosses, the five guardians of the 2D pixel forest, the world
+ * tearing open onto the third dimension, and the three bosses of the 3D world.
  *
  *   <script type="module" src="/ttd-card.js"></script>
  *   <ttd-card></ttd-card>
@@ -47,13 +47,16 @@ export const TTD_MEDIA = {
  * change them together.
  */
 export const TTD_SEGMENTS = [
-  { t: 0.0, dim: '2D', name: 'the forest' },
-  { t: 1.73, dim: '2D', name: 'Gloommother' },
-  { t: 4.33, dim: '2D', name: 'Thornback King' },
-  { t: 6.73, dim: '2D', name: 'X, in the sky' },
-  { t: 7.57, dim: '3D', name: 'the world tears open' },
-  { t: 9.9, dim: '3D', name: 'X, the Hollow' },
-  { t: 12.8, dim: '3D', name: 'the Collector' },
+  { t: 0.0, dim: '2D', name: 'Gloommother' },
+  { t: 1.4, dim: '2D', name: 'Thornback King' },
+  { t: 2.8, dim: '2D', name: 'Toll Queen' },
+  { t: 4.2, dim: '2D', name: 'Bone Wyrm' },
+  { t: 5.6, dim: '2D', name: 'Mimic Queen' },
+  { t: 7.0, dim: '2D', name: 'X, in the sky' },
+  { t: 7.33, dim: '3D', name: 'the world tears open' },
+  { t: 8.67, dim: '3D', name: 'X, the Hollow' },
+  { t: 10.33, dim: '3D', name: 'the Collector' },
+  { t: 11.93, dim: '3D', name: 'the Mash' },
 ];
 
 /* ------------------------------------------------------------------------------------------------ */
