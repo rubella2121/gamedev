@@ -1,11 +1,12 @@
 # The Third Direction: live portfolio card
 
-A drop-in project card for a portfolio site. The left side has the title, status, description, stats and links. The right side plays a 15-second loop of **real gameplay**, captured from the game frame by frame:
+A drop-in project card for a portfolio site. The left side has the title, status, description, stats and links. The right side plays a 13.5-second loop of **real gameplay** at 60 frames a second, captured from the game frame by frame. It shows **all eight bosses**, each on a fast cut (about 1.4 s) of its busiest moment:
 
-1. the 2D pixel forest;
-2. two guardian fights (Gloommother, the Thornback King);
-3. X's eyes in the sky, and the world tearing open onto the third dimension;
-4. two 3D boss fights (X, the Hollow and the Collector).
+1. the five guardians of the 2D pixel forest: Gloommother, the Thornback King, the Toll Queen, the Bone Wyrm, the Mimic Queen;
+2. X's eyes in the sky, and the world tearing open onto the third dimension;
+3. the three bosses of the 3D world: X, the Hollow, the Collector, the Mash.
+
+The game runs 1.3 times as fast as it plays in the footage.
 
 A label on the video names each shot, with a 2D or 3D tag that is kept in step with the video.
 
@@ -14,8 +15,8 @@ A label on the video names each shot, with a 2D or 3D tag that is kept in step w
 | File | What it is |
 |---|---|
 | `ttd-card.js` | The card: one ES module with no dependencies. It defines `<ttd-card>` and exports `mountTTDVideo()`. |
-| `ttd-preview.mp4` | The gameplay loop: 15.2 s, 960x540, H.264, no sound, 1.6 MB. Every current browser plays it. |
-| `ttd-preview.webm` | The same loop in VP9 (2.3 MB), a fallback for browsers built without H.264. |
+| `ttd-preview.mp4` | The gameplay loop: 13.5 s, 960x540, 60 fps, H.264, no sound, 2.2 MB. Every current browser plays it. |
+| `ttd-preview.webm` | The same loop in VP9 (3.8 MB), a fallback for browsers built without H.264. |
 | `ttd-poster.jpg` | The tear (the forest and the 3D world in one frame), shown before the video loads and to people who ask for reduced motion. |
 | `demo.html` | The card at desktop and phone width. Serve the folder (`python3 -m http.server`) and open it; ES modules don't load from `file://`. |
 | `card.png` | The card as a still image, for a README or a social post. |
@@ -27,7 +28,7 @@ Links the card uses (all overridable):
 - itch.io: https://gautam-jain.itch.io/the-third-direction
 - Code: https://github.com/rubella2121/gamedev
 
-The footage is made by `tools/trailer/shots-card.mjs` (the shots, played by the game's own bots) and `tools/trailer/card-loop.py` (the cut). Run those again to remake it after the game changes. The forest is cropped from the game's own pixels and scaled up exactly 3x, so it stays sharp.
+The footage is made by `tools/trailer/shots-card.mjs` (the shots, played by the game's own bots) and `tools/trailer/card-loop.py` (the cut, which picks each boss's busiest stretch). Run those again to remake it after the game changes. The forest is cropped from the game's own pixels and scaled up with nearest neighbour first, so it stays sharp.
 
 ---
 
@@ -217,7 +218,7 @@ Use `card.png` in the same way where animation isn't wanted.
 
 - [ ] The card shows on the projects page in place of the old one, and the browser console has no errors.
 - [ ] The video plays on its own, muted, in Chrome, Firefox and Safari, including Safari on an iPhone, where it plays inline.
-- [ ] The label at the top left changes with the shots: the forest, Gloommother, Thornback King, X, in the sky, the world tears open, X, the Hollow, the Collector.
+- [ ] The label at the top left changes with the shots: Gloommother, Thornback King, Toll Queen, Bone Wyrm, Mimic Queen, X, in the sky, the world tears open, X, the Hollow, the Collector, the Mash.
 - [ ] The Network panel shows no video request until the card is near the screen, and only one of the two files is downloaded.
 - [ ] Scrolling the card off screen pauses the video.
 - [ ] It looks right at 360 px, 768 px and 1280 px wide: no horizontal scroll and no clipped text.

@@ -1,52 +1,47 @@
-// Real gameplay for the portfolio card's preview (brand/portfolio-card): wide 16:9 shots of the forest, a guardian fight, the
-// fall into 3D and the 3D fights, with the Blob as it is (no skin).
+// Real gameplay for the portfolio card's preview (brand/portfolio-card): every boss, wide 16:9, played by the game's bots,
+// with the Blob as it is (no skin).
 //   npm run build:standalone && node tools/trailer/capture.mjs dist-standalone tools/trailer/shots-card.mjs <outDir> [shot ...]
 // The 1280 x 720 page gives the game its wide view (684 x 384 pixels in the forest). The forest shots keep its own pixels
 // (`pix`, see capture.mjs) with the HUD off, so the edit can crop in on the action and scale it up sharp.
+// The footage is 60 frames a second with the game running 1.3 times as fast as it plays (each frame moves it on 1.3/60 s):
+// smooth, and quick enough for a loop that has to show eight bosses in about thirteen seconds.
+const SPEED = 1.3;
+const DT = SPEED / 60;
+const frames = (gameSeconds) => Math.round(gameSeconds / DT);
 const begin = '__tt.begin(); __tt.act1.skipOpening();';
-const WIDE = { viewport: [1280, 720], budget: 9.3e5, skin: 'default' };
+// (the 3D is drawn at about the video's own size: 5.3e5 pixels)
+const WIDE = { viewport: [1280, 720], budget: 5.3e5, skin: 'default', dt: DT };
 const NOHUD = '__tt.act1.drawHud = () => {}; __tt.act1.drawCompass = () => {};';
 const UNTIL3 = "__tt.act2.state === 'fight' && __tt.act2.boss.state === 'fight' && __tt.act2.control";
 
-// running about a zone, pulsing now and then
-const run = (id, frames = 120) => ({
-  name: `c-run-${id}`,
-  ...WIDE,
-  pix: true,
-  setup: `${begin} __tt.act1.warp('${id}')`,
-  until: '__tt.act1.mode === "play"',
-  atStart: NOHUD,
-  warm: 10,
-  each: "const i = __tt.input; const t = __tt.act1.time; i.joyX = Math.sin(t * 0.7) * 0.8; i.joyY = -0.6 + Math.cos(t * 0.5) * 0.3; if (Math.floor(t * 1.4) !== Math.floor((t - 1/30) * 1.4)) { i.keys.add(' '); setTimeout(() => i.keys.delete(' '), 40); }",
-  frames,
-});
 // a guardian fight, played by the bot from the moment the guardian is up
-const fight = (id, frames = 240) => ({
+const fight = (id, seconds = 9) => ({
   name: `c-fight-${id}`,
   ...WIDE,
   pix: true,
   setup: `${begin} __bot.run('${id}', 1)`,
   atStart: NOHUD,
   until: `(() => { const z = __tt.act1.zones.find((q) => q.guardian && q.guardian.state !== 'gone'); return z && z.guardian.state === 'fight' })()`,
-  frames,
+  frames: frames(seconds),
 });
 // a 3D fight played by the bot, seen through the game's own camera (what a player sees)
-const fight3d = (name, b, frames = 150, warm = 20) => ({
-  name,
+const fight3d = (id, b, seconds = 4.6) => ({
+  name: `c-3d-${id}`,
   ...WIDE,
   setup: `__bot3.run(${b}, 0, 1)`,
   until: UNTIL3,
-  warm,
-  frames,
+  warm: 20,
+  frames: frames(seconds),
 });
 
 export const SHOTS = [
-  run('gloom'),
-  run('meadow'),
+  // the five guardians of the forest
   fight('gloom'),
   fight('thicket'),
+  fight('marsh'),
   fight('bones'),
-  // the Edge: X comes into the forest, the rift, the dive through into 3D (it stops a few seconds after the 3D takes over)
+  fight('meadow'),
+  // the Edge: X's eyes over the forest, then the world tears open onto the 3D world behind it (26.6 s to 30 s of the scene)
   {
     name: 'c-edge',
     ...WIDE,
@@ -55,10 +50,11 @@ export const SHOTS = [
     atStart: NOHUD,
     setup: '__tt.playEdge()',
     until: "__tt.act1.mode !== 'opening'",
-    frames: 2600,
-    stop: "(window.__z = __tt.state !== 'act1' ? (window.__z || 0) + 1 : 0) > 120",
+    warm: frames(26.6),
+    frames: frames(3.4),
   },
-  fight3d('c-3d-x', 0),
-  fight3d('c-3d-collector', 1, 100),
-  fight3d('c-3d-mash', 2),
+  // the three bosses of the third dimension
+  fight3d('x', 0),
+  fight3d('collector', 1),
+  fight3d('mash', 2, 5.5),
 ];

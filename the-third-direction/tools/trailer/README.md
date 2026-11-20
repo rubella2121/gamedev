@@ -26,7 +26,7 @@ The Python compositor here (`edit.py` and the rest) made the earlier cuts.
 | `voices.py` | Picks the take that fits each line's slot and gives it a space: EQ, compression, a convolution room. The narrator is taken down to a trailer voice's depth with Praat's PSOLA; the last line is turned into a true whisper. |
 | `mix.py` | The voices on the music; the music ducks under speech. |
 | `edit.py` | The picture: the cut, the grade, the transitions (flash / whip / glitch / dissolve), the motion graphics and the title, muxed with the mix at -14 LUFS. |
-| `shots-card.mjs`, `card-loop.py` | The portfolio card's preview (`brand/portfolio-card/`): wide 16:9 shots of the real game (the forest at its own pixels with `pix`, the 3D through the game's own camera), cut into a 15-second loop, MP4 and WebM, with the times of its shots for the card's label. |
+| `shots-card.mjs`, `card-loop.py` | The portfolio card's preview (`brand/portfolio-card/`): every boss in wide 16:9 shots of the real game at 60 fps with the game 1.3x as fast (the forest at its own pixels with `pix`, the 3D through the game's own camera), cut on each boss's busiest stretch into a 13.5-second loop, MP4 and WebM, with the times of its shots for the card's label. |
 
 ## Making it
 
