@@ -1,4 +1,4 @@
-import type { Pix } from '../../core/pix';
+import { H, W, type Pix } from '../../core/pix';
 import { clamp, TAU } from '../../core/util';
 import type { Hub } from '../types';
 
@@ -191,7 +191,7 @@ export class Hazards {
     if (h.kind === 'disc') {
       const rx = h.r;
       const ry = h.r * FLAT;
-      if (sx < -rx - 10 || sx > 226 + rx || sy < -ry - 10 || sy > 394 + ry) return;
+      if (sx < -rx - 10 || sx > W + 10 + rx || sy < -ry - 10 || sy > H + 10 + ry) return;
       if (warning) {
         p.dither(sx, sy, rx, ry, dk, (h.soft ? 0.2 : 0.35) + 0.4 * u);
         p.dither(sx, sy, rx * 0.7, ry * 0.7, md, 0.1 + 0.3 * u);
@@ -212,7 +212,7 @@ export class Hazards {
     if (h.kind === 'ring') {
       const R = warning ? h.r : this.ringR(h);
       const a = warning ? 0.35 + 0.4 * u : 1 - fadeU;
-      if (sx < -R - 10 || sx > 226 + R || sy < -R - 10 || sy > 394 + R) return;
+      if (sx < -R - 10 || sx > W + 10 + R || sy < -R - 10 || sy > H + 10 + R) return;
       p.alpha(clamp(a, 0, 1));
       const n = Math.max(24, Math.round(R * 0.9));
       for (let i = 0; i < n; i++) {

@@ -1,4 +1,4 @@
-import type { Pix } from '../../core/pix';
+import { H, W, type Pix } from '../../core/pix';
 import { C } from '../../core/palette';
 import { clamp, TAU } from '../../core/util';
 import type { Hub } from '../types';
@@ -107,7 +107,8 @@ export class Shots {
     for (const s of this.list) {
       const sx = s.x - camX;
       const sy = s.y - camY;
-      if (sx < -10 || sx > 226 || sy < -10 || sy > 394) continue;
+      // (the view's live size: the wide desktop view is 684 across, not the phone's 216)
+      if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
       const a = s.life < 0.25 ? s.life * 4 : 1;
       p.alpha(a);
       this.drawShot(p, s, sx, sy, t);
